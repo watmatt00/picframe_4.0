@@ -1,0 +1,32 @@
+# PicFrame 4.0 Configuration Example
+# Copy to ~/.picframe/config.yaml and customize
+
+frame:
+  # Unique identifier for this frame (used in pairing)
+  id: "kitchen-frame"
+  # Human-readable name shown in mobile app
+  name: "Kitchen Frame"
+
+display:
+  # ID of the currently active photo source
+  current_source: "koofr_main"
+  # Seconds between image transitions
+  rotation_interval: 30
+
+sync:
+  # Seconds between sync checks (900 = 15 minutes)
+  interval: 900
+  # Extra flags to pass to rclone
+  rclone_flags: []
+
+tailscale:
+  # Port for Tailscale Funnel HTTPS (usually 443)
+  funnel_port: 443
+
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+  # Days to keep operation logs
+  retention_days: 7
+  # Days to keep security logs
+  security_retention_days: 90

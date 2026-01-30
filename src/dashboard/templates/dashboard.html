@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - PicFrame{% endblock %}
+
+{% block content %}
+<h1>{{ frame_name }}</h1>
+
+<section class="status-cards">
+    <div class="card">
+        <h3>Sync Status</h3>
+        <div class="status-indicator {{ 'match' if sync_status == 'match' else 'mismatch' if sync_status == 'mismatch' else 'unknown' }}">
+            {{ sync_status | upper }}
+        </div>
+        <p>Local: {{ local_count }} files</p>
+        <p>Remote: {{ remote_count }} files</p>
+        <button class="btn btn-primary" onclick="triggerSync()">Sync Now</button>
+    </div>
+
+    <div class="card">
+        <h3>Current Source</h3>
+        <p class="source-name">{{ current_source }}</p>
+        <form action="/display/folder" method="post" class="source-switcher">
+            <select name="source_id" id="source-select">
+                <!-- Populated via JS -->
+            </select>
+            <button type="submit" class="btn">Switch</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>Services</h3>
+        <ul class="service-list">
+            {% for service in services %}
+            <li class="{{ 'active' if service.active else 'inactive' }}">
+                {{ service.name }}
+                <span class="status">{{ service.status }}</span>
+                <button class="btn btn-small" onclick="restartService('{{ service.name }}')">Restart</button>
+            </li>
+            {% else %}
+            <li>Loading services...</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="card">
+        <h3>Storage</h3>
+        <div class="storage-bar">
+            <div class="storage-used" style="width: 0%"></div>
+        </div>
+        <p><span id="storage-used">--</span> / <span id="storage-total">--</span> GB</p>
+    </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function triggerSync() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Syncing...';
+
+    try {
+        const response = await fetch('/sync', { method: 'POST' });
+        const result = await response.json();
+        location.reload();
+    } catch (err) {
+        alert('Sync failed: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sync Now';
+    }
+}
+
+async function restartService(name) {
+    if (!confirm(`Restart ${name}?`)) return;
+
+    try {
+        const response = await fetch(`/services/${name}/restart`, { method: 'POST' });
+        const result = await response.json();
+        location.reload();
+    } catch (err) {
+        alert('Restart failed: ' + err.message);
+    }
+}
+
+// Load dynamic data on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    // TODO: Fetch and update status
+});
+</script>
+{% endblock %}

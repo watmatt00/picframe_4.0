@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Pair Device - PicFrame{% endblock %}
+
+{% block content %}
+<h1>Pair a Device</h1>
+
+<section class="card pairing-card">
+    <div class="qr-container">
+        {% if qr_data_url %}
+        <img src="{{ qr_data_url }}" alt="Pairing QR Code" class="qr-code">
+        {% else %}
+        <div class="qr-placeholder">
+            <p>Click "Generate Code" to create a pairing QR code</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="pairing-info">
+        {% if code %}
+        <p class="pairing-code">{{ code }}</p>
+        <p class="expires">Expires in <span id="countdown">{{ expires_in }}</span> seconds</p>
+        {% endif %}
+
+        <button class="btn btn-primary" onclick="generateCode()">
+            {{ 'Regenerate Code' if code else 'Generate Code' }}
+        </button>
+    </div>
+
+    <div class="instructions">
+        <h3>Instructions</h3>
+        <ol>
+            <li>Open the PicFrame app on your mobile device</li>
+            <li>Tap "Add Frame" or the + button</li>
+            <li>Scan the QR code above</li>
+            <li>Your device will be paired automatically</li>
+        </ol>
+        <p><strong>Note:</strong> The code expires after 5 minutes for security.</p>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let countdownInterval;
+
+async function generateCode() {
+    try {
+        const response = await fetch('/pairing/generate', { method: 'POST' });
+        const data = await response.json();
+
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Failed to generate code: ' + (data.detail || 'Unknown error'));
+        }
+    } catch (err) {
+        alert('Failed to generate code: ' + err.message);
+    }
+}
+
+function startCountdown(seconds) {
+    const countdownEl = document.getElementById('countdown');
+    if (!countdownEl) return;
+
+    let remaining = seconds;
+
+    countdownInterval = setInterval(() => {
+        remaining--;
+        countdownEl.textContent = remaining;
+
+        if (remaining <= 0) {
+            clearInterval(countdownInterval);
+            location.reload();
+        }
+    }, 1000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const countdownEl = document.getElementById('countdown');
+    if (countdownEl) {
+        startCountdown(parseInt(countdownEl.textContent));
+    }
+});
+</script>
+{% endblock %}

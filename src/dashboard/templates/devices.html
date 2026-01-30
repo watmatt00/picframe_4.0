@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Devices - PicFrame{% endblock %}
+
+{% block content %}
+<h1>Paired Devices</h1>
+
+<p class="description">
+    These mobile devices can manage this frame.
+    <a href="/pairing">Add a new device</a>
+</p>
+
+<section class="card">
+    <table class="device-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Paired</th>
+                <th>Last Seen</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for device in devices %}
+            <tr>
+                <td>{{ device.name }}</td>
+                <td><span class="badge badge-{{ device.role }}">{{ device.role }}</span></td>
+                <td>{{ device.paired_at }}</td>
+                <td>{{ device.last_seen or 'Never' }}</td>
+                <td>
+                    <button class="btn btn-small btn-danger"
+                            onclick="revokeDevice('{{ device.id }}', '{{ device.name }}')"
+                            {% if devices|length == 1 %}disabled title="Cannot remove last device"{% endif %}>
+                        Revoke
+                    </button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" class="empty-message">
+                    No devices paired. <a href="/pairing">Pair a device</a> to get started.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function revokeDevice(id, name) {
+    if (!confirm(`Revoke access for "${name}"? They will need to re-pair to access this frame.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/devices/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            location.reload();
+        } else {
+            const error = await response.json();
+            alert('Failed to revoke device: ' + (error.detail || 'Unknown error'));
+        }
+    } catch (err) {
+        alert('Failed to revoke device: ' + err.message);
+    }
+}
+</script>
+{% endblock %}

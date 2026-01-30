@@ -1,0 +1,18 @@
+[Unit]
+Description=PicFrame 4.0 API Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/picframe_4.0/venv/bin/uvicorn src.api.app:app --host 0.0.0.0 --port 8000
+WorkingDirectory=%h/picframe_4.0
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

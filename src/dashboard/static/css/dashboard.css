@@ -1,0 +1,388 @@
+/* PicFrame 4.0 Dashboard Styles */
+
+:root {
+    --primary: #3b82f6;
+    --primary-dark: #2563eb;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-600: #4b5563;
+    --gray-800: #1f2937;
+    --gray-900: #111827;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--gray-100);
+    color: var(--gray-800);
+    line-height: 1.6;
+}
+
+/* Navigation */
+.navbar {
+    background: var(--gray-900);
+    color: white;
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.nav-brand a {
+    color: white;
+    text-decoration: none;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.nav-links {
+    list-style: none;
+    display: flex;
+    gap: 1.5rem;
+}
+
+.nav-links a {
+    color: var(--gray-300);
+    text-decoration: none;
+    padding: 0.5rem;
+}
+
+.nav-links a:hover,
+.nav-links a.active {
+    color: white;
+}
+
+/* Main container */
+.container {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+h1 {
+    margin-bottom: 1.5rem;
+    color: var(--gray-900);
+}
+
+/* Cards */
+.card {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+}
+
+.card h3 {
+    margin-bottom: 1rem;
+    color: var(--gray-800);
+    border-bottom: 1px solid var(--gray-200);
+    padding-bottom: 0.5rem;
+}
+
+/* Status cards grid */
+.status-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+/* Status indicator */
+.status-indicator {
+    font-size: 1.5rem;
+    font-weight: bold;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 1rem;
+}
+
+.status-indicator.match {
+    background: #dcfce7;
+    color: var(--success);
+}
+
+.status-indicator.mismatch {
+    background: #fef3c7;
+    color: var(--warning);
+}
+
+.status-indicator.unknown {
+    background: var(--gray-200);
+    color: var(--gray-600);
+}
+
+/* Buttons */
+.btn {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    background: var(--gray-200);
+    color: var(--gray-800);
+    text-decoration: none;
+}
+
+.btn:hover {
+    background: var(--gray-300);
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-dark);
+}
+
+.btn-danger {
+    background: var(--danger);
+    color: white;
+}
+
+.btn-small {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+/* Forms */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--gray-300);
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.form-group small {
+    color: var(--gray-600);
+    font-size: 0.8rem;
+}
+
+.form-actions {
+    margin-top: 1.5rem;
+    display: flex;
+    gap: 1rem;
+}
+
+/* Service list */
+.service-list {
+    list-style: none;
+}
+
+.service-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.service-list li:last-child {
+    border-bottom: none;
+}
+
+.service-list .status {
+    margin-left: auto;
+    margin-right: 1rem;
+    color: var(--gray-600);
+}
+
+.service-list li.active .status {
+    color: var(--success);
+}
+
+.service-list li.inactive .status {
+    color: var(--danger);
+}
+
+/* Storage bar */
+.storage-bar {
+    background: var(--gray-200);
+    height: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.storage-used {
+    background: var(--primary);
+    height: 100%;
+    transition: width 0.3s;
+}
+
+/* Device table */
+.device-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.device-table th,
+.device-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.device-table th {
+    background: var(--gray-100);
+    font-weight: 600;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.badge-admin {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.empty-message {
+    text-align: center;
+    color: var(--gray-600);
+    padding: 2rem !important;
+}
+
+/* Pairing */
+.pairing-card {
+    max-width: 500px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.qr-container {
+    margin-bottom: 1.5rem;
+}
+
+.qr-code {
+    max-width: 300px;
+    border: 4px solid var(--gray-800);
+    border-radius: 8px;
+}
+
+.qr-placeholder {
+    width: 300px;
+    height: 300px;
+    background: var(--gray-200);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    border-radius: 8px;
+}
+
+.pairing-code {
+    font-size: 2rem;
+    font-weight: bold;
+    font-family: monospace;
+    letter-spacing: 0.2em;
+    margin-bottom: 0.5rem;
+}
+
+.expires {
+    color: var(--gray-600);
+    margin-bottom: 1rem;
+}
+
+.instructions {
+    text-align: left;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--gray-200);
+}
+
+.instructions ol {
+    margin-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+/* Logs */
+.log-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.auto-refresh {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.log-viewer {
+    background: var(--gray-900);
+    color: #10b981;
+    padding: 1rem;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    max-height: 500px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    padding: 1rem;
+    color: var(--gray-600);
+    font-size: 0.9rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .navbar {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .nav-links {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .status-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .device-table {
+        font-size: 0.9rem;
+    }
+
+    .device-table th,
+    .device-table td {
+        padding: 0.5rem;
+    }
+}
