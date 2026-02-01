@@ -16,15 +16,11 @@ from src.api.dependencies import require_admin
 from src.auth.jwt_handler import create_token
 from src.auth.models import Device
 from src.auth.pairing import generate_pairing_code as gen_code, verify_pairing_code
+from src.config.settings import get_settings
 from src.storage.devices import device_storage
 from src.utils.qr_generator import generate_pairing_qr
 
 router = APIRouter(tags=["pairing"])
-
-# Frame configuration - TODO: Move to config file
-FRAME_ID = "tkframe"
-FRAME_NAME = "Test Frame"
-FUNNEL_URL = "https://tkframe.tail7de60a.ts.net"
 
 
 class PairRequest(BaseModel):
@@ -62,13 +58,16 @@ async def pair_device(request: PairRequest):
             detail="Invalid or expired pairing code",
         )
 
+    # Get frame config
+    settings = get_settings()
+
     # Generate device ID and create JWT
     device_id = str(uuid.uuid4())
     token = create_token(
         device_id=device_id,
         device_name=request.device_name,
         role="admin",
-        frame_id=FRAME_ID,
+        frame_id=settings.frame.id,
     )
 
     # Store the new device
@@ -82,8 +81,8 @@ async def pair_device(request: PairRequest):
 
     return PairResponse(
         token=token,
-        frame_id=FRAME_ID,
-        frame_name=FRAME_NAME,
+        frame_id=settings.frame.id,
+        frame_name=settings.frame.name,
     )
 
 
@@ -96,6 +95,15 @@ async def generate_pairing_code(admin=Depends(require_admin)):
     Code expires after 5 minutes or 3 failed attempts.
     Rate limit: 3 codes per hour.
     """
+    # Get frame config
+    settings = get_settings()
+
+    if not settings.frame.funnel_url:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Funnel URL not configured. Set frame.funnel_url in config.",
+        )
+
     # Generate pairing code
     pairing_code = gen_code()
 
@@ -107,9 +115,9 @@ async def generate_pairing_code(admin=Depends(require_admin)):
 
     # Generate QR code
     qr_base64 = generate_pairing_qr(
-        url=FUNNEL_URL,
+        url=settings.frame.funnel_url,
         code=pairing_code.code,
-        frame_name=FRAME_NAME,
+        frame_name=settings.frame.name,
     )
 
     return PairingGenerateResponse(

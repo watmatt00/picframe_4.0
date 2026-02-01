@@ -21,6 +21,7 @@ class FrameConfig(BaseModel):
     """Frame identification settings."""
     id: str = Field(default="picframe", description="Unique frame identifier")
     name: str = Field(default="PicFrame", description="Human-readable frame name")
+    funnel_url: str = Field(default="", description="Tailscale Funnel URL")
 
 
 class DisplayConfig(BaseModel):
@@ -107,7 +108,26 @@ def get_settings() -> Settings:
     """
     Get application settings (cached).
 
+    Auto-creates default config file if it doesn't exist.
+
     Returns:
         Settings instance
     """
+    if not CONFIG_FILE.exists():
+        # Create default config
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        default_settings = Settings()
+        default_settings.to_yaml(CONFIG_FILE)
+
     return Settings.from_yaml()
+
+
+def reload_settings() -> Settings:
+    """
+    Reload settings from disk, clearing the cache.
+
+    Returns:
+        Fresh Settings instance
+    """
+    get_settings.cache_clear()
+    return get_settings()
