@@ -39,6 +39,21 @@ async def version():
     return {"version": "4.0.0", "api": "picframe"}
 
 
+# DEBUG: Test token generation - REMOVE IN PRODUCTION
+@app.get("/debug/token")
+async def debug_token():
+    """Generate a test token for development. REMOVE IN PRODUCTION."""
+    from src.auth.jwt_handler import create_token
+    import uuid
+    token = create_token(
+        device_id=str(uuid.uuid4()),
+        device_name="Debug Device",
+        role="admin",
+        frame_id="tkframe",
+    )
+    return {"token": token, "warning": "DEBUG ENDPOINT - REMOVE IN PRODUCTION"}
+
+
 # Include API routes (JWT authenticated)
 app.include_router(pairing.router)
 app.include_router(status.router)
