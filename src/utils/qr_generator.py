@@ -10,7 +10,7 @@ import json
 from typing import Optional
 
 import qrcode
-from qrcode.image.pure import PyPNGImage
+from qrcode.image.pil import PilImage
 
 
 def generate_pairing_qr(
@@ -53,12 +53,12 @@ def generate_pairing_qr(
     qr.add_data(payload)
     qr.make(fit=True)
 
-    # Create image
-    img = qr.make_image(fill_color="black", back_color="white", image_factory=PyPNGImage)
+    # Create image using Pillow (already installed)
+    img = qr.make_image(fill_color="black", back_color="white", image_factory=PilImage)
 
-    # Convert to base64
+    # Convert to base64 PNG
     buffer = io.BytesIO()
-    img.save(buffer)
+    img.save(buffer, format="PNG")
     buffer.seek(0)
 
     return base64.b64encode(buffer.read()).decode("utf-8")
