@@ -6,10 +6,10 @@ Secure mobile management for Raspberry Pi picture frames.
 
 PicFrame 4.0 is a complete rewrite providing:
 - **FastAPI backend** with JWT authentication
-- **Web dashboard** for LAN-based management
+- **Web dashboard** for LAN-based management (coming soon)
 - **Mobile app support** via Tailscale Funnel (no VPN needed)
 - **Pi3D PictureFrame** integration for GPU-accelerated display
-- **rclone sync** for cloud photo synchronization
+- **rclone sync** for cloud photo synchronization (coming soon)
 
 ## Architecture
 
@@ -19,19 +19,34 @@ Web Dashboard ──(LAN only)──────> Pi API ──> Pi3D Display
 Contributors ──(Koofr)──────────> Cloud ──> rclone sync
 ```
 
+## Current Status
+
+**Phase 1 Complete** - API Foundation + Remote Access
+
+| Feature | Status |
+|---------|--------|
+| FastAPI skeleton | Done |
+| Tailscale Funnel | Done |
+| JWT authentication | Done |
+| Device pairing (QR) | Done |
+| Config management | Done |
+| Dual logging | Done |
+| rclone sync | Phase 2 |
+| Web dashboard | Phase 3 |
+| systemd service | Phase 4 |
+
 ## Quick Start
 
 ### Prerequisites
 - Raspberry Pi 4/5 with 64-bit OS
 - Pi3D PictureFrame installed
-- rclone configured
-- Tailscale account
+- Tailscale account with Funnel enabled
 
 ### Installation
 
 ```bash
 # Clone repo
-git clone https://github.com/<your-org>/picframe_4.0.git
+git clone https://github.com/watmatt00/picframe_4.0.git
 cd picframe_4.0
 
 # Create virtual environment
@@ -41,18 +56,26 @@ source venv/bin/activate
 # Install
 pip install -e .
 
-# Run install script
-./scripts/install.sh
-
-# Start service
-systemctl --user enable picframe-api.service
-systemctl --user start picframe-api.service
+# Run API (development mode)
+python -m src.main
 ```
+
+See [Pi Setup Guide](docs/PI_SETUP.md) for complete installation instructions.
 
 ### Access
 
-- **Dashboard**: `http://<pi-ip>:8000` (LAN only, no auth)
-- **Mobile API**: `https://<hostname>.ts.net` (JWT auth via Tailscale Funnel)
+- **Local API**: `http://<pi-ip>:8000`
+- **Remote API**: `https://<hostname>.<tailnet>.ts.net` (via Tailscale Funnel)
+
+### Test Endpoints
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Version
+curl http://localhost:8000/version
+```
 
 ## Documentation
 
@@ -74,7 +97,7 @@ pytest
 # Run linting
 ruff check src/
 
-# Run locally
+# Run locally with auto-reload
 uvicorn src.api.app:app --reload --host 0.0.0.0 --port 8000
 ```
 
