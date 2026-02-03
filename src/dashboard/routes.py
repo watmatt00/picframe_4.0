@@ -19,7 +19,8 @@ from src.services.sync_service import sync_service
 from src.services.systemd_service import systemd_service
 from src.services.display_service import display_service
 from src.storage.devices import device_storage
-from src.auth.pairing import pairing_manager
+from src.auth.pairing import generate_pairing_code
+from src.utils.qr_generator import generate_qr_data_url
 from src.utils.rclone import count_local_files
 
 router = APIRouter(tags=["dashboard"])
@@ -178,13 +179,19 @@ async def pairing_page(request: Request):
     settings = get_settings()
 
     # Generate a new pairing code
-    pairing_data = pairing_manager.generate_code()
+    pairing_code = generate_pairing_code()
 
-    if pairing_data:
+    if pairing_code:
+        # Generate QR code with frame URL and code
+        qr_data_url = generate_qr_data_url(
+            url=settings.frame.funnel_url,
+            code=pairing_code.code,
+            frame_name=settings.frame.name,
+        )
         context = {
             "request": request,
-            "qr_data_url": pairing_data.qr_data_url,
-            "code": pairing_data.code,
+            "qr_data_url": qr_data_url,
+            "code": pairing_code.code,
             "expires_in": 300,
             "frame_name": settings.frame.name,
             "funnel_url": settings.frame.funnel_url,
@@ -205,15 +212,21 @@ async def pairing_page(request: Request):
 
 
 @router.post("/pairing/generate")
-async def generate_pairing():
+async def generate_pairing_endpoint():
     """Generate a new pairing code (AJAX endpoint)."""
-    pairing_data = pairing_manager.generate_code()
+    settings = get_settings()
+    pairing_code = generate_pairing_code()
 
-    if pairing_data:
+    if pairing_code:
+        qr_data_url = generate_qr_data_url(
+            url=settings.frame.funnel_url,
+            code=pairing_code.code,
+            frame_name=settings.frame.name,
+        )
         return {
-            "code": pairing_data.code,
-            "qr_data_url": pairing_data.qr_data_url,
-            "expires_at": pairing_data.expires_at.isoformat(),
+            "code": pairing_code.code,
+            "qr_data_url": qr_data_url,
+            "expires_at": pairing_code.expires_at.isoformat(),
         }
     else:
         return {"error": "Rate limit exceeded"}
