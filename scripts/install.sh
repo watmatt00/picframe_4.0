@@ -51,11 +51,13 @@ if [[ ! -f "$CONFIG_DIR/sources.yaml" ]]; then
     echo "Created $CONFIG_DIR/sources.yaml - please customize"
 fi
 
-# Set up systemd service
+# Set up systemd services
 echo ""
-echo "Setting up systemd service..."
+echo "Setting up systemd services..."
 mkdir -p "$HOME/.config/systemd/user"
 cp "$PROJECT_DIR/systemd/picframe-api.service" "$HOME/.config/systemd/user/"
+cp "$PROJECT_DIR/systemd/picframe-sync.service" "$HOME/.config/systemd/user/"
+cp "$PROJECT_DIR/systemd/picframe-sync.timer" "$HOME/.config/systemd/user/"
 
 # Reload systemd
 systemctl --user daemon-reload
@@ -75,8 +77,10 @@ echo "1. Edit ~/.picframe/config.yaml with your frame settings"
 echo "2. Edit ~/.picframe/sources.yaml with your photo sources"
 echo "3. Configure rclone: rclone config"
 echo "4. Set up Tailscale Funnel: ./scripts/setup_tailscale.sh"
-echo "5. Start the service:"
-echo "   systemctl --user enable picframe-api"
-echo "   systemctl --user start picframe-api"
+echo "5. Start the services:"
+echo "   systemctl --user enable picframe-api picframe-sync.timer"
+echo "   systemctl --user start picframe-api picframe-sync.timer"
 echo ""
-echo "Check status with: systemctl --user status picframe-api"
+echo "Check status with:"
+echo "   systemctl --user status picframe-api"
+echo "   systemctl --user list-timers"

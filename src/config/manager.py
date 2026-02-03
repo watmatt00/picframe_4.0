@@ -150,3 +150,10 @@ class ConfigManager:
                 ConfigManager._deep_update(base[key], value)
             else:
                 base[key] = value
+
+
+# Default config path
+CONFIG_PATH = Path.home() / ".picframe" / "config.yaml"
+
+# Global config manager instance
+config_manager = ConfigManager(CONFIG_PATH)

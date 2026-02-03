@@ -1,0 +1,11 @@
+[Unit]
+Description=PicFrame 4.0 Photo Sync
+After=network-online.target picframe-api.service
+Wants=network-online.target
+Requires=picframe-api.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/curl -s -X POST http://localhost:8000/folders/sync/all -H "Content-Type: application/json"
+StandardOutput=journal
+StandardError=journal

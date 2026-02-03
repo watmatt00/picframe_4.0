@@ -8,7 +8,10 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import yaml
 from pydantic import BaseModel
+
+from src.services.systemd_service import systemd_service
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +40,29 @@ class DisplayService:
         self._mqtt = mqtt_client
         self._config_path = PI3D_CONFIG_PATH
 
+    def _load_pi3d_config(self) -> dict:
+        """Load the Pi3D configuration.yaml file."""
+        if not self._config_path.exists():
+            logger.warning(f"Pi3D config not found: {self._config_path}")
+            return {}
+
+        try:
+            with open(self._config_path) as f:
+                return yaml.safe_load(f) or {}
+        except Exception as e:
+            logger.error(f"Failed to load Pi3D config: {e}")
+            return {}
+
+    def _save_pi3d_config(self, config: dict) -> bool:
+        """Save the Pi3D configuration.yaml file."""
+        try:
+            with open(self._config_path, "w") as f:
+                yaml.safe_dump(config, f, default_flow_style=False)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save Pi3D config: {e}")
+            return False
+
     async def get_current_folder(self) -> str:
         """
         Get the currently active display folder.
@@ -44,30 +70,60 @@ class DisplayService:
         Returns:
             Path to the current picture directory
         """
-        # TODO: Parse Pi3D configuration.yaml
-        # Look for model.pic_dir
-        return str(PI3D_PICTURES_PATH)
+        config = self._load_pi3d_config()
+        model = config.get("model", {})
+        pic_dir = model.get("pic_dir", str(PI3D_PICTURES_PATH))
+        subdirectory = model.get("subdirectory", "")
 
-    async def switch_folder(self, source_path: Path) -> bool:
+        if subdirectory:
+            return str(Path(pic_dir) / subdirectory)
+        return pic_dir
+
+    async def switch_folder(self, source_path: Path, restart_service: bool = True) -> bool:
         """
         Switch the display to a different photo source.
 
-        This can be done either by:
-        1. Updating the Pi3D config and restarting the service
-        2. Sending MQTT command to change subdirectory (if within pic_dir)
+        Updates the Pi3D configuration and optionally restarts the service.
 
         Args:
             source_path: Path to the photo source directory
+            restart_service: Whether to restart picframe.service after updating
 
         Returns:
             True if switch was successful
         """
         logger.info(f"Switching display to: {source_path}")
 
-        # TODO: Implement folder switching
-        # Option 1: Update config and restart
-        # Option 2: Use MQTT subdirectory command
-        return False
+        if not source_path.exists():
+            logger.error(f"Source path does not exist: {source_path}")
+            return False
+
+        # Load current config
+        config = self._load_pi3d_config()
+        if not config:
+            logger.error("Failed to load Pi3D config")
+            return False
+
+        # Update the pic_dir
+        if "model" not in config:
+            config["model"] = {}
+        config["model"]["pic_dir"] = str(source_path)
+        config["model"]["subdirectory"] = ""  # Clear subdirectory when switching
+
+        # Save config
+        if not self._save_pi3d_config(config):
+            return False
+
+        logger.info(f"Updated Pi3D config: pic_dir = {source_path}")
+
+        # Restart the service to pick up changes
+        if restart_service:
+            success = await systemd_service.restart("picframe")
+            if not success:
+                logger.warning("Failed to restart picframe service")
+            return success
+
+        return True
 
     async def send_mqtt_command(self, topic: str, payload: str) -> bool:
         """

@@ -1,0 +1,15 @@
+[Unit]
+Description=PicFrame 4.0 Photo Sync Timer
+After=picframe-api.service
+
+[Timer]
+# Run 15 minutes after boot
+OnBootSec=15min
+# Then every 15 minutes
+OnUnitActiveSec=15min
+# Add randomized delay to avoid thundering herd
+RandomizedDelaySec=60
+Persistent=true
+
+[Install]
+WantedBy=timers.target

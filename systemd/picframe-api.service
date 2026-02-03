@@ -1,14 +1,17 @@
 [Unit]
 Description=PicFrame 4.0 API Server
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=%h/picframe_4.0/venv/bin/uvicorn src.api.app:app --host 0.0.0.0 --port 8000
 WorkingDirectory=%h/picframe_4.0
+Environment="PATH=%h/picframe_4.0/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=%h/picframe_4.0/venv/bin/python -m src.main
 Restart=on-failure
 RestartSec=5
-Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
 
 # Security hardening
 NoNewPrivileges=true

@@ -2,6 +2,10 @@
 
 Complete setup guide for a fresh Raspberry Pi.
 
+**IMPORTANT FOR CLAUDE**: When guiding a user through Pi setup, prompt them explicitly
+at each step checkpoint before moving to the next step. Do not assume any step is complete
+unless the user confirms it.
+
 ## Prerequisites
 
 - Raspberry Pi 4 or 5 (64-bit recommended)
@@ -10,7 +14,11 @@ Complete setup guide for a fresh Raspberry Pi.
 - Network connection (Ethernet or WiFi)
 - Tailscale account
 
+---
+
 ## Step 1: Raspberry Pi OS
+
+**PROMPT USER**: "Have you flashed Raspberry Pi OS to the SD card and completed initial boot?"
 
 1. Download [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
 2. Flash **Raspberry Pi OS (64-bit)** to SD card
@@ -26,7 +34,13 @@ Complete setup guide for a fresh Raspberry Pi.
 sudo raspi-config
 ```
 
+**CHECKPOINT**: User should be able to SSH into the Pi.
+
+---
+
 ## Step 2: System Updates
+
+**PROMPT USER**: "Let's update the system and install dependencies. Run these commands on the Pi:"
 
 ```bash
 sudo apt update && sudo apt upgrade -y
@@ -39,7 +53,13 @@ python3 --version
 # Should be 3.11+
 ```
 
+**CHECKPOINT**: Ask user to confirm Python version is 3.11+.
+
+---
+
 ## Step 3: Pi3D PictureFrame (Display Engine)
+
+**PROMPT USER**: "Now we'll install the Pi3D display engine. This is what actually shows photos on the screen."
 
 Install the display engine using the one-click installer:
 
@@ -57,9 +77,15 @@ Verify installation:
 systemctl --user status picframe.service
 ```
 
+**CHECKPOINT**: Ask user to confirm `picframe.service` shows as loaded.
+
 See [Pi3D Integration](PI3D_INTEGRATION.md) for more details.
 
+---
+
 ## Step 4: rclone
+
+**PROMPT USER**: "Now we'll install rclone for syncing photos from cloud storage (Koofr, Google Drive, etc.)."
 
 Install rclone for cloud sync:
 
@@ -67,7 +93,11 @@ Install rclone for cloud sync:
 curl https://rclone.org/install.sh | sudo bash
 ```
 
-Configure a remote (Koofr, Google Drive, etc.):
+**CHECKPOINT**: Ask user to run `rclone version` and confirm it's installed.
+
+**PROMPT USER**: "Do you want to configure a cloud remote now? (Koofr, Google Drive, etc.) This can also be done later."
+
+If yes, configure a remote:
 ```bash
 rclone config
 ```
@@ -77,7 +107,13 @@ Test connection:
 rclone lsd <remote>:
 ```
 
+**CHECKPOINT**: If remote configured, ask user to confirm `rclone listremotes` shows the remote.
+
+---
+
 ## Step 5: Tailscale + Funnel
+
+**PROMPT USER**: "Now we'll set up Tailscale for secure remote access. Do you have a Tailscale account?"
 
 Install Tailscale:
 ```bash
@@ -88,6 +124,10 @@ Authenticate:
 ```bash
 sudo tailscale up
 ```
+
+**CHECKPOINT**: Ask user to confirm `tailscale status` shows connected.
+
+**PROMPT USER**: "Before enabling Funnel, you must approve it in the Tailscale admin console. Have you done this?"
 
 **Important**: Before enabling Funnel, you must approve it in the [Tailscale admin console](https://login.tailscale.com/admin/acls).
 
@@ -102,7 +142,13 @@ tailscale funnel status
 # Should show: https://<hostname>.<tailnet>.ts.net
 ```
 
+**CHECKPOINT**: Ask user to provide their Funnel URL (save this for config).
+
+---
+
 ## Step 6: picframe_4.0 Installation
+
+**PROMPT USER**: "Now we'll clone and install the picframe_4.0 API."
 
 Clone the repository:
 ```bash
@@ -118,7 +164,13 @@ source venv/bin/activate
 pip install -e .
 ```
 
+**CHECKPOINT**: Ask user to confirm `~/picframe_4.0/venv/` exists.
+
+---
+
 ## Step 7: Configuration
+
+**PROMPT USER**: "Now we'll create the configuration. What name do you want for this frame?"
 
 Create the config directory:
 ```bash
@@ -152,7 +204,13 @@ logging:
   security_retention_days: 90
 ```
 
+**CHECKPOINT**: Ask user to confirm `~/.picframe/config.yaml` exists.
+
+---
+
 ## Step 8: Start the API
+
+**PROMPT USER**: "Ready to start the API for testing?"
 
 For development/testing:
 ```bash
@@ -168,7 +226,13 @@ systemctl --user enable picframe-api.service
 systemctl --user start picframe-api.service
 ```
 
+**CHECKPOINT**: Ask user to confirm API started without errors.
+
+---
+
 ## Step 9: Verify Installation
+
+**PROMPT USER**: "Let's verify everything is working."
 
 Check services:
 ```bash
@@ -194,6 +258,10 @@ curl https://<hostname>.<tailnet>.ts.net/health
 # {"status":"ok"}
 ```
 
+**CHECKPOINT**: Ask user to confirm both local and Funnel health checks pass.
+
+---
+
 ## Verification Checklist
 
 - [ ] `python3 --version` shows 3.11+
@@ -201,8 +269,26 @@ curl https://<hostname>.<tailnet>.ts.net/health
 - [ ] `rclone version` shows installed
 - [ ] `tailscale status` shows connected
 - [ ] `~/picframe_4.0/venv/` exists
+- [ ] `~/.picframe/config.yaml` exists
 - [ ] `curl http://localhost:8000/health` returns `{"status":"ok"}`
 - [ ] `curl https://<hostname>.<tailnet>.ts.net/health` returns `{"status":"ok"}`
+
+---
+
+## Claude Setup Prompt Sequence
+
+When setting up a new Pi, Claude should follow this sequence:
+
+1. **Ask**: "Is this a fresh Pi or updating an existing one?"
+2. **Step 1**: "Have you flashed Raspberry Pi OS and can SSH in?"
+3. **Step 2**: "Run system updates. Confirm Python 3.11+?"
+4. **Step 3**: "Install Pi3D display engine. Confirm picframe.service loaded?"
+5. **Step 4**: "Install rclone. Confirm `rclone version` works? Configure a remote now?"
+6. **Step 5**: "Install Tailscale. Confirm connected? Funnel approved in admin console? What's your Funnel URL?"
+7. **Step 6**: "Clone picframe_4.0 repo. Confirm venv created?"
+8. **Step 7**: "Create config. What frame name? Confirm config.yaml exists?"
+9. **Step 8**: "Start API. Any errors?"
+10. **Step 9**: "Run verification checks. All passing?"
 
 ## Troubleshooting
 

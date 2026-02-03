@@ -30,3 +30,27 @@ logging:
   retention_days: 7
   # Days to keep security logs
   security_retention_days: 90
+
+# Photo sources - where pictures come from
+sources:
+  sources:
+    # Local photos (no sync needed)
+    - id: "local"
+      name: "Local Photos"
+      local_path: "~/Pictures/local"
+      rclone_remote: ""
+      enabled: true
+
+    # Koofr cloud sync
+    - id: "koofr_main"
+      name: "Family Photos"
+      local_path: "~/Pictures/koofr_main"
+      rclone_remote: "koofr:KFR_kframe"
+      enabled: true
+
+    # Google Drive (disabled by default)
+    - id: "gdrive"
+      name: "Google Drive"
+      local_path: "~/Pictures/gdrive"
+      rclone_remote: "gdrive:PicFrame"
+      enabled: false
