@@ -177,11 +177,13 @@ function initStatusDashboard() {
             const syncStatus = data.sync_status || "idle";
             const severity = syncStatus === "syncing" ? "SYNCING" :
                             syncStatus === "match" ? "OK" :
+                            syncStatus === "idle" ? "OK" :
                             syncStatus === "error" ? "ERROR" : "UNKNOWN";
 
             if (overallTitle) {
                 overallTitle.textContent = syncStatus === "syncing" ? "Syncing photos..." :
                                            syncStatus === "match" ? "Photos in sync" :
+                                           syncStatus === "idle" ? "Ready" :
                                            syncStatus === "error" ? "Sync error" : "Checking status...";
             }
             if (overallChip) {
