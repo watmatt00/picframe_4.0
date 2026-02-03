@@ -167,7 +167,7 @@ function initStatusDashboard() {
     async function refreshStatus() {
         if (btnRefresh) btnRefresh.disabled = true;
         try {
-            const resp = await fetch("/api/dashboard/status");
+            const resp = await fetch("/dashboard/status");
             const data = await resp.json();
 
             const nowStr = new Date().toLocaleString();
@@ -214,8 +214,9 @@ function initStatusDashboard() {
             if (storageText) storageText.textContent = `${data.storage_percent || 0}% (${data.storage_used || 0} / ${data.storage_total || 0} GB)`;
             setStorageDisplay(data.storage_percent || 0);
 
-            // Last sync
+            // Last sync and restart
             if (lastSyncEl) lastSyncEl.textContent = data.last_sync || "--";
+            if (lastRestartEl) lastRestartEl.textContent = data.last_restart || "--";
 
             // Logs
             if (logTailEl && data.logs) {
@@ -320,7 +321,7 @@ function initStatusDashboard() {
     if (thumbnailImg) {
         setInterval(() => {
             const timestamp = new Date().getTime();
-            thumbnailImg.src = `/api/current-image?t=${timestamp}`;
+            thumbnailImg.src = `/current-image?t=${timestamp}`;
         }, 30000);
     }
 

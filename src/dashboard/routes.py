@@ -6,10 +6,12 @@ Uses Jinja2 templates.
 """
 
 import shutil
+from datetime import datetime
 from pathlib import Path
 
+import httpx
 from fastapi import APIRouter, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from src.config.settings import get_settings
@@ -31,6 +33,9 @@ templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 # Log files location
 LOGS_DIR = Path.home() / ".picframe" / "logs"
+
+# Track last service restart (in memory)
+_last_restart: datetime | None = None
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -335,7 +340,7 @@ async def switch_source(source_id: str = Form(...)):
         return RedirectResponse(url="/?error=switch_failed", status_code=303)
 
 
-@router.get("/api/dashboard/status")
+@router.get("/dashboard/status")
 async def get_dashboard_status():
     """
     Get dashboard status as JSON for AJAX updates.
@@ -388,6 +393,11 @@ async def get_dashboard_status():
     # Get recent logs
     logs = _read_log_file("ops", 20)
 
+    # Get last restart time
+    last_restart = None
+    if _last_restart:
+        last_restart = _last_restart.strftime("%Y-%m-%d %H:%M:%S")
+
     return {
         "sync_status": sync_status,
         "local_count": local_count,
@@ -398,20 +408,18 @@ async def get_dashboard_status():
         "storage_total": storage_total,
         "storage_percent": storage_percent,
         "last_sync": last_sync,
+        "last_restart": last_restart,
         "logs": logs,
     }
 
 
-@router.get("/api/current-image")
+@router.get("/current-image")
 async def get_current_image():
     """
     Proxy the current image from Pi3D PictureFrame.
 
     Pi3D serves current image on port 9000.
     """
-    import httpx
-    from fastapi.responses import Response
-
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get("http://localhost:9000/current_image", timeout=5.0)
@@ -422,3 +430,30 @@ async def get_current_image():
     except Exception:
         # Return a placeholder or error
         return Response(content=b"", status_code=404)
+
+
+# LAN-only service restart (no auth required - protected by LAN middleware)
+ALLOWED_SERVICES = {"picframe", "picframe-api"}
+
+
+@router.post("/services/{service_name}/restart")
+async def restart_service_from_dashboard(service_name: str):
+    """
+    Restart a service from the dashboard.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    global _last_restart
+
+    if service_name not in ALLOWED_SERVICES:
+        return {"error": f"Service '{service_name}' not allowed"}
+
+    try:
+        success = await systemd_service.restart_service(service_name)
+        if success:
+            _last_restart = datetime.now()
+            return {"ok": True, "service": service_name}
+        else:
+            return {"ok": False, "error": "Restart failed"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
