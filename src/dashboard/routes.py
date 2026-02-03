@@ -5,17 +5,31 @@ Server-rendered pages for the web dashboard.
 Uses Jinja2 templates.
 """
 
+import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Request, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+
+from src.config.settings import get_settings
+from src.config.manager import config_manager
+from src.services.source_manager import source_manager
+from src.services.sync_service import sync_service
+from src.services.systemd_service import systemd_service
+from src.services.display_service import display_service
+from src.storage.devices import device_storage
+from src.auth.pairing import pairing_manager
+from src.utils.rclone import count_local_files
 
 router = APIRouter(tags=["dashboard"])
 
 # Template directory
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
+
+# Log files location
+LOGS_DIR = Path.home() / ".picframe" / "logs"
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -25,15 +39,55 @@ async def dashboard_home(request: Request):
 
     Shows status overview: file counts, sync state, service health.
     """
-    # TODO: Gather real status data
+    settings = get_settings()
+
+    # Get current source info
+    current_source_id = settings.display.current_source
+    sources = source_manager.list_sources()
+    current_source = next((s for s in sources if s.id == current_source_id), None)
+
+    # Count photos
+    local_count = 0
+    if current_source:
+        local_count = count_local_files(current_source.local_path)
+
+    # Determine sync status
+    sync_status = "idle"
+    if sync_service._is_syncing:
+        sync_status = "syncing"
+    elif sync_service._last_sync:
+        sync_status = "match" if sync_service._last_sync.success else "error"
+
+    # Get service statuses
+    services = await systemd_service.list_services()
+
+    # Get storage capacity
+    pictures_path = Path.home() / "Pictures"
+    try:
+        usage = shutil.disk_usage(pictures_path)
+        storage_used = round(usage.used / (1024**3), 1)
+        storage_total = round(usage.total / (1024**3), 1)
+        storage_percent = round((usage.used / usage.total) * 100, 1) if usage.total > 0 else 0
+    except Exception:
+        storage_used = 0
+        storage_total = 0
+        storage_percent = 0
+
     context = {
         "request": request,
-        "frame_name": "PicFrame",
-        "current_source": "Main Photos",
-        "local_count": 0,
+        "frame_name": settings.frame.name,
+        "frame_id": settings.frame.id,
+        "current_source": current_source.name if current_source else "Unknown",
+        "current_source_id": current_source_id,
+        "sources": sources,
+        "local_count": local_count,
         "remote_count": 0,
-        "sync_status": "unknown",
-        "services": [],
+        "sync_status": sync_status,
+        "is_syncing": sync_service._is_syncing,
+        "services": services,
+        "storage_used": storage_used,
+        "storage_total": storage_total,
+        "storage_percent": storage_percent,
     }
     return templates.TemplateResponse("dashboard.html", context)
 
@@ -45,18 +99,36 @@ async def settings_page(request: Request):
 
     Allows editing frame configuration.
     """
+    settings = get_settings()
+
     context = {
         "request": request,
-        "config": {},
+        "frame_id": settings.frame.id,
+        "frame_name": settings.frame.name,
+        "funnel_url": settings.frame.funnel_url,
+        "current_source": settings.display.current_source,
+        "rotation_interval": settings.display.rotation_interval,
+        "sync_interval": settings.sync.interval,
+        "log_level": settings.logging.level,
     }
     return templates.TemplateResponse("settings.html", context)
 
 
 @router.post("/settings")
-async def save_settings(request: Request):
+async def save_settings(
+    request: Request,
+    frame_name: str = Form(...),
+    rotation_interval: int = Form(...),
+    sync_interval: int = Form(...),
+    log_level: str = Form(...),
+):
     """Save settings from form submission."""
-    # TODO: Parse form data and save config
-    return {"status": "ok"}
+    config_manager.set("frame.name", frame_name)
+    config_manager.set("display.rotation_interval", rotation_interval)
+    config_manager.set("sync.interval", sync_interval)
+    config_manager.set("logging.level", log_level)
+
+    return RedirectResponse(url="/settings?saved=1", status_code=303)
 
 
 @router.get("/devices", response_class=HTMLResponse)
@@ -66,11 +138,34 @@ async def devices_page(request: Request):
 
     Lists paired devices with option to revoke.
     """
+    devices = device_storage.list_devices()
+    admin_count = device_storage.count_admins()
+
     context = {
         "request": request,
-        "devices": [],
+        "devices": devices,
+        "admin_count": admin_count,
+        "can_revoke": admin_count > 1,
     }
     return templates.TemplateResponse("devices.html", context)
+
+
+@router.post("/devices/{device_id}/revoke")
+async def revoke_device(device_id: str):
+    """Revoke a paired device."""
+    device = device_storage.get_device(device_id)
+    if not device:
+        return RedirectResponse(url="/devices?error=not_found", status_code=303)
+
+    # Check if this is the last admin
+    if device.role == "admin" and device_storage.count_admins() <= 1:
+        return RedirectResponse(url="/devices?error=last_admin", status_code=303)
+
+    success = device_storage.remove_device(device_id)
+    if success:
+        return RedirectResponse(url="/devices?revoked=1", status_code=303)
+    else:
+        return RedirectResponse(url="/devices?error=failed", status_code=303)
 
 
 @router.get("/pairing", response_class=HTMLResponse)
@@ -80,33 +175,64 @@ async def pairing_page(request: Request):
 
     Shows QR code for mobile app pairing.
     """
-    # TODO: Generate pairing code and QR
-    context = {
-        "request": request,
-        "qr_data_url": "",
-        "code": "",
-        "expires_in": 300,
-    }
+    settings = get_settings()
+
+    # Generate a new pairing code
+    pairing_data = pairing_manager.generate_code()
+
+    if pairing_data:
+        context = {
+            "request": request,
+            "qr_data_url": pairing_data.qr_data_url,
+            "code": pairing_data.code,
+            "expires_in": 300,
+            "frame_name": settings.frame.name,
+            "funnel_url": settings.frame.funnel_url,
+            "error": None,
+        }
+    else:
+        context = {
+            "request": request,
+            "qr_data_url": "",
+            "code": "",
+            "expires_in": 0,
+            "frame_name": settings.frame.name,
+            "funnel_url": settings.frame.funnel_url,
+            "error": "Rate limit exceeded. Try again in a few minutes.",
+        }
+
     return templates.TemplateResponse("pairing.html", context)
 
 
 @router.post("/pairing/generate")
 async def generate_pairing():
-    """Generate a new pairing code."""
-    # TODO: Generate pairing code
-    return {"code": "", "qr_data_url": "", "expires_at": ""}
+    """Generate a new pairing code (AJAX endpoint)."""
+    pairing_data = pairing_manager.generate_code()
+
+    if pairing_data:
+        return {
+            "code": pairing_data.code,
+            "qr_data_url": pairing_data.qr_data_url,
+            "expires_at": pairing_data.expires_at.isoformat(),
+        }
+    else:
+        return {"error": "Rate limit exceeded"}
 
 
 @router.get("/logs", response_class=HTMLResponse)
-async def logs_page(request: Request):
+async def logs_page(request: Request, log_type: str = "ops", lines: int = 100):
     """
     Log viewer page.
 
     Shows recent log entries.
     """
+    logs = _read_log_file(log_type, lines)
+
     context = {
         "request": request,
-        "logs": [],
+        "logs": logs,
+        "log_type": log_type,
+        "lines": lines,
     }
     return templates.TemplateResponse("logs.html", context)
 
@@ -120,5 +246,74 @@ async def get_logs(lines: int = 100, log_type: str = "ops"):
         lines: Number of lines to return
         log_type: "ops" or "security"
     """
-    # TODO: Read log files
-    return {"logs": []}
+    logs = _read_log_file(log_type, lines)
+    return {"logs": logs, "log_type": log_type}
+
+
+def _read_log_file(log_type: str, lines: int = 100) -> list[str]:
+    """Read log file and return recent lines."""
+    if log_type == "security":
+        log_file = LOGS_DIR / "security.log"
+    else:
+        log_file = LOGS_DIR / "picframe.log"
+
+    if not log_file.exists():
+        return []
+
+    try:
+        with open(log_file, "r") as f:
+            all_lines = f.readlines()
+        # Return last N lines, reversed (newest first)
+        return [line.strip() for line in all_lines[-lines:]][::-1]
+    except Exception:
+        return []
+
+
+# Dashboard sync trigger (no auth required on LAN)
+@router.post("/sync")
+async def trigger_sync():
+    """Trigger a sync from the dashboard."""
+    sources = source_manager.list_sources()
+    syncable = [s for s in sources if s.enabled and s.rclone_remote]
+
+    if not syncable:
+        return {"error": "No sources with remotes configured"}
+
+    if sync_service._is_syncing:
+        return {"error": "Sync already in progress"}
+
+    # Sync the first enabled source
+    source = syncable[0]
+    from pathlib import Path
+
+    # Run sync in background (don't await)
+    import asyncio
+    asyncio.create_task(
+        sync_service.sync_source(
+            source_id=source.id,
+            local_path=Path(source.local_path),
+            rclone_remote=source.rclone_remote,
+        )
+    )
+
+    return {"status": "started", "source": source.id}
+
+
+# Dashboard folder switch (no auth required on LAN)
+@router.post("/switch-source")
+async def switch_source(source_id: str = Form(...)):
+    """Switch the display source from the dashboard."""
+    source = source_manager.get_source(source_id)
+    if not source:
+        return RedirectResponse(url="/?error=source_not_found", status_code=303)
+
+    source_path = Path(source.local_path)
+    if not source_path.exists():
+        source_path.mkdir(parents=True, exist_ok=True)
+
+    success = await display_service.switch_folder(source_path)
+    if success:
+        config_manager.set("display.current_source", source_id)
+        return RedirectResponse(url="/?switched=1", status_code=303)
+    else:
+        return RedirectResponse(url="/?error=switch_failed", status_code=303)

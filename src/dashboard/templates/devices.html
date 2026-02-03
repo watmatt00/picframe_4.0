@@ -5,9 +5,17 @@
 {% block content %}
 <h1>Paired Devices</h1>
 
+{% if request.query_params.get('error') == 'last_admin' %}
+<div class="alert alert-error">Cannot revoke the last admin device. Add another admin first.</div>
+{% elif request.query_params.get('error') %}
+<div class="alert alert-error">Failed to revoke device.</div>
+{% elif request.query_params.get('revoked') %}
+<div class="alert alert-success">Device revoked successfully.</div>
+{% endif %}
+
 <p class="description">
     These mobile devices can manage this frame.
-    <a href="/pairing">Add a new device</a>
+    <a href="/pairing" class="btn btn-small">Add a new device</a>
 </p>
 
 <section class="card">
@@ -26,14 +34,17 @@
             <tr>
                 <td>{{ device.name }}</td>
                 <td><span class="badge badge-{{ device.role }}">{{ device.role }}</span></td>
-                <td>{{ device.paired_at }}</td>
-                <td>{{ device.last_seen or 'Never' }}</td>
+                <td>{{ device.paired_at.strftime('%Y-%m-%d %H:%M') if device.paired_at else 'Unknown' }}</td>
+                <td>{{ device.last_seen.strftime('%Y-%m-%d %H:%M') if device.last_seen else 'Never' }}</td>
                 <td>
-                    <button class="btn btn-small btn-danger"
-                            onclick="revokeDevice('{{ device.id }}', '{{ device.name }}')"
-                            {% if devices|length == 1 %}disabled title="Cannot remove last device"{% endif %}>
-                        Revoke
-                    </button>
+                    {% if can_revoke or device.role != 'admin' %}
+                    <form action="/devices/{{ device.id }}/revoke" method="post" style="display:inline"
+                          onsubmit="return confirm('Revoke access for {{ device.name }}?')">
+                        <button type="submit" class="btn btn-small btn-danger">Revoke</button>
+                    </form>
+                    {% else %}
+                    <button class="btn btn-small btn-danger" disabled title="Cannot remove last admin">Revoke</button>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}
@@ -46,26 +57,8 @@
         </tbody>
     </table>
 </section>
-{% endblock %}
 
-{% block scripts %}
-<script>
-async function revokeDevice(id, name) {
-    if (!confirm(`Revoke access for "${name}"? They will need to re-pair to access this frame.`)) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`/devices/${id}`, { method: 'DELETE' });
-        if (response.ok) {
-            location.reload();
-        } else {
-            const error = await response.json();
-            alert('Failed to revoke device: ' + (error.detail || 'Unknown error'));
-        }
-    } catch (err) {
-        alert('Failed to revoke device: ' + err.message);
-    }
-}
-</script>
+<p class="info">
+    <strong>{{ devices|length }}</strong> device(s) paired, <strong>{{ admin_count }}</strong> admin(s)
+</p>
 {% endblock %}

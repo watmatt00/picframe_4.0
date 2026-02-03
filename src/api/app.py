@@ -20,11 +20,17 @@ from src.api.routes import pairing, status, devices, services, display, folders,
 # Dashboard routes
 from src.dashboard import routes as dashboard_routes
 
+# Middleware
+from src.api.middleware import LANOnlyDashboardMiddleware
+
 app = FastAPI(
     title="PicFrame 4.0 API",
     description="Secure mobile management for Raspberry Pi picture frames",
     version="4.0.0",
 )
+
+# Add LAN-only middleware for dashboard routes
+app.add_middleware(LANOnlyDashboardMiddleware)
 
 
 @app.get("/health")

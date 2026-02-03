@@ -69,8 +69,44 @@ body {
 }
 
 h1 {
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.5rem;
     color: var(--gray-900);
+}
+
+.subtitle {
+    color: var(--gray-600);
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+
+.description {
+    color: var(--gray-600);
+    margin-bottom: 1.5rem;
+}
+
+.info {
+    color: var(--gray-600);
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+
+/* Alerts */
+.alert {
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+.alert-success {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.alert-error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
 }
 
 /* Cards */
@@ -116,9 +152,45 @@ h1 {
     color: var(--warning);
 }
 
+.status-indicator.status-idle,
 .status-indicator.unknown {
     background: var(--gray-200);
     color: var(--gray-600);
+}
+
+.status-indicator.status-syncing {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.status-indicator.status-match {
+    background: #dcfce7;
+    color: var(--success);
+}
+
+.status-indicator.status-error {
+    background: #fef2f2;
+    color: var(--danger);
+}
+
+/* Source switcher */
+.source-switcher {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.source-switcher select {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid var(--gray-300);
+    border-radius: 4px;
+}
+
+.source-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--gray-800);
 }
 
 /* Buttons */
@@ -219,6 +291,34 @@ h1 {
     color: var(--danger);
 }
 
+.service-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.service-name {
+    font-weight: 500;
+}
+
+.service-status {
+    font-size: 0.85rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    margin-left: auto;
+    margin-right: 0.5rem;
+}
+
+.service-status.status-running {
+    background: #dcfce7;
+    color: var(--success);
+}
+
+.service-status.status-stopped {
+    background: #fef2f2;
+    color: var(--danger);
+}
+
 /* Storage bar */
 .storage-bar {
     background: var(--gray-200);
@@ -312,6 +412,22 @@ h1 {
     margin-bottom: 1rem;
 }
 
+.pairing-info {
+    margin-bottom: 1.5rem;
+}
+
+.pairing-info .label {
+    color: var(--gray-600);
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+
+.funnel-url {
+    color: var(--gray-600);
+    margin-top: 1rem;
+    word-break: break-all;
+}
+
 .instructions {
     text-align: left;
     margin-top: 2rem;
@@ -359,6 +475,50 @@ h1 {
     padding: 1rem;
     color: var(--gray-600);
     font-size: 0.9rem;
+}
+
+/* Toast notifications */
+.toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    background: var(--gray-800);
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    animation: slideIn 0.3s ease;
+}
+
+.toast-success {
+    background: var(--success);
+}
+
+.toast-error {
+    background: var(--danger);
+}
+
+.toast.fade-out {
+    animation: fadeOut 0.3s ease forwards;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        transform: translateY(10px);
+    }
 }
 
 /* Responsive */

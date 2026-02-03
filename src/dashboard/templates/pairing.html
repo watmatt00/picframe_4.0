@@ -1,9 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Pair Device - PicFrame{% endblock %}
+{% block title %}Pair Device - {{ frame_name }}{% endblock %}
 
 {% block content %}
 <h1>Pair a Device</h1>
+
+<p class="description">Pair <strong>{{ frame_name }}</strong> with a mobile device</p>
+
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
 
 <section class="card pairing-card">
     <div class="qr-container">
@@ -11,20 +17,25 @@
         <img src="{{ qr_data_url }}" alt="Pairing QR Code" class="qr-code">
         {% else %}
         <div class="qr-placeholder">
-            <p>Click "Generate Code" to create a pairing QR code</p>
+            <p>Unable to generate QR code</p>
         </div>
         {% endif %}
     </div>
 
     <div class="pairing-info">
         {% if code %}
-        <p class="pairing-code">{{ code }}</p>
+        <p class="label">Manual Code:</p>
+        <p class="pairing-code">{{ code[:3] }}-{{ code[3:] }}</p>
         <p class="expires">Expires in <span id="countdown">{{ expires_in }}</span> seconds</p>
         {% endif %}
 
-        <button class="btn btn-primary" onclick="generateCode()">
+        <p class="funnel-url">
+            <small>Frame URL: {{ funnel_url }}</small>
+        </p>
+
+        <a href="/pairing" class="btn btn-primary">
             {{ 'Regenerate Code' if code else 'Generate Code' }}
-        </button>
+        </a>
     </div>
 
     <div class="instructions">
@@ -32,10 +43,10 @@
         <ol>
             <li>Open the PicFrame app on your mobile device</li>
             <li>Tap "Add Frame" or the + button</li>
-            <li>Scan the QR code above</li>
+            <li>Scan the QR code above, or enter the code manually</li>
             <li>Your device will be paired automatically</li>
         </ol>
-        <p><strong>Note:</strong> The code expires after 5 minutes for security.</p>
+        <p><strong>Security:</strong> The code expires after 5 minutes and can only be used once.</p>
     </div>
 </section>
 {% endblock %}
