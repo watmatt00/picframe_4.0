@@ -34,8 +34,6 @@ templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 # Log files location
 LOGS_DIR = Path.home() / ".picframe" / "logs"
 
-# Track last service restart (in memory)
-_last_restart: datetime | None = None
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -290,6 +288,50 @@ def _read_log_file(log_type: str, lines: int = 100) -> list[str]:
         return []
 
 
+def _last_matching_timestamp(log_file: Path, needle: str) -> str | None:
+    """
+    Find the timestamp of the last log line containing the needle string.
+
+    Expects log format: "YYYY-MM-DD HH:MM:SS ..."
+    """
+    if not log_file.exists():
+        return None
+
+    last_line = None
+    try:
+        with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if needle.lower() in line.lower():
+                    last_line = line
+    except Exception:
+        return None
+
+    if not last_line:
+        return None
+
+    # Extract timestamp from start of line (first 19 chars: "YYYY-MM-DD HH:MM:SS")
+    ts_str = last_line[:19]
+    try:
+        datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+        return ts_str
+    except ValueError:
+        return None
+
+
+def _get_last_sync_time() -> str | None:
+    """Get timestamp of last successful sync from logs."""
+    log_file = LOGS_DIR / "picframe.log"
+    # Look for sync completion messages
+    return _last_matching_timestamp(log_file, "sync") or \
+           _last_matching_timestamp(log_file, "rclone")
+
+
+def _get_last_restart_time() -> str | None:
+    """Get timestamp of last service restart from logs."""
+    log_file = LOGS_DIR / "picframe.log"
+    return _last_matching_timestamp(log_file, "restart")
+
+
 # Dashboard sync trigger (no auth required on LAN)
 @router.post("/sync")
 async def trigger_sync():
@@ -385,18 +427,12 @@ async def get_dashboard_status():
         storage_total = 0
         storage_percent = 0
 
-    # Get last sync time
-    last_sync = None
-    if sync_service._last_sync:
-        last_sync = sync_service._last_sync.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    # Get last sync/restart from logs
+    last_sync = _get_last_sync_time()
+    last_restart = _get_last_restart_time()
 
     # Get recent logs
     logs = _read_log_file("ops", 20)
-
-    # Get last restart time
-    last_restart = None
-    if _last_restart:
-        last_restart = _last_restart.strftime("%Y-%m-%d %H:%M:%S")
 
     return {
         "sync_status": sync_status,
@@ -443,7 +479,8 @@ async def restart_service_from_dashboard(service_name: str):
 
     LAN-only endpoint, no JWT auth required.
     """
-    global _last_restart
+    import logging
+    logger = logging.getLogger(__name__)
 
     if service_name not in ALLOWED_SERVICES:
         return {"error": f"Service '{service_name}' not allowed"}
@@ -451,9 +488,11 @@ async def restart_service_from_dashboard(service_name: str):
     try:
         success = await systemd_service.restart_service(service_name)
         if success:
-            _last_restart = datetime.now()
+            logger.info(f"Service {service_name} restarted successfully via dashboard")
             return {"ok": True, "service": service_name}
         else:
+            logger.error(f"Failed to restart service {service_name}")
             return {"ok": False, "error": "Restart failed"}
     except Exception as e:
+        logger.error(f"Error restarting service {service_name}: {e}")
         return {"ok": False, "error": str(e)}
