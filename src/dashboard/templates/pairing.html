@@ -25,7 +25,7 @@
     <div class="pairing-info">
         {% if code %}
         <p class="label">Manual Code:</p>
-        <p class="pairing-code">{{ code[:3] }}-{{ code[3:] }}</p>
+        <p class="pairing-code">{{ code }}</p>
         <p class="expires">Expires in <span id="countdown">{{ expires_in }}</span> seconds</p>
         {% endif %}
 

@@ -60,17 +60,17 @@ async def debug_token():
     return {"token": token, "warning": "DEBUG ENDPOINT - REMOVE IN PRODUCTION"}
 
 
-# Include API routes (JWT authenticated)
-app.include_router(pairing.router)
-app.include_router(status.router)
-app.include_router(devices.router)
-app.include_router(services.router)
-app.include_router(display.router)
-app.include_router(folders.router)
-app.include_router(contributors.router)
-
 # Include dashboard routes (LAN only, no auth)
 app.include_router(dashboard_routes.router)
+
+# Include API routes with /api prefix (JWT authenticated via mobile app)
+app.include_router(pairing.router, prefix="/api")
+app.include_router(status.router, prefix="/api")
+app.include_router(devices.router, prefix="/api")
+app.include_router(services.router, prefix="/api")
+app.include_router(display.router, prefix="/api")
+app.include_router(folders.router, prefix="/api")
+app.include_router(contributors.router, prefix="/api")
 
 # Mount static files for dashboard
 static_dir = Path(__file__).parent.parent / "dashboard" / "static"
