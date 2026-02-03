@@ -89,6 +89,9 @@ async def dashboard_home(request: Request):
         "storage_used": storage_used,
         "storage_total": storage_total,
         "storage_percent": storage_percent,
+        "rotation_interval": settings.display.rotation_interval,
+        "sync_interval": settings.sync.interval,
+        "log_level": settings.logging.level,
     }
     return templates.TemplateResponse("dashboard.html", context)
 
@@ -330,3 +333,92 @@ async def switch_source(source_id: str = Form(...)):
         return RedirectResponse(url="/?switched=1", status_code=303)
     else:
         return RedirectResponse(url="/?error=switch_failed", status_code=303)
+
+
+@router.get("/api/dashboard/status")
+async def get_dashboard_status():
+    """
+    Get dashboard status as JSON for AJAX updates.
+
+    Returns sync status, file counts, service status, storage info.
+    """
+    settings = get_settings()
+
+    # Get current source info
+    current_source_id = settings.display.current_source
+    sources = source_manager.list_sources()
+    current_source = next((s for s in sources if s.id == current_source_id), None)
+
+    # Count photos
+    local_count = 0
+    if current_source:
+        local_count = count_local_files(current_source.local_path)
+
+    # Determine sync status
+    sync_status = "idle"
+    if sync_service._is_syncing:
+        sync_status = "syncing"
+    elif sync_service._last_sync:
+        sync_status = "match" if sync_service._last_sync.success else "error"
+
+    # Get service statuses
+    services = await systemd_service.list_services()
+    services_data = [
+        {"name": s.name, "active": s.active, "status": s.status}
+        for s in services
+    ]
+
+    # Get storage capacity
+    pictures_path = Path.home() / "Pictures"
+    try:
+        usage = shutil.disk_usage(pictures_path)
+        storage_used = round(usage.used / (1024**3), 1)
+        storage_total = round(usage.total / (1024**3), 1)
+        storage_percent = round((usage.used / usage.total) * 100, 1) if usage.total > 0 else 0
+    except Exception:
+        storage_used = 0
+        storage_total = 0
+        storage_percent = 0
+
+    # Get last sync time
+    last_sync = None
+    if sync_service._last_sync:
+        last_sync = sync_service._last_sync.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+
+    # Get recent logs
+    logs = _read_log_file("ops", 20)
+
+    return {
+        "sync_status": sync_status,
+        "local_count": local_count,
+        "remote_count": 0,
+        "current_source": current_source.name if current_source else "Unknown",
+        "services": services_data,
+        "storage_used": storage_used,
+        "storage_total": storage_total,
+        "storage_percent": storage_percent,
+        "last_sync": last_sync,
+        "logs": logs,
+    }
+
+
+@router.get("/api/current-image")
+async def get_current_image():
+    """
+    Proxy the current image from Pi3D PictureFrame.
+
+    Pi3D serves current image on port 9000.
+    """
+    import httpx
+    from fastapi.responses import Response
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get("http://localhost:9000/current_image", timeout=5.0)
+            return Response(
+                content=resp.content,
+                media_type=resp.headers.get("content-type", "image/jpeg"),
+            )
+    except Exception:
+        # Return a placeholder or error
+        return Response(content=b"", status_code=404)

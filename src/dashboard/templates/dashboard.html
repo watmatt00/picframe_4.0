@@ -1,105 +1,291 @@
-{% extends "base.html" %}
-
-{% block title %}Dashboard - {{ frame_name }}{% endblock %}
-
-{% block content %}
-<h1>{{ frame_name }}</h1>
-<p class="subtitle">Frame ID: {{ frame_id }}</p>
-
-<section class="status-cards">
-    <div class="card">
-        <h3>Sync Status</h3>
-        <div class="status-indicator status-{{ sync_status }}">
-            {{ sync_status | upper }}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>PicFrame Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+<div class="page">
+    <header id="top-banner">
+        <div class="status-text">
+            <span id="banner-text">Photo sync status</span>
+            <span class="status-pill" id="banner-pill">--</span>
         </div>
-        <p>Local: <strong>{{ local_count }}</strong> files</p>
-        {% if is_syncing %}
-        <button class="btn btn-primary" disabled>Syncing...</button>
-        {% else %}
-        <button class="btn btn-primary" onclick="triggerSync()">Sync Now</button>
-        {% endif %}
-    </div>
-
-    <div class="card">
-        <h3>Current Source</h3>
-        <p class="source-name">{{ current_source }}</p>
-        <form action="/switch-source" method="post" class="source-switcher">
-            <select name="source_id" id="source-select">
-                {% for source in sources %}
-                <option value="{{ source.id }}" {% if source.id == current_source_id %}selected{% endif %}>
-                    {{ source.name }}{% if not source.enabled %} (disabled){% endif %}
-                </option>
-                {% endfor %}
-            </select>
-            <button type="submit" class="btn">Switch</button>
-        </form>
-    </div>
-
-    <div class="card">
-        <h3>Services</h3>
-        <ul class="service-list">
-            {% for service in services %}
-            <li class="service-item {{ 'active' if service.active else 'inactive' }}">
-                <span class="service-name">{{ service.name }}</span>
-                <span class="service-status status-{{ 'running' if service.active else 'stopped' }}">{{ service.status }}</span>
-                <button class="btn btn-small" onclick="restartService('{{ service.name }}')">Restart</button>
-            </li>
-            {% else %}
-            <li class="service-item">No services found</li>
-            {% endfor %}
-        </ul>
-    </div>
-
-    <div class="card">
-        <h3>Storage</h3>
-        <div class="storage-bar">
-            <div class="storage-used" style="width: {{ storage_percent }}%"></div>
+        <div class="header-right">
+            <div id="banner-updated">Last checked: --</div>
+            <div class="host-pill">
+                <span>Frame</span>&nbsp; <strong id="host-name">{{ frame_name }}</strong>
+            </div>
         </div>
-        <p><strong>{{ storage_used }}</strong> / {{ storage_total }} GB ({{ storage_percent }}%)</p>
+    </header>
+
+    <!-- Tab Navigation -->
+    <div class="tab-bar">
+        <button class="tab-button active" data-tab="status">Photo Status</button>
+        <button class="tab-button" data-tab="sources">Switch Photos</button>
+        <button class="tab-button" data-tab="settings">Settings</button>
     </div>
-</section>
 
-{% endblock %}
+    <!-- STATUS TAB CONTENT -->
+    <div id="tab-status" class="tab-content active">
+        <main>
+            <!-- Photo Sync Status Card -->
+            <section class="card overall-card">
+                <div class="card-header">
+                    <div class="status-label">
+                        <span id="overall-title">Checking status...</span>
+                        <span class="status-chip" id="overall-chip">--</span>
+                    </div>
+                </div>
+                <div class="overall-inner">
+                    <div class="traffic-rail">
+                        <div class="traffic-light off" id="traffic-green"></div>
+                        <div class="traffic-light off" id="traffic-amber"></div>
+                        <div class="traffic-light off" id="traffic-red"></div>
+                    </div>
+                    <div style="display: flex; gap: 1.5rem; flex: 1;">
+                        <div style="flex: 1;">
+                            <div class="count-row">
+                                <div class="count-tile">
+                                    <div class="count-label"><span class="emoji-icon">☁️</span>Cloud Photos</div>
+                                    <div class="count-value" id="remote-count">--</div>
+                                </div>
+                                <div class="count-tile">
+                                    <div class="count-label"><span class="emoji-icon">🖼️</span>Frame Photos</div>
+                                    <div class="count-value" id="local-count">{{ local_count }}</div>
+                                </div>
+                            </div>
 
-{% block scripts %}
-<script>
-async function triggerSync() {
-    const btn = event.target;
-    btn.disabled = true;
-    btn.textContent = 'Starting...';
+                            <div class="service-grid">
+                                <div class="service-label"><span class="emoji-icon">📸</span>Currently Showing</div>
+                                <div class="service-value remote-label" id="current-remote">{{ current_source }}</div>
 
-    try {
-        const response = await fetch('/sync', { method: 'POST' });
-        const result = await response.json();
-        if (result.error) {
-            alert('Sync error: ' + result.error);
-            btn.textContent = 'Sync Now';
-            btn.disabled = false;
-        } else {
-            btn.textContent = 'Syncing...';
-            setTimeout(() => location.reload(), 2000);
-        }
-    } catch (err) {
-        alert('Sync failed: ' + err.message);
-        btn.disabled = false;
-        btn.textContent = 'Sync Now';
-    }
-}
+                                <div class="service-label"><span class="emoji-icon">🖼️</span>Frame Display</div>
+                                <div class="service-value">
+                                    <span class="status-dot" id="pf-status-dot"></span>
+                                    <span id="pf-status-text">UNKNOWN</span>
+                                </div>
 
-async function restartService(name) {
-    if (!confirm(`Restart ${name}?`)) return;
+                                <div class="service-label"><span class="emoji-icon">⚙️</span>Dashboard</div>
+                                <div class="service-value">
+                                    <span class="status-dot" id="web-status-dot"></span>
+                                    <span id="web-status-text">RUNNING</span>
+                                </div>
 
-    try {
-        const response = await fetch(`/services/${name}/restart`, { method: 'POST' });
-        if (response.ok) {
-            location.reload();
-        } else {
-            const result = await response.json();
-            alert('Restart failed: ' + (result.detail || 'Unknown error'));
-        }
-    } catch (err) {
-        alert('Restart failed: ' + err.message);
-    }
-}
-</script>
-{% endblock %}
+                                <div class="service-label"><span class="emoji-icon">💾</span>Storage</div>
+                                <div class="service-value">
+                                    <span class="storage-indicator" id="storage-indicator"></span>
+                                    <span id="storage-text">{{ storage_percent }}% ({{ storage_used }} / {{ storage_total }} GB)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Current Image Thumbnail - Right Side -->
+                        <div style="flex: 0 0 280px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                            <img id="current-image-thumbnail"
+                                 src="/api/current-image"
+                                 alt="Current frame image"
+                                 style="max-width: 280px; max-height: 210px; width: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); cursor: pointer;"
+                                 onerror="this.style.display='none'; document.getElementById('image-error').style.display='block';">
+                            <div id="image-error" style="display: none; color: #f87171; font-size: 0.875rem; margin-top: 0.5rem;">
+                                Unable to load image
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced toggle for technical details -->
+                <div style="padding: 0 1.5rem 1rem;">
+                    <button class="advanced-toggle" id="status-advanced-toggle">▸ Show technical details</button>
+                    <div class="advanced-section" id="status-advanced-section">
+                        <div class="meta-line">
+                            <strong>Current Source ID:</strong> <span id="tech-source-id">{{ current_source_id }}</span><br>
+                            <strong>Frame ID:</strong> <span id="tech-frame-id">{{ frame_id }}</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quick Actions Card -->
+            <section class="card tools-card">
+                <div class="tools-card-header">
+                    <div>
+                        <div class="tools-title">Quick Actions</div>
+                        <div class="tools-subtitle">Check status and restart services</div>
+                    </div>
+                </div>
+
+                <div class="button-row">
+                    <button class="btn secondary" id="btn-refresh">
+                        <span id="btn-refresh-icon">🔄</span>
+                        <span>Refresh Dashboard</span>
+                    </button>
+                    <button class="btn" id="btn-sync-now">
+                        <div class="btn-spinner" id="btn-sync-now-spinner" style="display:none;"></div>
+                        <span id="btn-sync-now-label">🔄 Sync Now</span>
+                    </button>
+                    <button class="btn" id="btn-restart-pf">
+                        <div class="btn-spinner" id="btn-restart-pf-spinner" style="display:none;"></div>
+                        <span id="btn-restart-pf-label">♻️ Restart Frame</span>
+                    </button>
+                    <button class="btn" id="btn-restart-api">
+                        <div class="btn-spinner" id="btn-restart-api-spinner" style="display:none;"></div>
+                        <span id="btn-restart-api-label">♻️ Restart API</span>
+                    </button>
+                </div>
+
+                <div class="pill-stack-row">
+                    <div class="pill-block">
+                        <div class="pill-block-label">Last Sync</div>
+                        <div class="pill-block-value" id="last-sync">--</div>
+                    </div>
+                    <div class="pill-block">
+                        <div class="pill-block-label">Last Restart</div>
+                        <div class="pill-block-value" id="last-restart">--</div>
+                    </div>
+                </div>
+
+                <!-- Advanced section for logs -->
+                <div style="padding: 0 1.5rem;">
+                    <button class="advanced-toggle" id="logs-advanced-toggle">▸ Show logs</button>
+                    <div class="advanced-section" id="logs-advanced-section">
+                        <div class="log-section-header">
+                            <span>Recent Activity Log</span>
+                        </div>
+                        <div class="log-text" id="log-tail">(Loading...)</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- SWITCH PHOTOS TAB CONTENT -->
+    <div id="tab-sources" class="tab-content">
+        <main>
+            <!-- Photo Sources Section -->
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">☁️ Photo Sources</div>
+                        <div class="card-subtitle">Your configured cloud photo libraries</div>
+                    </div>
+                </div>
+
+                <div id="sources-table-container">
+                    <table class="sources-table" id="sources-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Location</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sources-tbody">
+                            {% for source in sources %}
+                            <tr>
+                                <td><strong>{{ source.name }}</strong></td>
+                                <td><code>{{ source.local_path }}</code></td>
+                                <td>
+                                    {% if source.id == current_source_id %}
+                                    <span class="source-status-badge active">Active</span>
+                                    {% elif source.enabled %}
+                                    <span class="source-status-badge enabled">Ready</span>
+                                    {% else %}
+                                    <span class="source-status-badge disabled">Disabled</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if source.id != current_source_id %}
+                                    <form action="/switch-source" method="post" style="display: inline;">
+                                        <input type="hidden" name="source_id" value="{{ source.id }}">
+                                        <button type="submit" class="btn-small">Activate</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="loading-cell">No sources configured yet</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- SETTINGS TAB CONTENT -->
+    <div id="tab-settings" class="tab-content">
+        <main>
+            <!-- Frame Settings Card -->
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">⚙️ Frame Settings</div>
+                        <div class="card-subtitle">Configure your picture frame</div>
+                    </div>
+                </div>
+
+                <form action="/settings" method="post" style="padding: 0 1.5rem 1.5rem;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Frame Name</label>
+                            <input type="text" name="frame_name" class="form-input" value="{{ frame_name }}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Rotation Interval (seconds)</label>
+                            <input type="number" name="rotation_interval" class="form-input" value="{{ rotation_interval }}" min="5" max="3600">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Sync Interval (seconds)</label>
+                            <input type="number" name="sync_interval" class="form-input" value="{{ sync_interval }}" min="60" max="86400">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Log Level</label>
+                            <select name="log_level" class="form-select">
+                                <option value="DEBUG" {% if log_level == 'DEBUG' %}selected{% endif %}>DEBUG</option>
+                                <option value="INFO" {% if log_level == 'INFO' %}selected{% endif %}>INFO</option>
+                                <option value="WARNING" {% if log_level == 'WARNING' %}selected{% endif %}>WARNING</option>
+                                <option value="ERROR" {% if log_level == 'ERROR' %}selected{% endif %}>ERROR</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="button-row">
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Device Pairing Card -->
+            <section class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">📱 Mobile App Pairing</div>
+                        <div class="card-subtitle">Connect your phone to control this frame</div>
+                    </div>
+                </div>
+
+                <div style="padding: 0 1.5rem 1.5rem;">
+                    <a href="/pairing" class="btn">Generate Pairing QR Code</a>
+                    <a href="/devices" class="btn secondary" style="margin-left: 0.5rem;">Manage Devices</a>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <footer>
+        Auto-updates every 15 seconds
+    </footer>
+</div>
+
+<script src="/static/js/dashboard.js"></script>
+</body>
+</html>
