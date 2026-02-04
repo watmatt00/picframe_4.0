@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 import httpx
+import yaml
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -39,6 +40,20 @@ templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 # Log files location
 LOGS_DIR = Path.home() / ".picframe" / "logs"
+
+# Picframe config file location
+PICFRAME_CONFIG_PATH = Path.home() / "picframe_data" / "config" / "configuration.yaml"
+
+
+def _get_picframe_config() -> dict:
+    """Read picframe configuration.yaml file."""
+    if PICFRAME_CONFIG_PATH.exists():
+        try:
+            with open(PICFRAME_CONFIG_PATH) as f:
+                return yaml.safe_load(f) or {}
+        except Exception as e:
+            logger.error(f"Failed to read picframe config: {e}")
+    return {}
 
 
 
@@ -83,6 +98,11 @@ async def dashboard_home(request: Request):
         storage_total = 0
         storage_percent = 0
 
+    # Get rotation interval from picframe config
+    picframe_config = _get_picframe_config()
+    rotation_interval = int(picframe_config.get("model", {}).get("time_delay", 30))
+    pf_log_level = picframe_config.get("model", {}).get("log_level", "WARNING")
+
     context = {
         "request": request,
         "frame_name": settings.frame.name,
@@ -98,9 +118,9 @@ async def dashboard_home(request: Request):
         "storage_used": storage_used,
         "storage_total": storage_total,
         "storage_percent": storage_percent,
-        "rotation_interval": settings.display.rotation_interval,
+        "rotation_interval": rotation_interval,
         "sync_interval": settings.sync.interval,
-        "log_level": settings.logging.level,
+        "log_level": pf_log_level,
     }
     return templates.TemplateResponse("dashboard.html", context)
 
@@ -807,19 +827,38 @@ async def save_settings_api(request: SaveSettingsRequest):
     Save frame settings from the dashboard.
 
     LAN-only endpoint, no JWT auth required.
-    Automatically restarts picframe service if rotation_interval changes.
+    Writes to picframe's configuration.yaml and restarts if needed.
     """
     try:
-        # Check if rotation interval is changing
-        settings = get_settings()
-        rotation_changed = settings.display.rotation_interval != request.rotation_interval
+        # Read current picframe config
+        if PICFRAME_CONFIG_PATH.exists():
+            with open(PICFRAME_CONFIG_PATH) as f:
+                picframe_config = yaml.safe_load(f) or {}
+        else:
+            logger.error(f"Picframe config not found: {PICFRAME_CONFIG_PATH}")
+            return {"ok": False, "error": "Picframe config file not found"}
 
-        # Save settings
+        # Check if rotation interval is changing
+        current_delay = picframe_config.get("model", {}).get("time_delay", 30)
+        rotation_changed = float(current_delay) != float(request.rotation_interval)
+
+        # Update picframe config
+        if "model" not in picframe_config:
+            picframe_config["model"] = {}
+        picframe_config["model"]["time_delay"] = float(request.rotation_interval)
+        picframe_config["model"]["log_level"] = request.log_level.upper()
+
+        # Write picframe config
+        with open(PICFRAME_CONFIG_PATH, "w") as f:
+            yaml.safe_dump(picframe_config, f, default_flow_style=False)
+
+        logger.info(f"Picframe config saved: time_delay={request.rotation_interval}")
+
+        # Also save to v4 dashboard config
         config_manager.set("frame.name", request.frame_name)
         config_manager.set("display.rotation_interval", request.rotation_interval)
         config_manager.set("sync.interval", request.sync_interval)
         config_manager.set("logging.level", request.log_level)
-        logger.info(f"Settings saved via dashboard: frame_name={request.frame_name}")
 
         # Restart picframe if rotation interval changed
         restarted = False
