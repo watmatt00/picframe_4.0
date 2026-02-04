@@ -382,17 +382,30 @@ async def trigger_sync():
 
     # Sync the first enabled source
     source = syncable[0]
-    from pathlib import Path
 
-    # Run sync in background (don't await)
-    import asyncio
-    asyncio.create_task(
-        sync_service.sync_source(
-            source_id=source.id,
-            local_path=Path(source.local_path),
-            rclone_remote=source.rclone_remote,
-        )
-    )
+    async def run_sync_with_logging():
+        """Run sync and update timestamp/logs."""
+        logger.info(f"Starting sync for source '{source.id}' from {source.rclone_remote}")
+        try:
+            await sync_service.sync_source(
+                source_id=source.id,
+                local_path=Path(source.local_path),
+                rclone_remote=source.rclone_remote,
+            )
+            logger.info(f"Sync completed for source '{source.id}'")
+        except Exception as e:
+            logger.error(f"Sync failed for source '{source.id}': {e}")
+
+        # Update the systemd timer stamp file to reflect manual sync
+        stamp_file = Path.home() / ".local" / "share" / "systemd" / "timers" / "stamp-picframe-sync.timer"
+        try:
+            stamp_file.parent.mkdir(parents=True, exist_ok=True)
+            stamp_file.touch()
+        except Exception as e:
+            logger.warning(f"Failed to update sync stamp file: {e}")
+
+    # Run sync in background
+    asyncio.create_task(run_sync_with_logging())
 
     return {"status": "started", "source": source.id}
 
