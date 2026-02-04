@@ -197,16 +197,22 @@ function initStatusDashboard() {
 
             // Sync status
             const syncStatus = data.sync_status || "idle";
+            const cloudCount = data.remote_count || 0;
+            const localCount = data.local_count || 0;
+            const countsMatch = cloudCount === localCount;
+
             const severity = syncStatus === "syncing" ? "SYNCING" :
+                            syncStatus === "error" ? "ERROR" :
+                            !countsMatch ? "WARN" :
                             syncStatus === "match" ? "OK" :
-                            syncStatus === "idle" ? "OK" :
-                            syncStatus === "error" ? "ERROR" : "UNKNOWN";
+                            syncStatus === "idle" ? "OK" : "UNKNOWN";
 
             if (overallTitle) {
                 overallTitle.textContent = syncStatus === "syncing" ? "Syncing photos..." :
+                                           syncStatus === "error" ? "Sync error" :
+                                           !countsMatch ? `Out of sync (${cloudCount} cloud / ${localCount} local)` :
                                            syncStatus === "match" ? "Photos in sync" :
-                                           syncStatus === "idle" ? "Ready" :
-                                           syncStatus === "error" ? "Sync error" : "Checking status...";
+                                           syncStatus === "idle" ? "Photos in sync" : "Checking status...";
             }
             if (overallChip) {
                 overallChip.textContent = severity;
