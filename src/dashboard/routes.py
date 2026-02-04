@@ -424,8 +424,26 @@ async def get_dashboard_status():
 
     # Count photos
     local_count = 0
+    remote_count = 0
     if current_source:
         local_count = count_local_files(current_source.local_path)
+        # Count remote files if rclone_remote is configured
+        if current_source.rclone_remote:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "rclone", "ls", current_source.rclone_remote,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
+                if proc.returncode == 0:
+                    # Count non-empty lines (each line is a file)
+                    lines = [l for l in stdout.decode().strip().split("\n") if l.strip()]
+                    remote_count = len(lines)
+            except asyncio.TimeoutError:
+                logger.warning("Timeout counting remote files")
+            except Exception as e:
+                logger.warning(f"Failed to count remote files: {e}")
 
     # Determine sync status
     sync_status = "idle"
@@ -463,7 +481,7 @@ async def get_dashboard_status():
     return {
         "sync_status": sync_status,
         "local_count": local_count,
-        "remote_count": 0,
+        "remote_count": remote_count,
         "current_source": current_source.name if current_source else "Unknown",
         "services": services_data,
         "storage_used": storage_used,
