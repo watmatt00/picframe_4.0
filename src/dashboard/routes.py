@@ -791,3 +791,30 @@ async def test_remote_connection(request: dict):
         return {"ok": False, "error": "rclone not installed"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+class SaveSettingsRequest(BaseModel):
+    """Request to save frame settings."""
+    frame_name: str
+    rotation_interval: int
+    sync_interval: int
+    log_level: str
+
+
+@router.post("/api/settings")
+async def save_settings_api(request: SaveSettingsRequest):
+    """
+    Save frame settings from the dashboard.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    try:
+        config_manager.set("frame.name", request.frame_name)
+        config_manager.set("display.rotation_interval", request.rotation_interval)
+        config_manager.set("sync.interval", request.sync_interval)
+        config_manager.set("logging.level", request.log_level)
+        logger.info(f"Settings saved via dashboard: frame_name={request.frame_name}")
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Failed to save settings: {e}")
+        return {"ok": False, "error": str(e)}

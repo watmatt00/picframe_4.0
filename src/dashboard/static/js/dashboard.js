@@ -4,11 +4,13 @@
  */
 
 let sourcesInitialized = false;
+let settingsInitialized = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initTabSwitching();
     initAdvancedToggles();
     initStatusDashboard();
+    initSettingsForm();
 });
 
 // =============================================================================
@@ -945,4 +947,61 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// =============================================================================
+// SETTINGS FORM
+// =============================================================================
+
+function initSettingsForm() {
+    const form = document.getElementById('settings-form');
+    if (!form) return;
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const btn = document.getElementById('btn-save-settings');
+        const statusEl = document.getElementById('settings-status-message');
+
+        const settings = {
+            frame_name: document.getElementById('settings-frame-name').value,
+            rotation_interval: parseInt(document.getElementById('settings-rotation-interval').value),
+            sync_interval: parseInt(document.getElementById('settings-sync-interval').value),
+            log_level: document.getElementById('settings-log-level').value
+        };
+
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+            const response = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            });
+
+            const data = await response.json();
+
+            if (data.ok) {
+                statusEl.className = 'status-message success';
+                statusEl.textContent = 'Settings saved successfully!';
+                statusEl.style.display = 'block';
+                // Update frame name in header if it changed
+                const hostName = document.getElementById('host-name');
+                if (hostName) hostName.textContent = settings.frame_name;
+                setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
+            } else {
+                statusEl.className = 'status-message error';
+                statusEl.textContent = 'Failed to save settings: ' + (data.error || 'Unknown error');
+                statusEl.style.display = 'block';
+            }
+        } catch (err) {
+            statusEl.className = 'status-message error';
+            statusEl.textContent = 'Error saving settings: ' + err.message;
+            statusEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save Settings';
+        }
+    });
 }
