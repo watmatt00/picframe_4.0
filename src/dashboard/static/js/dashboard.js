@@ -984,7 +984,11 @@ function initSettingsForm() {
 
             if (data.ok) {
                 statusEl.className = 'status-message success';
-                statusEl.textContent = 'Settings saved successfully!';
+                let message = 'Settings saved successfully!';
+                if (data.restarted) {
+                    message += ' Frame display restarted.';
+                }
+                statusEl.textContent = message;
                 statusEl.style.display = 'block';
                 // Update frame name in header if it changed
                 const hostName = document.getElementById('host-name');

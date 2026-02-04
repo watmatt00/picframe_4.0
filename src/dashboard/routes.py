@@ -489,7 +489,7 @@ async def restart_service_from_dashboard(service_name: str):
         return {"error": f"Service '{service_name}' not allowed"}
 
     try:
-        success = await systemd_service.restart_service(service_name)
+        success = await systemd_service.restart(service_name)
         if success:
             logger.info(f"Service {service_name} restarted successfully via dashboard")
             return {"ok": True, "service": service_name}
@@ -807,14 +807,31 @@ async def save_settings_api(request: SaveSettingsRequest):
     Save frame settings from the dashboard.
 
     LAN-only endpoint, no JWT auth required.
+    Automatically restarts picframe service if rotation_interval changes.
     """
     try:
+        # Check if rotation interval is changing
+        settings = get_settings()
+        rotation_changed = settings.display.rotation_interval != request.rotation_interval
+
+        # Save settings
         config_manager.set("frame.name", request.frame_name)
         config_manager.set("display.rotation_interval", request.rotation_interval)
         config_manager.set("sync.interval", request.sync_interval)
         config_manager.set("logging.level", request.log_level)
         logger.info(f"Settings saved via dashboard: frame_name={request.frame_name}")
-        return {"ok": True}
+
+        # Restart picframe if rotation interval changed
+        restarted = False
+        if rotation_changed:
+            logger.info("Rotation interval changed, restarting picframe service")
+            restarted = await systemd_service.restart("picframe")
+            if restarted:
+                logger.info("Picframe service restarted successfully")
+            else:
+                logger.warning("Failed to restart picframe service")
+
+        return {"ok": True, "restarted": restarted}
     except Exception as e:
         logger.error(f"Failed to save settings: {e}")
         return {"ok": False, "error": str(e)}
