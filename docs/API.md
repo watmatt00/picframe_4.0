@@ -278,19 +278,109 @@ All errors follow this format:
 
 ## Implementation Status
 
+### Admin API Endpoints (JWT Required)
+
 | Endpoint | Status |
 |----------|--------|
-| `/health` | Implemented |
-| `/version` | Implemented |
-| `/pair` | Implemented |
-| `/pairing/generate` | Implemented |
-| `/status` | Stub only |
-| `/devices` | Implemented |
-| `/devices/{id}` | Stub only |
-| `/services` | Stub only |
-| `/services/{name}/restart` | Stub only |
-| `/display/folder` | Stub only |
+| `/health` | ✅ Implemented |
+| `/version` | ✅ Implemented |
+| `/pair` | ✅ Implemented |
+| `/pairing/generate` | ✅ Implemented |
+| `/status` | ✅ Implemented |
+| `/devices` | ✅ Implemented |
+| `/devices/{id}` | ✅ Implemented |
+| `/services` | ✅ Implemented |
+| `/services/{name}/restart` | ✅ Implemented |
+| `/display/folder` | ✅ Implemented |
 | `/folders` | Stub only |
 | `/contributors` | Stub only |
-| `/sync` | Not implemented |
-| `/logs` | Not implemented |
+| `/sync` | ✅ Implemented |
+| `/logs` | ✅ Implemented |
+
+---
+
+## Dashboard API Endpoints (LAN Only - No Auth)
+
+The web dashboard at `http://<pi-ip>:8000` provides browser-based management accessible only on the local network. These endpoints are used by the dashboard JavaScript.
+
+### Dashboard Pages
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Dashboard home page (status overview) |
+| `/settings` | GET | Settings page |
+| `/devices` | GET | Device management page |
+| `/pairing` | GET | Pairing QR code page |
+| `/logs` | GET | Log viewer page |
+
+### Dashboard API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/dashboard/status` | GET | Dashboard status JSON (sync state, counts, services) |
+| `/current-image` | GET | Proxy current image from Pi3D |
+| `/sync` | POST | Trigger manual sync |
+| `/switch-source` | POST | Switch display source |
+| `/services/{name}/restart` | POST | Restart service (picframe, picframe-api) |
+| `/api/settings` | POST | Save frame settings |
+
+### Source Management API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/sources` | GET | List all photo sources |
+| `/api/sources/create` | POST | Create a new photo source |
+| `/api/sources/delete` | POST | Delete a photo source |
+| `/api/frame-live` | POST | Switch to source and trigger sync |
+
+### rclone Integration API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/rclone/remotes` | GET | List configured rclone remotes |
+| `/api/rclone/list-dirs` | POST | Browse directories in rclone remote |
+| `/api/local/list-dirs` | GET | List directories in ~/Pictures |
+| `/api/config/test-remote` | POST | Test rclone remote connection |
+
+### Other Dashboard Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/logs` | GET | Get recent log entries as JSON |
+| `/pairing/generate` | POST | Generate new pairing code (AJAX) |
+| `/devices/{id}/revoke` | POST | Revoke a paired device |
+
+---
+
+## Dashboard Status Response
+
+**GET /dashboard/status**
+
+Returns real-time dashboard data for AJAX updates.
+
+```json
+{
+  "sync_status": "idle|syncing|match|error",
+  "local_count": 150,
+  "remote_count": 150,
+  "current_source": "Family Photos",
+  "services": [
+    {"name": "picframe", "active": true, "status": "running"},
+    {"name": "picframe-api", "active": true, "status": "running"}
+  ],
+  "storage_used": 12.5,
+  "storage_total": 64.0,
+  "storage_percent": 19.5,
+  "last_sync": "2026-02-04 10:30:00",
+  "last_restart": "2026-02-04 08:00:00",
+  "logs": ["2026-02-04 10:30:00 INFO Sync completed", "..."]
+}
+```
+
+### Traffic Light Status Logic
+
+The dashboard displays a traffic light indicator:
+- **GREEN**: Sync status is "match" or "idle" AND cloud/local counts match
+- **AMBER**: Cloud and local photo counts don't match (sync needed)
+- **RED**: Sync error occurred
+- **BLUE (animated)**: Sync currently in progress

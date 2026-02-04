@@ -6,10 +6,10 @@ Secure mobile management for Raspberry Pi picture frames.
 
 PicFrame 4.0 is a complete rewrite providing:
 - **FastAPI backend** with JWT authentication
-- **Web dashboard** for LAN-based management (coming soon)
+- **Web dashboard** for LAN-based management
 - **Mobile app support** via Tailscale Funnel (no VPN needed)
 - **Pi3D PictureFrame** integration for GPU-accelerated display
-- **rclone sync** for cloud photo synchronization (coming soon)
+- **rclone sync** for cloud photo synchronization
 
 ## Architecture
 
@@ -21,19 +21,26 @@ Contributors ──(Koofr)──────────> Cloud ──> rclone s
 
 ## Current Status
 
-**Phase 1 Complete** - API Foundation + Remote Access
+**Phases 1-3 Complete** - API Foundation + Remote Access + Web Dashboard
 
 | Feature | Status |
 |---------|--------|
-| FastAPI skeleton | Done |
-| Tailscale Funnel | Done |
-| JWT authentication | Done |
-| Device pairing (QR) | Done |
-| Config management | Done |
-| Dual logging | Done |
-| rclone sync | Phase 2 |
-| Web dashboard | Phase 3 |
-| systemd service | Phase 4 |
+| FastAPI skeleton | ✅ Done |
+| Tailscale Funnel | ✅ Done |
+| JWT authentication | ✅ Done |
+| Device pairing (QR) | ✅ Done |
+| Config management | ✅ Done |
+| Dual logging | ✅ Done |
+| rclone sync | ✅ Done |
+| Web dashboard | ✅ Done |
+| systemd service | ✅ Done |
+
+### Web Dashboard Features
+- **Status Tab**: Photo sync status, cloud/local photo counts, traffic light indicator, current image thumbnail
+- **Switch Photos Tab**: Source management, add new sources with rclone folder browser
+- **Settings Tab**: Frame name, rotation interval, sync interval (minutes), log level
+- **Quick Actions**: Refresh, Sync Now, Restart Frame, Restart API
+- **Device Pairing**: QR code generation for mobile app pairing
 
 ## Quick Start
 
@@ -64,8 +71,8 @@ See [Pi Setup Guide](docs/PI_SETUP.md) for complete installation instructions.
 
 ### Access
 
-- **Local API**: `http://<pi-ip>:8000`
-- **Remote API**: `https://<hostname>.<tailnet>.ts.net` (via Tailscale Funnel)
+- **Web Dashboard**: `http://<pi-ip>:8000` (LAN only, no auth required)
+- **Remote API**: `https://<hostname>.<tailnet>.ts.net` (via Tailscale Funnel, JWT required)
 
 ### Test Endpoints
 

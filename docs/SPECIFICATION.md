@@ -76,18 +76,48 @@ The web dashboard provides browser-based management accessible **only on the loc
 - **Auth**: None (LAN-only)
 - **Remote access**: Use mobile app instead (via Tailscale Funnel)
 
-### Dashboard Features
+### Dashboard Features (Implemented)
 
-| Feature | API Endpoint | Description |
-|---------|--------------|-------------|
-| **Status Banner** | `GET /status` | MATCH/MISMATCH, file counts, service status |
-| **Sync Control** | `POST /sync` | Trigger manual sync, view sync logs |
-| **Source Switcher** | `GET/POST /display/folder` | Change active photo source |
-| **Service Control** | `POST /services/{name}/restart` | Restart picframe, API services |
-| **Device Management** | `GET /devices` | View paired mobile devices |
-| **Pairing** | `POST /pairing/generate` | Generate QR code for new device |
-| **Settings** | `GET/POST /config` | Edit frame configuration |
-| **Logs Viewer** | `GET /logs` | View recent log entries |
+The dashboard is a tabbed interface with three main sections:
+
+#### Status Tab
+| Feature | Endpoint | Description |
+|---------|----------|-------------|
+| **Traffic Light** | `GET /dashboard/status` | Visual sync indicator (green/amber/red) |
+| **Photo Counts** | `GET /dashboard/status` | Cloud and local photo counts with mismatch detection |
+| **Current Image** | `GET /current-image` | Thumbnail of currently displayed photo |
+| **Service Status** | `GET /dashboard/status` | Frame display and dashboard service health |
+| **Storage Info** | `GET /dashboard/status` | Disk usage percentage and capacity |
+| **Quick Actions** | Various POST | Refresh, Sync Now, Restart Frame, Restart API |
+| **Activity Log** | `GET /api/logs` | Recent log entries (collapsible) |
+
+#### Switch Photos Tab
+| Feature | Endpoint | Description |
+|---------|----------|-------------|
+| **Source List** | `GET /api/sources` | Table of configured photo sources |
+| **Source Switcher** | `POST /api/frame-live` | One-click switch to different source |
+| **Add Source Form** | `POST /api/sources/create` | Create new source with folder browser |
+| **Folder Browser** | `POST /api/rclone/list-dirs` | Navigate rclone remote directories |
+| **Remote Selector** | `GET /api/rclone/remotes` | Dropdown of configured rclone remotes |
+| **Connection Test** | `POST /api/config/test-remote` | Verify rclone remote connectivity |
+| **Delete Source** | `POST /api/sources/delete` | Remove a photo source |
+
+#### Settings Tab
+| Feature | Endpoint | Description |
+|---------|----------|-------------|
+| **Frame Name** | `POST /api/settings` | Display name for the frame |
+| **Rotation Interval** | `POST /api/settings` | Seconds between photos (auto-restarts frame) |
+| **Sync Interval** | `POST /api/settings` | Minutes between cloud syncs |
+| **Log Level** | `POST /api/settings` | DEBUG/INFO/WARNING/ERROR |
+| **Mobile Pairing** | `GET /pairing` | Link to QR code generation |
+| **Device Management** | `GET /devices` | Link to paired devices list |
+
+#### Other Dashboard Pages
+| Page | URL | Description |
+|------|-----|-------------|
+| **Pairing** | `/pairing` | Generate QR code for mobile app |
+| **Devices** | `/devices` | List and revoke paired devices |
+| **Logs** | `/logs` | Full log viewer with filtering |
 
 ### Dashboard Technology
 
@@ -414,21 +444,29 @@ picframe_mgr/
 
 ## Configuration
 
-### Config Format: YAML (not bash!)
+### Config Files
+
+PicFrame 4.0 uses two configuration files:
+
+| File | Purpose |
+|------|---------|
+| `~/.picframe/config.yaml` | Dashboard settings (frame name, sync interval, current source) |
+| `~/picframe_data/config/configuration.yaml` | Pi3D PictureFrame settings (rotation interval, display options) |
+
+### Dashboard Config: `~/.picframe/config.yaml`
 
 ```yaml
-# ~/.picframe/config.yaml
-
 frame:
   id: "kframe"
   name: "Kitchen Frame"
+  funnel_url: "https://kframe.tailnet.ts.net"
 
 display:
   current_source: "koofr_main"
-  rotation_interval: 30  # seconds
+  rotation_interval: 30  # seconds (also written to picframe config)
 
 sync:
-  interval: 900  # 15 minutes
+  interval: 900  # seconds (displayed as minutes in UI)
   rclone_flags: ["--verbose"]
 
 tailscale:
@@ -438,6 +476,21 @@ logging:
   level: "INFO"
   retention_days: 90
 ```
+
+### Pi3D PictureFrame Config: `~/picframe_data/config/configuration.yaml`
+
+The dashboard settings page writes directly to picframe's config for settings that affect display:
+
+```yaml
+model:
+  time_delay: 30.0        # Rotation interval in seconds
+  log_level: "WARNING"    # Log level
+  pic_dir: "/home/matt/Pictures"
+  shuffle: true
+  # ... other picframe settings
+```
+
+When the rotation interval is changed via the dashboard, the picframe service is automatically restarted to apply the change.
 
 ### Sources Format: YAML
 
