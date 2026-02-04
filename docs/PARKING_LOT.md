@@ -43,22 +43,25 @@ Files:
 
 ## picframe_mgr (Mobile App)
 
-### Fix Port Mismatch (5000 -> 8000)
+### ~~Fix Port Mismatch (5000 -> 8000)~~
 **Priority:** High
+**Status:** Done
+
+Fixed: Port is now configurable (stored in PairedFrame, defaults to 8000). Backend includes `api_port` in pairing response. Also fixed missing `/api` prefix on all mobile API URLs.
+
+### ~~Fix iOS FrameStatus Model Mismatch~~
+**Priority:** High
+**Status:** Done
+
+Fixed: iOS and Kotlin `FrameStatus` models updated to match backend response. Backend `ServiceStatus` enriched with `display_name`, `can_restart`, and mobile-friendly status strings. `CapacityInfo` now includes byte-level fields for mobile.
+
+### Fix FoldersResponse Mismatch
+**Priority:** Medium
 **Status:** Not started
 
-Mobile app hardcodes port 5000 in `PairedFrame.swift` line 44, but picframe_4.0 backend listens on port 8000. Mobile app will fail to connect.
-
-Fix: Update port or make it configurable.
-
-File: `picframe_mgr/iosApp/iosApp/Models/PairedFrame.swift`
-
-### Fix iOS FrameStatus Model Mismatch
-**Priority:** High
-**Status:** Not started
-
-iOS `FrameStatus` struct expects fields that don't exist in backend (`online`, `uptime`, `currentFolder`). Backend sends different structure (`sync.status`, `current_source`). JSON decoding will fail.
+Backend `GET /api/folders` returns `list[PhotoSourceResponse]` (flat list), but mobile expects `{ folders: [...], current_source: "..." }` (wrapped with current source). JSON decoding will fail for folder listing.
 
 Files:
-- `picframe_mgr/iosApp/iosApp/Models/FrameStatus.swift`
-- `picframe_4.0/src/api/routes/status.py`
+- `picframe_4.0/src/api/routes/folders.py`
+- `picframe_mgr/iosApp/iosApp/Models/FrameStatus.swift` (FoldersResponse)
+- `picframe_mgr/shared/.../models/frame/FrameStatus.kt` (FoldersResponse)

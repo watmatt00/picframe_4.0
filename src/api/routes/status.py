@@ -25,8 +25,10 @@ router = APIRouter(tags=["status"])
 class ServiceStatus(BaseModel):
     """Status of a systemd service."""
     name: str
+    display_name: str
     active: bool
-    status: str
+    status: str  # "running", "stopped", "unknown"
+    can_restart: bool
 
 
 class SyncStatusInfo(BaseModel):
@@ -45,6 +47,9 @@ class CapacityInfo(BaseModel):
     used_gb: float
     available_gb: float
     percent_used: float
+    total_bytes: int
+    used_bytes: int
+    free_bytes: int
 
 
 class FrameStatus(BaseModel):
@@ -58,8 +63,25 @@ class FrameStatus(BaseModel):
     capacity: CapacityInfo
 
 
+SERVICE_DISPLAY_NAMES = {
+    "picframe.service": "PicFrame Display",
+    "picframe-api.service": "PicFrame API",
+    "picframe-sync.service": "PicFrame Sync",
+}
+
+
+def _map_service_status(systemctl_status: str) -> str:
+    """Map systemctl status strings to mobile-friendly values."""
+    if systemctl_status == "active":
+        return "running"
+    elif systemctl_status == "inactive":
+        return "stopped"
+    return "unknown"
+
+
 async def _get_service_status(service_name: str) -> ServiceStatus:
     """Get status of a systemd user service."""
+    display_name = SERVICE_DISPLAY_NAMES.get(service_name, service_name)
     try:
         proc = await asyncio.create_subprocess_exec(
             "systemctl", "--user", "is-active", service_name,
@@ -67,11 +89,23 @@ async def _get_service_status(service_name: str) -> ServiceStatus:
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, _ = await proc.communicate()
-        status = stdout.decode().strip()
-        active = status == "active"
-        return ServiceStatus(name=service_name, active=active, status=status)
+        raw_status = stdout.decode().strip()
+        active = raw_status == "active"
+        return ServiceStatus(
+            name=service_name,
+            display_name=display_name,
+            active=active,
+            status=_map_service_status(raw_status),
+            can_restart=True,
+        )
     except Exception:
-        return ServiceStatus(name=service_name, active=False, status="unknown")
+        return ServiceStatus(
+            name=service_name,
+            display_name=display_name,
+            active=False,
+            status="unknown",
+            can_restart=True,
+        )
 
 
 def _get_capacity(path: Path) -> CapacityInfo:
@@ -87,9 +121,15 @@ def _get_capacity(path: Path) -> CapacityInfo:
             used_gb=round(used_gb, 2),
             available_gb=round(available_gb, 2),
             percent_used=round(percent_used, 1),
+            total_bytes=usage.total,
+            used_bytes=usage.used,
+            free_bytes=usage.free,
         )
     except Exception:
-        return CapacityInfo(total_gb=0, used_gb=0, available_gb=0, percent_used=0)
+        return CapacityInfo(
+            total_gb=0, used_gb=0, available_gb=0, percent_used=0,
+            total_bytes=0, used_bytes=0, free_bytes=0,
+        )
 
 
 @router.get("/status", response_model=FrameStatus)

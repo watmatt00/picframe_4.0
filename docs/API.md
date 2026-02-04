@@ -23,26 +23,26 @@ Tokens are obtained through the pairing flow (see [Security](SECURITY.md)).
 |----------|--------|-------------|
 | `/health` | GET | Health check |
 | `/version` | GET | API version |
-| `/pair` | POST | Exchange pairing code for JWT |
+| `/api/pair` | POST | Exchange pairing code for JWT |
 
-### Admin Endpoints (JWT Required)
+### Admin Endpoints (JWT Required, `/api` prefix)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/pairing/generate` | POST | Generate new pairing QR code |
-| `/status` | GET | Frame status, capacity |
-| `/devices` | GET | List paired devices |
-| `/devices/{id}` | DELETE | Revoke device |
-| `/services` | GET | List services + status |
-| `/services/{name}/restart` | POST | Restart service |
-| `/display/folder` | GET | Current display folder |
-| `/display/folder` | POST | Switch folder |
-| `/folders` | GET | List folders |
-| `/folders` | POST | Create folder |
-| `/contributors` | GET | List contributor invites |
-| `/contributors/invite` | POST | Generate Koofr invite |
-| `/sync` | POST | Trigger manual sync |
-| `/logs` | GET | Recent log entries |
+| `/api/pairing/generate` | POST | Generate new pairing QR code |
+| `/api/status` | GET | Frame status, capacity |
+| `/api/devices` | GET | List paired devices |
+| `/api/devices/{id}` | DELETE | Revoke device |
+| `/api/services` | GET | List services + status |
+| `/api/services/{name}/restart` | POST | Restart service |
+| `/api/display/folder` | GET | Current display folder |
+| `/api/display/folder` | POST | Switch folder |
+| `/api/folders` | GET | List folders |
+| `/api/folders` | POST | Create folder |
+| `/api/contributors` | GET | List contributor invites |
+| `/api/contributors/invite` | POST | Generate Koofr invite |
+| `/api/sync` | POST | Trigger manual sync |
+| `/api/logs` | GET | Recent log entries |
 
 ---
 
@@ -70,7 +70,7 @@ API version endpoint.
 
 ---
 
-### POST /pair
+### POST /api/pair
 
 Exchange a pairing code for a JWT token.
 
@@ -87,7 +87,9 @@ Exchange a pairing code for a JWT token.
 {
   "token": "eyJhbGciOiJIUzI1NiIs...",
   "frame_id": "tkframe",
-  "frame_name": "Test Frame"
+  "frame_name": "Test Frame",
+  "role": "admin",
+  "api_port": 8000
 }
 ```
 
@@ -128,7 +130,7 @@ Authorization: Bearer <token>
 
 ---
 
-### GET /status
+### GET /api/status
 
 Get frame status including sync state and capacity. Admin only.
 
@@ -142,13 +144,40 @@ Authorization: Bearer <token>
 {
   "frame_id": "tkframe",
   "frame_name": "Test Frame",
-  "sync_status": "MATCH",
-  "local_count": 1234,
-  "remote_count": 1234,
-  "last_sync": "2026-02-02T10:00:00+00:00",
-  "services": {
-    "picframe": "running",
-    "picframe-api": "running"
+  "current_source": "koofr_main",
+  "photo_count": 1234,
+  "services": [
+    {
+      "name": "picframe.service",
+      "display_name": "PicFrame Display",
+      "active": true,
+      "status": "running",
+      "can_restart": true
+    },
+    {
+      "name": "picframe-api.service",
+      "display_name": "PicFrame API",
+      "active": true,
+      "status": "running",
+      "can_restart": true
+    }
+  ],
+  "sync": {
+    "last_sync": "2026-02-02T10:00:00+00:00",
+    "status": "match",
+    "local_count": 1234,
+    "remote_count": 0,
+    "is_syncing": false,
+    "current_source": null
+  },
+  "capacity": {
+    "total_gb": 64.0,
+    "used_gb": 12.5,
+    "available_gb": 51.5,
+    "percent_used": 19.5,
+    "total_bytes": 68719476736,
+    "used_bytes": 13421772800,
+    "free_bytes": 55297703936
   }
 }
 ```

@@ -35,6 +35,8 @@ class PairResponse(BaseModel):
     token: str
     frame_id: str
     frame_name: str
+    role: str = "admin"
+    api_port: int = 8000
 
 
 class PairingGenerateResponse(BaseModel):
