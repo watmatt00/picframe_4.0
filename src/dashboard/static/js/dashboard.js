@@ -527,6 +527,7 @@ async function loadLocalDirs() {
         }
 
         sourcesState.localDirs = data.dirs || [];
+        sourcesState.picturesBasePath = data.base_path || '/home/pi/Pictures';
         renderLocalDirDropdown();
     } catch (err) {
         console.error('Failed to load local dirs:', err);
@@ -548,7 +549,7 @@ function renderLocalDirDropdown() {
     }
 
     const options = sourcesState.localDirs.map(dir =>
-        `<option value="/home/pi/Pictures/${escapeHtml(dir)}">/home/pi/Pictures/${escapeHtml(dir)}</option>`
+        `<option value="${escapeHtml(dir.path)}">${escapeHtml(dir.path)}</option>`
     ).join('');
 
     sourcesElements.localDir.innerHTML = `
@@ -556,6 +557,12 @@ function renderLocalDirDropdown() {
         ${options}
         <option value="new">+ Create new directory</option>
     `;
+
+    // Update the hint to show correct base path
+    const hint = document.querySelector('#new-dir-input-container .form-hint');
+    if (hint && sourcesState.picturesBasePath) {
+        hint.textContent = `Will be created in ${sourcesState.picturesBasePath}/`;
+    }
 }
 
 function onRemoteChange() {
@@ -765,7 +772,8 @@ async function onFormSubmit(event) {
             return;
         }
 
-        localPath = `/home/pi/Pictures/${newDirName}`;
+        // Use the pictures base path from state (set by API)
+        localPath = `${sourcesState.picturesBasePath}/${newDirName}`;
         createDirectory = true;
     }
 

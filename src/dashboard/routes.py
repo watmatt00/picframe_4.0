@@ -687,19 +687,21 @@ async def list_local_dirs():
     LAN-only endpoint, no JWT auth required.
     """
     pictures_path = Path.home() / "Pictures"
+    base_path = str(pictures_path)
 
     if not pictures_path.exists():
-        return {"ok": True, "dirs": []}
+        return {"ok": True, "dirs": [], "base_path": base_path}
 
     try:
         dirs = [
-            d.name for d in pictures_path.iterdir()
+            {"name": d.name, "path": str(d)}
+            for d in sorted(pictures_path.iterdir())
             if d.is_dir() and not d.name.startswith(".")
         ]
-        return {"ok": True, "dirs": sorted(dirs)}
+        return {"ok": True, "dirs": dirs, "base_path": base_path}
     except Exception as e:
         logger.error(f"Failed to list local dirs: {e}")
-        return {"ok": False, "error": str(e), "dirs": []}
+        return {"ok": False, "error": str(e), "dirs": [], "base_path": base_path}
 
 
 class FrameLiveRequest(BaseModel):
