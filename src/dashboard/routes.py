@@ -345,9 +345,18 @@ def _last_matching_timestamp(log_file: Path, needle: str) -> str | None:
 
 
 def _get_last_sync_time() -> str | None:
-    """Get timestamp of last successful sync from logs."""
+    """Get timestamp of last sync from systemd timer stamp or logs."""
+    # First check systemd timer stamp file (most reliable)
+    stamp_file = Path.home() / ".local" / "share" / "systemd" / "timers" / "stamp-picframe-sync.timer"
+    if stamp_file.exists():
+        try:
+            mtime = stamp_file.stat().st_mtime
+            return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+
+    # Fallback to log file
     log_file = LOGS_DIR / "picframe.log"
-    # Look for sync completion messages
     return _last_matching_timestamp(log_file, "sync") or \
            _last_matching_timestamp(log_file, "rclone")
 
