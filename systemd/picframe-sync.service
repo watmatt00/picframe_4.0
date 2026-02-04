@@ -6,6 +6,6 @@ Requires=picframe-api.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/curl -s -X POST http://localhost:8000/folders/sync/all -H "Content-Type: application/json"
+ExecStart=/usr/bin/curl -s -X POST http://localhost:8000/sync
 StandardOutput=journal
 StandardError=journal
