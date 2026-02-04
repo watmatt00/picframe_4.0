@@ -295,8 +295,8 @@
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label class="form-label">Sync Interval (seconds)</label>
-                            <input type="number" id="settings-sync-interval" class="form-input" value="{{ sync_interval }}" min="60" max="86400">
+                            <label class="form-label">Sync Interval (minutes)</label>
+                            <input type="number" id="settings-sync-interval" class="form-input" value="{{ sync_interval // 60 }}" min="1" max="1440">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Log Level</label>
