@@ -5,6 +5,9 @@ Server-rendered pages for the web dashboard.
 Uses Jinja2 templates.
 """
 
+import asyncio
+import logging
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -13,17 +16,20 @@ import httpx
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 from src.config.settings import get_settings
 from src.config.manager import config_manager
-from src.services.source_manager import source_manager
+from src.services.source_manager import source_manager, PhotoSource
 from src.services.sync_service import sync_service
 from src.services.systemd_service import systemd_service
 from src.services.display_service import display_service
 from src.storage.devices import device_storage
 from src.auth.pairing import generate_pairing_code
 from src.utils.qr_generator import generate_qr_data_url
-from src.utils.rclone import count_local_files
+from src.utils.rclone import count_local_files, rclone_list_remotes
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["dashboard"])
 
@@ -479,9 +485,6 @@ async def restart_service_from_dashboard(service_name: str):
 
     LAN-only endpoint, no JWT auth required.
     """
-    import logging
-    logger = logging.getLogger(__name__)
-
     if service_name not in ALLOWED_SERVICES:
         return {"error": f"Service '{service_name}' not allowed"}
 
@@ -495,4 +498,294 @@ async def restart_service_from_dashboard(service_name: str):
             return {"ok": False, "error": "Restart failed"}
     except Exception as e:
         logger.error(f"Error restarting service {service_name}: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+# =============================================================================
+# LAN-only Source Management API (no JWT auth - protected by LAN middleware)
+# =============================================================================
+
+
+class CreateSourceRequest(BaseModel):
+    """Request to create a new photo source."""
+    source_id: str
+    label: str
+    rclone_remote: str
+    path: str
+    enabled: bool = True
+    create_directory: bool = False
+
+
+class ListDirsRequest(BaseModel):
+    """Request to list remote directories."""
+    remote: str
+    path: str = ""
+
+
+@router.get("/api/sources")
+async def list_sources_api():
+    """
+    List all configured sources for the dashboard.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    settings = get_settings()
+    current_source_id = settings.display.current_source
+    sources = source_manager.list_sources()
+
+    result = []
+    for source in sources:
+        photo_count = count_local_files(source.local_path)
+        result.append({
+            "id": source.id,
+            "label": source.name,
+            "remote": source.rclone_remote or "",
+            "path": source.local_path,
+            "enabled": source.enabled,
+            "active": source.id == current_source_id,
+            "photo_count": photo_count,
+        })
+
+    return {"sources": result}
+
+
+@router.post("/api/sources/create")
+async def create_source_api(request: CreateSourceRequest):
+    """
+    Create a new photo source from the dashboard.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    # Validate source_id format (alphanumeric + underscore/hyphen)
+    if not re.match(r"^[a-zA-Z0-9_-]+$", request.source_id):
+        return {"ok": False, "error": "Source ID must be alphanumeric (with underscores/hyphens)"}
+
+    # Check if source already exists
+    if source_manager.get_source(request.source_id):
+        return {"ok": False, "error": f"Source '{request.source_id}' already exists"}
+
+    # Create directory if requested
+    local_path = Path(request.path)
+    if request.create_directory:
+        try:
+            local_path.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            return {"ok": False, "error": f"Failed to create directory: {e}"}
+
+    # Create source using source_manager internals
+    try:
+        sources = source_manager._load_sources()
+        new_source = PhotoSource(
+            id=request.source_id,
+            name=request.label,
+            local_path=str(local_path),
+            rclone_remote=request.rclone_remote,
+            enabled=request.enabled,
+        )
+        sources.append(new_source)
+        source_manager._save_sources(sources)
+        logger.info(f"Created source '{request.source_id}' via dashboard")
+        return {"ok": True, "source_id": request.source_id}
+    except Exception as e:
+        logger.error(f"Failed to create source: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+class DeleteSourceRequest(BaseModel):
+    """Request to delete a source."""
+    source_id: str
+
+
+@router.post("/api/sources/delete")
+async def delete_source_api(request: DeleteSourceRequest):
+    """
+    Delete a photo source from the dashboard.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    if source_manager.delete_source(request.source_id):
+        logger.info(f"Deleted source '{request.source_id}' via dashboard")
+        return {"ok": True}
+    else:
+        return {"ok": False, "error": f"Source '{request.source_id}' not found"}
+
+
+@router.get("/api/rclone/remotes")
+async def list_rclone_remotes():
+    """
+    List configured rclone remotes.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    try:
+        remotes = await rclone_list_remotes()
+        # Return with trailing colon as v3 expects
+        return {"ok": True, "remotes": [f"{r}:" for r in remotes]}
+    except Exception as e:
+        logger.error(f"Failed to list rclone remotes: {e}")
+        return {"ok": False, "error": str(e), "remotes": []}
+
+
+@router.post("/api/rclone/list-dirs")
+async def list_remote_dirs(request: ListDirsRequest):
+    """
+    List directories in an rclone remote.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    # Validate remote name
+    remote_name = request.remote.rstrip(":")
+    if not re.match(r"^[a-zA-Z0-9_-]+$", remote_name):
+        return {"ok": False, "error": "Invalid remote name", "dirs": []}
+
+    # Build full path
+    full_path = f"{remote_name}:{request.path}" if request.path else f"{remote_name}:"
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "rclone", "lsf", full_path, "--dirs-only",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+
+        if proc.returncode != 0:
+            error_msg = stderr.decode().strip() or "Failed to list directories"
+            return {"ok": False, "error": error_msg, "dirs": []}
+
+        # Parse directory names
+        dirs = []
+        for line in stdout.decode().strip().split("\n"):
+            line = line.strip().rstrip("/")
+            if line:
+                # Check for invalid characters (like leading/trailing spaces)
+                trimmed = line.strip()
+                if trimmed != line:
+                    dirs.append({
+                        "name": line,
+                        "valid": False,
+                        "trimmed_name": trimmed,
+                        "reason": "Name has leading/trailing spaces"
+                    })
+                else:
+                    dirs.append({"name": line, "valid": True})
+
+        return {"ok": True, "dirs": dirs}
+
+    except FileNotFoundError:
+        return {"ok": False, "error": "rclone not installed", "dirs": []}
+    except Exception as e:
+        logger.error(f"Failed to list remote dirs: {e}")
+        return {"ok": False, "error": str(e), "dirs": []}
+
+
+@router.get("/api/local/list-dirs")
+async def list_local_dirs():
+    """
+    List directories in ~/Pictures for local storage selection.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    pictures_path = Path.home() / "Pictures"
+
+    if not pictures_path.exists():
+        return {"ok": True, "dirs": []}
+
+    try:
+        dirs = [
+            d.name for d in pictures_path.iterdir()
+            if d.is_dir() and not d.name.startswith(".")
+        ]
+        return {"ok": True, "dirs": sorted(dirs)}
+    except Exception as e:
+        logger.error(f"Failed to list local dirs: {e}")
+        return {"ok": False, "error": str(e), "dirs": []}
+
+
+class FrameLiveRequest(BaseModel):
+    """Request to switch active source."""
+    target_dir: str
+
+
+@router.post("/api/frame-live")
+async def frame_live(request: FrameLiveRequest):
+    """
+    Switch to a different photo source and trigger sync.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    # Find source by path
+    sources = source_manager.list_sources()
+    target_source = None
+    for source in sources:
+        if source.local_path == request.target_dir:
+            target_source = source
+            break
+
+    if not target_source:
+        return {"ok": False, "error": "Source not found for path"}
+
+    target_path = Path(request.target_dir)
+    if not target_path.exists():
+        target_path.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # Switch display folder
+        success = await display_service.switch_folder(target_path)
+        if not success:
+            return {"ok": False, "error": "Failed to switch folder"}
+
+        # Update config
+        config_manager.set("display.current_source", target_source.id)
+
+        # Trigger sync if remote configured
+        sync_triggered = False
+        if target_source.rclone_remote and not sync_service._is_syncing:
+            asyncio.create_task(
+                sync_service.sync_source(
+                    source_id=target_source.id,
+                    local_path=target_path,
+                    rclone_remote=target_source.rclone_remote,
+                )
+            )
+            sync_triggered = True
+
+        logger.info(f"Switched to source '{target_source.id}' via dashboard")
+        return {"ok": True, "sync_triggered": sync_triggered}
+
+    except Exception as e:
+        logger.error(f"Failed to switch source: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+@router.post("/api/config/test-remote")
+async def test_remote_connection(request: dict):
+    """
+    Test rclone remote connection.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    remote = request.get("remote", "")
+    if not remote:
+        return {"ok": False, "error": "No remote specified"}
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "rclone", "lsf", remote, "--max-depth", "1",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+
+        if proc.returncode == 0:
+            # Count files/dirs
+            lines = [l for l in stdout.decode().strip().split("\n") if l.strip()]
+            return {"ok": True, "file_count": len(lines)}
+        else:
+            error_msg = stderr.decode().strip() or "Connection failed"
+            return {"ok": False, "error": error_msg}
+
+    except FileNotFoundError:
+        return {"ok": False, "error": "rclone not installed"}
+    except Exception as e:
         return {"ok": False, "error": str(e)}

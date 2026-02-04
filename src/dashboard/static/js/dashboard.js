@@ -3,6 +3,8 @@
  * Based on v3 dashboard functionality
  */
 
+let sourcesInitialized = false;
+
 document.addEventListener('DOMContentLoaded', () => {
     initTabSwitching();
     initAdvancedToggles();
@@ -34,6 +36,12 @@ function switchTab(tabId) {
         content.classList.remove('active');
     });
     document.getElementById(`tab-${tabId}`).classList.add('active');
+
+    // Initialize sources manager on first load
+    if (tabId === 'sources' && !sourcesInitialized) {
+        initSourcesManager();
+        sourcesInitialized = true;
+    }
 }
 
 // =============================================================================
@@ -62,6 +70,18 @@ function initAdvancedToggles() {
             logsAdvancedToggle.textContent = logsAdvancedSection.classList.contains('visible')
                 ? '▾ Hide logs'
                 : '▸ Show logs';
+        });
+    }
+
+    // Sources table advanced toggle
+    const sourcesTableToggle = document.getElementById('sources-table-advanced-toggle');
+    const sourcesTable = document.getElementById('sources-table');
+    if (sourcesTableToggle && sourcesTable) {
+        sourcesTableToggle.addEventListener('click', () => {
+            sourcesTable.classList.toggle('show-tech');
+            sourcesTableToggle.textContent = sourcesTable.classList.contains('show-tech')
+                ? '▾ Hide technical columns'
+                : '▸ Show technical columns';
         });
     }
 }
@@ -330,4 +350,591 @@ function initStatusDashboard() {
     // Initial load and auto-refresh
     refreshStatus();
     setInterval(refreshStatus, 15000);
+}
+
+// =============================================================================
+// SOURCES MANAGER
+// =============================================================================
+
+const sourcesState = {
+    currentRemote: '',
+    currentPath: [],
+    remotes: [],
+    localDirs: [],
+    sources: []
+};
+
+let sourcesElements = {};
+
+function initSourcesManager() {
+    initSourcesElements();
+    initSourcesEventListeners();
+    loadSourcesInitialData();
+}
+
+function initSourcesElements() {
+    sourcesElements = {
+        sourceId: document.getElementById('input-source-id'),
+        label: document.getElementById('input-label'),
+        remote: document.getElementById('input-remote'),
+        remotePath: document.getElementById('input-remote-path'),
+        localDir: document.getElementById('input-local-dir'),
+        newDirName: document.getElementById('input-new-dir-name'),
+        newDirContainer: document.getElementById('new-dir-input-container'),
+        enabled: document.getElementById('input-enabled'),
+        btnTest: document.getElementById('btn-test-connection'),
+        btnSave: document.getElementById('btn-save-source'),
+        sourcesTbody: document.getElementById('sources-tbody'),
+        breadcrumb: document.getElementById('breadcrumb-path'),
+        remoteDirList: document.getElementById('remote-dir-list'),
+        statusMessage: document.getElementById('status-message'),
+        form: document.getElementById('add-source-form')
+    };
+}
+
+function initSourcesEventListeners() {
+    if (sourcesElements.remote) {
+        sourcesElements.remote.addEventListener('change', onRemoteChange);
+    }
+    if (sourcesElements.localDir) {
+        sourcesElements.localDir.addEventListener('change', onLocalDirChange);
+    }
+    if (sourcesElements.form) {
+        sourcesElements.form.addEventListener('submit', onFormSubmit);
+    }
+    if (sourcesElements.btnTest) {
+        sourcesElements.btnTest.addEventListener('click', onTestConnection);
+    }
+}
+
+async function loadSourcesInitialData() {
+    await Promise.all([
+        loadSources(),
+        loadRcloneRemotes(),
+        loadLocalDirs()
+    ]);
+}
+
+async function loadSources() {
+    try {
+        const response = await fetch('/api/sources');
+        const data = await response.json();
+        sourcesState.sources = data.sources || [];
+        renderSourcesTable();
+    } catch (err) {
+        console.error('Failed to load sources:', err);
+        if (sourcesElements.sourcesTbody) {
+            sourcesElements.sourcesTbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="loading-cell" style="color: #fca5a5;">
+                        Error loading sources: ${escapeHtml(err.message)}
+                    </td>
+                </tr>
+            `;
+        }
+    }
+}
+
+function renderSourcesTable() {
+    if (!sourcesElements.sourcesTbody) return;
+
+    if (sourcesState.sources.length === 0) {
+        sourcesElements.sourcesTbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="loading-cell">No sources configured yet</td>
+            </tr>
+        `;
+        return;
+    }
+
+    const rows = sourcesState.sources.map(source => {
+        const statusBadges = [];
+
+        if (source.active) {
+            statusBadges.push('<span class="source-status-badge active">Active</span>');
+        } else if (source.enabled) {
+            statusBadges.push('<span class="source-status-badge enabled">Ready</span>');
+        } else {
+            statusBadges.push('<span class="source-status-badge disabled">Disabled</span>');
+        }
+
+        const activateBtn = source.active
+            ? ''
+            : `<button class="btn-small" onclick="activateSource('${escapeHtml(source.path)}', '${escapeHtml(source.id)}')">Activate</button> `;
+
+        return `
+            <tr>
+                <td class="tech-column"><strong>${escapeHtml(source.id)}</strong></td>
+                <td>${escapeHtml(source.label)}</td>
+                <td><code>${escapeHtml(source.remote || 'local')}</code></td>
+                <td class="tech-column"><code>${escapeHtml(source.path)}</code></td>
+                <td>${statusBadges.join(' ')}</td>
+                <td class="tech-column" style="white-space: nowrap;">
+                    ${activateBtn}<button class="btn-small btn-danger" onclick="deleteSource('${escapeHtml(source.id)}')">Delete</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    sourcesElements.sourcesTbody.innerHTML = rows;
+}
+
+async function loadRcloneRemotes() {
+    try {
+        const response = await fetch('/api/rclone/remotes');
+        const data = await response.json();
+
+        if (!data.ok) {
+            throw new Error(data.error || 'Failed to load remotes');
+        }
+
+        sourcesState.remotes = data.remotes || [];
+        renderRemoteDropdown();
+    } catch (err) {
+        console.error('Failed to load remotes:', err);
+        if (sourcesElements.remote) {
+            sourcesElements.remote.innerHTML = `<option value="">Error: ${escapeHtml(err.message)}</option>`;
+        }
+        showSourcesStatus('error', `Failed to load rclone remotes: ${err.message}`);
+    }
+}
+
+function renderRemoteDropdown() {
+    if (!sourcesElements.remote) return;
+
+    if (sourcesState.remotes.length === 0) {
+        sourcesElements.remote.innerHTML = `<option value="">No remotes configured</option>`;
+        return;
+    }
+
+    const options = sourcesState.remotes.map(remote =>
+        `<option value="${escapeHtml(remote)}">${escapeHtml(remote)}</option>`
+    ).join('');
+
+    sourcesElements.remote.innerHTML = `
+        <option value="">Select a remote...</option>
+        ${options}
+    `;
+}
+
+async function loadLocalDirs() {
+    try {
+        const response = await fetch('/api/local/list-dirs');
+        const data = await response.json();
+
+        if (!data.ok) {
+            throw new Error(data.error || 'Failed to load directories');
+        }
+
+        sourcesState.localDirs = data.dirs || [];
+        renderLocalDirDropdown();
+    } catch (err) {
+        console.error('Failed to load local dirs:', err);
+        if (sourcesElements.localDir) {
+            sourcesElements.localDir.innerHTML = `<option value="">Error: ${escapeHtml(err.message)}</option>`;
+        }
+    }
+}
+
+function renderLocalDirDropdown() {
+    if (!sourcesElements.localDir) return;
+
+    if (sourcesState.localDirs.length === 0) {
+        sourcesElements.localDir.innerHTML = `
+            <option value="">No directories found</option>
+            <option value="new">+ Create new directory</option>
+        `;
+        return;
+    }
+
+    const options = sourcesState.localDirs.map(dir =>
+        `<option value="/home/pi/Pictures/${escapeHtml(dir)}">/home/pi/Pictures/${escapeHtml(dir)}</option>`
+    ).join('');
+
+    sourcesElements.localDir.innerHTML = `
+        <option value="">Select a directory...</option>
+        ${options}
+        <option value="new">+ Create new directory</option>
+    `;
+}
+
+function onRemoteChange() {
+    const selectedRemote = sourcesElements.remote.value;
+
+    if (!selectedRemote) {
+        sourcesState.currentRemote = '';
+        sourcesState.currentPath = [];
+        renderBreadcrumb();
+        renderRemoteDirs([]);
+        return;
+    }
+
+    sourcesState.currentRemote = selectedRemote;
+    sourcesState.currentPath = [];
+    renderBreadcrumb();
+    loadRemoteDirs();
+}
+
+function onLocalDirChange() {
+    const selectedValue = sourcesElements.localDir.value;
+
+    if (selectedValue === 'new') {
+        sourcesElements.newDirContainer.style.display = 'block';
+        sourcesElements.newDirName.required = true;
+        sourcesElements.newDirName.focus();
+    } else {
+        sourcesElements.newDirContainer.style.display = 'none';
+        sourcesElements.newDirName.required = false;
+        sourcesElements.newDirName.value = '';
+    }
+}
+
+async function loadRemoteDirs() {
+    if (!sourcesState.currentRemote) {
+        renderRemoteDirs([]);
+        return;
+    }
+
+    if (sourcesElements.remoteDirList) {
+        sourcesElements.remoteDirList.innerHTML = `<div class="dir-item loading">Loading directories...</div>`;
+    }
+
+    try {
+        const response = await fetch('/api/rclone/list-dirs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                remote: sourcesState.currentRemote,
+                path: sourcesState.currentPath.join('/')
+            })
+        });
+
+        const data = await response.json();
+
+        if (!data.ok) {
+            throw new Error(data.error || 'Failed to list directories');
+        }
+
+        renderRemoteDirs(data.dirs || []);
+    } catch (err) {
+        console.error('Failed to load remote dirs:', err);
+        if (sourcesElements.remoteDirList) {
+            sourcesElements.remoteDirList.innerHTML = `
+                <div class="dir-item placeholder" style="color: #fca5a5;">
+                    Error: ${escapeHtml(err.message)}
+                </div>
+            `;
+        }
+    }
+}
+
+function renderRemoteDirs(dirs) {
+    if (!sourcesElements.remoteDirList) return;
+
+    if (dirs.length === 0) {
+        sourcesElements.remoteDirList.innerHTML = `<div class="dir-item placeholder">No directories found</div>`;
+        return;
+    }
+
+    const items = dirs.map(dir => {
+        const dirData = typeof dir === 'string' ? { name: dir, valid: true } : dir;
+        const { name, valid, trimmed_name, reason } = dirData;
+
+        if (!valid) {
+            return `
+                <div class="dir-item-blocked" title="${escapeHtml(reason)}">
+                    <span class="dir-warning-icon">⚠️</span>
+                    <span class="dir-name-blocked">${escapeHtml(name)}</span>
+                    <span class="dir-warning-text">
+                        Invalid name - rename to "${escapeHtml(trimmed_name)}"
+                    </span>
+                </div>
+            `;
+        } else {
+            return `<div class="dir-item" data-dirname="${escapeHtml(name)}">${escapeHtml(name)}</div>`;
+        }
+    }).join('');
+
+    sourcesElements.remoteDirList.innerHTML = items;
+
+    sourcesElements.remoteDirList.querySelectorAll('.dir-item[data-dirname]').forEach(item => {
+        item.addEventListener('click', () => {
+            const dirname = item.getAttribute('data-dirname');
+            navigateToDir(dirname);
+        });
+    });
+}
+
+function navigateToDir(dirname) {
+    sourcesState.currentPath.push(dirname);
+    renderBreadcrumb();
+    loadRemoteDirs();
+    updateRemotePathInput();
+}
+
+function navigateToLevel(level) {
+    sourcesState.currentPath = sourcesState.currentPath.slice(0, level);
+    renderBreadcrumb();
+    loadRemoteDirs();
+    updateRemotePathInput();
+}
+
+function renderBreadcrumb() {
+    if (!sourcesElements.breadcrumb) return;
+
+    if (!sourcesState.currentRemote) {
+        sourcesElements.breadcrumb.innerHTML = `<span class="breadcrumb-item root">Select a remote first</span>`;
+        return;
+    }
+
+    const parts = [`<span class="breadcrumb-item root" data-level="0">Root</span>`];
+
+    sourcesState.currentPath.forEach((part, index) => {
+        parts.push(`<span class="breadcrumb-item" data-level="${index + 1}">${escapeHtml(part)}</span>`);
+    });
+
+    sourcesElements.breadcrumb.innerHTML = parts.join('');
+
+    sourcesElements.breadcrumb.querySelectorAll('.breadcrumb-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const level = parseInt(item.getAttribute('data-level'));
+            navigateToLevel(level);
+        });
+    });
+}
+
+function updateRemotePathInput() {
+    if (sourcesElements.remotePath) {
+        sourcesElements.remotePath.value = sourcesState.currentPath.join('/');
+    }
+}
+
+async function onTestConnection() {
+    const remote = sourcesElements.remote.value;
+    const path = sourcesElements.remotePath.value;
+
+    if (!remote) {
+        showSourcesStatus('error', 'Please select a remote first');
+        return;
+    }
+
+    const fullPath = path ? `${remote}${path}` : remote;
+
+    sourcesElements.btnTest.disabled = true;
+    sourcesElements.btnTest.textContent = 'Testing...';
+    showSourcesStatus('info', 'Testing connection...');
+
+    try {
+        const response = await fetch('/api/config/test-remote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ remote: fullPath })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+            showSourcesStatus('success', `Connection successful! Found ${data.file_count} items.`);
+        } else {
+            showSourcesStatus('error', `Connection failed: ${data.error}`);
+        }
+    } catch (err) {
+        showSourcesStatus('error', `Test failed: ${err.message}`);
+    } finally {
+        sourcesElements.btnTest.disabled = false;
+        sourcesElements.btnTest.textContent = 'Test Connection';
+    }
+}
+
+async function onFormSubmit(event) {
+    event.preventDefault();
+
+    // Handle new directory creation
+    let localPath = sourcesElements.localDir.value;
+    let createDirectory = false;
+
+    if (localPath === 'new') {
+        const newDirName = sourcesElements.newDirName.value.trim();
+        if (!newDirName) {
+            showSourcesStatus('error', 'Please enter a directory name');
+            return;
+        }
+
+        if (!/^[a-zA-Z0-9_-]+$/.test(newDirName)) {
+            showSourcesStatus('error', 'Directory name must contain only letters, numbers, hyphens, and underscores');
+            return;
+        }
+
+        localPath = `/home/pi/Pictures/${newDirName}`;
+        createDirectory = true;
+    }
+
+    // Gather form data
+    const formData = {
+        source_id: sourcesElements.sourceId.value.trim(),
+        label: sourcesElements.label.value.trim(),
+        rclone_remote: buildFullRemotePath(),
+        path: localPath,
+        enabled: sourcesElements.enabled.checked,
+        create_directory: createDirectory
+    };
+
+    // Validate
+    if (!formData.source_id) {
+        showSourcesStatus('error', 'Source ID is required');
+        return;
+    }
+
+    if (!formData.label) {
+        showSourcesStatus('error', 'Label is required');
+        return;
+    }
+
+    if (!formData.rclone_remote) {
+        showSourcesStatus('error', 'Please select a remote');
+        return;
+    }
+
+    if (!formData.path) {
+        showSourcesStatus('error', 'Please select or create a local directory');
+        return;
+    }
+
+    // Show confirmation dialog
+    const confirmMessage = `Please confirm the new photo source:\n\n` +
+        `Name: ${formData.label}\n` +
+        `Cloud Location: ${formData.rclone_remote}\n` +
+        `Local Storage: ${formData.path}\n` +
+        (createDirectory ? `\nA new directory will be created.\n` : '') +
+        `\nDo you want to proceed?`;
+
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+
+    // Disable submit button
+    sourcesElements.btnSave.disabled = true;
+    sourcesElements.btnSave.textContent = 'Saving...';
+    showSourcesStatus('info', 'Creating new source...');
+
+    try {
+        const response = await fetch('/api/sources/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+            showSourcesStatus('success', `Source "${formData.source_id}" created successfully!`);
+
+            // Reset form
+            sourcesElements.form.reset();
+            sourcesState.currentPath = [];
+            renderBreadcrumb();
+            renderRemoteDirs([]);
+
+            // Reload sources
+            await loadSources();
+        } else {
+            showSourcesStatus('error', `Failed to create source: ${data.error}`);
+        }
+    } catch (err) {
+        showSourcesStatus('error', `Error: ${err.message}`);
+    } finally {
+        sourcesElements.btnSave.disabled = false;
+        sourcesElements.btnSave.textContent = 'Add Photo Source';
+    }
+}
+
+function buildFullRemotePath() {
+    const remote = sourcesElements.remote.value;
+    const path = sourcesElements.remotePath.value;
+
+    if (!remote) {
+        return '';
+    }
+
+    return path ? `${remote}${path}` : remote;
+}
+
+function showSourcesStatus(type, message) {
+    if (!sourcesElements.statusMessage) return;
+
+    sourcesElements.statusMessage.className = `status-message ${type}`;
+    sourcesElements.statusMessage.textContent = message;
+    sourcesElements.statusMessage.style.display = 'block';
+
+    if (type === 'success' || type === 'info') {
+        setTimeout(() => {
+            sourcesElements.statusMessage.style.display = 'none';
+        }, 5000);
+    }
+}
+
+async function activateSource(targetPath, sourceId) {
+    if (!confirm(`Switch to "${sourceId}"?\n\nThis will sync photos from the cloud and display them on your frame.`)) {
+        return;
+    }
+
+    showSourcesStatus('info', `Activating "${sourceId}" and syncing photos...`);
+
+    try {
+        const response = await fetch('/api/frame-live', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_dir: targetPath })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+            if (data.sync_triggered) {
+                showSourcesStatus('success', `"${sourceId}" activated and synced successfully!`);
+            } else {
+                showSourcesStatus('success', `"${sourceId}" activated successfully!`);
+            }
+            // Reload sources to update active status
+            await loadSources();
+        } else {
+            showSourcesStatus('error', `Failed to activate: ${data.error}`);
+        }
+    } catch (err) {
+        showSourcesStatus('error', `Error activating source: ${err.message}`);
+    }
+}
+
+async function deleteSource(sourceId) {
+    if (!confirm(`Are you sure you want to delete source "${sourceId}"?\n\nThis will remove it from the configuration but will NOT delete any files.`)) {
+        return;
+    }
+
+    showSourcesStatus('info', `Deleting source "${sourceId}"...`);
+
+    try {
+        const response = await fetch('/api/sources/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source_id: sourceId })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+            showSourcesStatus('success', `Source "${sourceId}" deleted successfully!`);
+            await loadSources();
+        } else {
+            showSourcesStatus('error', `Failed to delete source: ${data.error}`);
+        }
+    } catch (err) {
+        showSourcesStatus('error', `Error deleting source: ${err.message}`);
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }

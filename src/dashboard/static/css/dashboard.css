@@ -552,6 +552,147 @@ footer {
     text-align: center;
 }
 
+/* Technical Columns - Hidden by default */
+.tech-column {
+    display: none;
+}
+.sources-table.show-tech .tech-column {
+    display: table-cell;
+}
+
+/* Folder Browser */
+.folder-browser {
+    background: rgba(15, 23, 42, 0.96);
+    border: 1px solid rgba(55, 65, 81, 0.9);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+.breadcrumb {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid rgba(55, 65, 81, 0.5);
+    flex-wrap: wrap;
+}
+.breadcrumb-item {
+    cursor: pointer;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.8rem;
+    color: #93c5fd;
+}
+.breadcrumb-item:hover {
+    background: rgba(59, 130, 246, 0.2);
+}
+.breadcrumb-item::after {
+    content: " /";
+    color: #6b7280;
+    margin-left: 0.25rem;
+}
+.breadcrumb-item:last-child::after {
+    content: "";
+}
+.breadcrumb-item.root {
+    color: #9ca3af;
+}
+.dir-list {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+.dir-item {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    border-radius: 0.35rem;
+    font-size: 0.85rem;
+    transition: background 0.15s;
+}
+.dir-item:hover {
+    background: rgba(59, 130, 246, 0.2);
+}
+.dir-item.placeholder {
+    color: #6b7280;
+    cursor: default;
+}
+.dir-item.placeholder:hover {
+    background: transparent;
+}
+.dir-item.loading {
+    color: #fbbf24;
+}
+.dir-item-blocked {
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #9ca3af;
+    font-size: 0.85rem;
+}
+.dir-warning-icon {
+    flex-shrink: 0;
+}
+.dir-name-blocked {
+    text-decoration: line-through;
+    opacity: 0.6;
+}
+.dir-warning-text {
+    font-size: 0.7rem;
+    color: #fbbf24;
+    margin-left: auto;
+}
+
+/* Status Messages */
+.status-message {
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+}
+.status-message.success {
+    background: rgba(22, 163, 74, 0.15);
+    border: 1px solid rgba(22, 163, 74, 0.5);
+    color: #86efac;
+}
+.status-message.error {
+    background: rgba(220, 38, 38, 0.15);
+    border: 1px solid rgba(220, 38, 38, 0.5);
+    color: #fca5a5;
+}
+.status-message.info {
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.5);
+    color: #93c5fd;
+}
+
+/* Form Hint */
+.form-hint {
+    font-size: 0.7rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+}
+
+/* Checkbox Label */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.checkbox-label input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+}
+
+/* Danger Button */
+.btn-danger {
+    background: radial-gradient(circle at top left, #dc2626, #b91c1c) !important;
+    color: #fef2f2 !important;
+    box-shadow: 0 8px 16px rgba(220, 38, 38, 0.5), 0 0 0 1px rgba(185, 28, 28, 0.9) !important;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
     .overall-inner {

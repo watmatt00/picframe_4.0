@@ -171,49 +171,100 @@
                         <div class="card-title">☁️ Photo Sources</div>
                         <div class="card-subtitle">Your configured cloud photo libraries</div>
                     </div>
+                    <button class="advanced-toggle" id="sources-table-advanced-toggle">▸ Show technical columns</button>
                 </div>
 
                 <div id="sources-table-container">
                     <table class="sources-table" id="sources-table">
                         <thead>
                             <tr>
+                                <th class="tech-column">ID</th>
                                 <th>Name</th>
-                                <th>Location</th>
+                                <th>Remote</th>
+                                <th class="tech-column">Local Path</th>
                                 <th>Status</th>
-                                <th>Actions</th>
+                                <th class="tech-column">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="sources-tbody">
-                            {% for source in sources %}
                             <tr>
-                                <td><strong>{{ source.name }}</strong></td>
-                                <td><code>{{ source.local_path }}</code></td>
-                                <td>
-                                    {% if source.id == current_source_id %}
-                                    <span class="source-status-badge active">Active</span>
-                                    {% elif source.enabled %}
-                                    <span class="source-status-badge enabled">Ready</span>
-                                    {% else %}
-                                    <span class="source-status-badge disabled">Disabled</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if source.id != current_source_id %}
-                                    <form action="/switch-source" method="post" style="display: inline;">
-                                        <input type="hidden" name="source_id" value="{{ source.id }}">
-                                        <button type="submit" class="btn-small">Activate</button>
-                                    </form>
-                                    {% endif %}
-                                </td>
+                                <td colspan="6" class="loading-cell">Loading sources...</td>
                             </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="4" class="loading-cell">No sources configured yet</td>
-                            </tr>
-                            {% endfor %}
                         </tbody>
                     </table>
                 </div>
+            </section>
+
+            <!-- Add New Photo Source Section -->
+            <section class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">➕ Add New Photo Source</div>
+                        <div class="card-subtitle">Connect a cloud folder to your frame</div>
+                    </div>
+                </div>
+
+                <form id="add-source-form" style="padding: 0 1.5rem 1.5rem;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Short Name (ID)</label>
+                            <input type="text" id="input-source-id" class="form-input" placeholder="e.g. family_photos" pattern="[a-zA-Z0-9_-]+" required>
+                            <div class="form-hint">Letters, numbers, underscores, hyphens only</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Display Name</label>
+                            <input type="text" id="input-label" class="form-input" placeholder="e.g. Family Photos" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Cloud Service</label>
+                            <select id="input-remote" class="form-select" required>
+                                <option value="">Loading remotes...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Local Storage</label>
+                            <select id="input-local-dir" class="form-select" required>
+                                <option value="">Loading directories...</option>
+                            </select>
+                            <div id="new-dir-input-container" style="display: none; margin-top: 0.5rem;">
+                                <input type="text" id="input-new-dir-name" class="form-input" placeholder="New directory name" pattern="[a-zA-Z0-9_-]+">
+                                <div class="form-hint">Will be created in ~/Pictures/</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cloud Folder Browser -->
+                    <div class="form-group">
+                        <label class="form-label">Cloud Folder</label>
+                        <div class="folder-browser">
+                            <div class="breadcrumb" id="breadcrumb-path">
+                                <span class="breadcrumb-item root" data-level="0">Select a remote first</span>
+                            </div>
+                            <div class="dir-list" id="remote-dir-list">
+                                <div class="dir-item placeholder">Select a cloud service above to browse folders</div>
+                            </div>
+                        </div>
+                        <input type="hidden" id="input-remote-path" value="">
+                    </div>
+
+                    <div class="form-group" style="margin-top: 1rem;">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="input-enabled" checked>
+                            <span>Enable this source</span>
+                        </label>
+                    </div>
+
+                    <!-- Status Message -->
+                    <div id="status-message" class="status-message" style="display: none;"></div>
+
+                    <div class="button-row" style="margin-top: 1.5rem;">
+                        <button type="button" id="btn-test-connection" class="btn secondary">Test Connection</button>
+                        <button type="submit" id="btn-save-source" class="btn btn-primary">Add Photo Source</button>
+                    </div>
+                </form>
             </section>
         </main>
     </div>
