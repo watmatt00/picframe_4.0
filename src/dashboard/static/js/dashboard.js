@@ -527,7 +527,7 @@ async function loadLocalDirs() {
         }
 
         sourcesState.localDirs = data.dirs || [];
-        sourcesState.picturesBasePath = data.base_path || '/home/pi/Pictures';
+        sourcesState.picturesBasePath = data.base_path;
         renderLocalDirDropdown();
     } catch (err) {
         console.error('Failed to load local dirs:', err);
