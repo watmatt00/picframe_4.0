@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from src.api.dependencies import require_admin
-from src.config.settings import get_settings
+from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
 from src.services.display_service import display_service
 from src.services.source_manager import source_manager
@@ -112,6 +112,7 @@ async def switch_folder(request: SwitchFolderRequest, admin=Depends(require_admi
 
     # Update our config to track current source
     config_manager.set("display.current_source", request.source_id)
+    reload_settings()  # Clear cached settings
 
     return SwitchFolderResponse(
         success=True,

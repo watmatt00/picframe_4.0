@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from src.config.settings import get_settings
+from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
 from src.services.source_manager import source_manager, PhotoSource
 from src.services.sync_service import sync_service
@@ -160,6 +160,7 @@ async def save_settings(
     config_manager.set("display.rotation_interval", rotation_interval)
     config_manager.set("sync.interval", sync_interval)
     config_manager.set("logging.level", log_level)
+    reload_settings()  # Clear cached settings
 
     return RedirectResponse(url="/settings?saved=1", status_code=303)
 
@@ -425,6 +426,7 @@ async def switch_source(source_id: str = Form(...)):
     success = await display_service.switch_folder(source_path)
     if success:
         config_manager.set("display.current_source", source_id)
+        reload_settings()  # Clear cached settings
         return RedirectResponse(url="/?switched=1", status_code=303)
     else:
         return RedirectResponse(url="/?error=switch_failed", status_code=303)
@@ -799,6 +801,7 @@ async def frame_live(request: FrameLiveRequest):
 
         # Update config
         config_manager.set("display.current_source", target_source.id)
+        reload_settings()  # Clear cached settings
 
         # Trigger sync if remote configured
         sync_triggered = False
