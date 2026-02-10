@@ -37,6 +37,7 @@ class PairResponse(BaseModel):
     frame_name: str
     role: str = "admin"
     api_port: int = 8000
+    funnel_url: str | None = None
 
 
 class PairingGenerateResponse(BaseModel):
@@ -110,6 +111,7 @@ async def pair_device(request: PairRequest, http_request: Request):
         token=token,
         frame_id=settings.frame.id,
         frame_name=settings.frame.name,
+        funnel_url=settings.frame.funnel_url,
     )
 
 
