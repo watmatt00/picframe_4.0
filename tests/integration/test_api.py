@@ -37,16 +37,16 @@ class TestPairingEndpoints:
 
     def test_pair_without_code(self, client):
         """Pairing without code should fail."""
-        response = client.post("/pair", json={})
+        response = client.post("/api/pair", json={})
         assert response.status_code == 422  # Validation error
 
     def test_pair_with_invalid_code(self, client):
         """Pairing with invalid code should fail."""
-        response = client.post("/pair", json={
+        response = client.post("/api/pair", json={
             "code": "INVALID",
             "device_name": "Test Device",
         })
-        # Should be 501 until implemented, then 401
+        # Should be 401 (invalid code)
         assert response.status_code in (401, 501)
 
 
@@ -55,16 +55,16 @@ class TestAuthenticatedEndpoints:
 
     def test_status_without_auth(self, client):
         """Status endpoint should require auth."""
-        response = client.get("/status")
+        response = client.get("/api/status")
         # Should be 401 or 403 without auth
         assert response.status_code in (401, 403, 501)
 
     def test_devices_without_auth(self, client):
         """Devices endpoint should require auth."""
-        response = client.get("/devices")
+        response = client.get("/api/devices")
         assert response.status_code in (401, 403, 501)
 
     def test_services_restart_without_auth(self, client):
         """Service restart should require auth."""
-        response = client.post("/services/picframe/restart")
+        response = client.post("/api/services/picframe/restart")
         assert response.status_code in (401, 403, 501)

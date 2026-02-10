@@ -138,5 +138,6 @@ def get_active_code() -> Optional[PairingCode]:
 
 
 def invalidate_all_codes():
-    """Invalidate all active pairing codes."""
+    """Invalidate all active pairing codes and reset rate limit counter."""
     _active_codes.clear()
+    _generation_timestamps.clear()
