@@ -2,6 +2,8 @@
 
 Future tasks and improvements tracked for later work.
 
+**Note: Android is permanently on hold. iOS only. Do not create Android tasks.**
+
 ## picframe_4.0 (Backend)
 
 ### Sync Interval Improvements

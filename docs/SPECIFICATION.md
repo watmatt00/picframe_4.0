@@ -571,13 +571,13 @@ sources:
 22. Integration tests (API endpoints)
 23. Dashboard tests (page loads, form submissions, UI interactions)
 
-### Phase 5: Mobile Updates (picframe_mgr)
+### Phase 5: Mobile Updates (picframe_mgr - iOS only)
+
+**Note: Android is permanently on hold. iOS only.**
+
 23. QR scanner view (iOS)
 24. Update FrameClient for Funnel URLs
 25. Update PairedFrame model
-26. Android frame UI (new)
-27. Android ViewModel updates
-28. KMP frame storage
 
 ### Phase 6: Admin Features (both)
 29. Service restart endpoints + UI (dashboard + mobile)

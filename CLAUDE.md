@@ -67,12 +67,16 @@ Three-tab interface:
 - Dashboard auto-refreshes every 15 seconds via AJAX to `/dashboard/status`
 - Cloud photo count uses `rclone ls` with 30-second timeout
 
+## Mobile App Scope
+
+**Android is permanently on hold. iOS only.** Do NOT suggest, plan, or reference Android work.
+
 ## Cross-Repo Relationship
 
 | Repo | Purpose | API Role |
 |------|---------|----------|
 | `picframe_4.0` (this) | Pi backend + dashboard | Defines API |
-| `picframe_mgr` | Mobile app (iOS/Android) | Consumes API |
+| `picframe_mgr` | Mobile app (iOS only) | Consumes API |
 
 Known issues tracked in `docs/PARKING_LOT.md`.
 
