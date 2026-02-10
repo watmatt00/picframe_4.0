@@ -81,6 +81,7 @@ Three-tab interface:
 | `picframe_mgr` | Mobile app (iOS only) | Consumes API |
 
 Known issues tracked in `docs/PARKING_LOT.md`.
+Phase 4 & 5 completion plan in `docs/PHASE_4_5_PLAN.md` - **always reference this for next steps**.
 
 When making API changes, update `docs/API.md` so mobile repo can reference it.
 
