@@ -71,6 +71,8 @@ Three-tab interface:
 
 **Android is permanently on hold. iOS only.** Do NOT suggest, plan, or reference Android work.
 
+**CRITICAL: The iOS app has NEVER been built or tested.** All code was written on PC without Xcode. It must be built and tested on a Mac before it can be considered functional. Always include this as a next step when reviewing project status.
+
 ## Cross-Repo Relationship
 
 | Repo | Purpose | API Role |

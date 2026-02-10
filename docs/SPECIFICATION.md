@@ -575,9 +575,15 @@ sources:
 
 **Note: Android is permanently on hold. iOS only.**
 
+**CRITICAL: iOS app has never been built or tested. All code written on PC without Xcode. Must build and test on Mac before any further mobile work.**
+
 23. QR scanner view (iOS)
 24. Update FrameClient for Funnel URLs
 25. Update PairedFrame model
+26. Build in Xcode, fix compile errors
+27. Test on device/simulator against live Pi API
+28. Fix runtime issues
+29. TestFlight beta distribution
 
 ### Phase 6: Admin Features (both)
 29. Service restart endpoints + UI (dashboard + mobile)

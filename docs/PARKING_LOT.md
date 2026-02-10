@@ -43,7 +43,45 @@ Files:
 
 ---
 
-## picframe_mgr (Mobile App)
+## picframe_mgr (iOS Mobile App)
+
+### Build, Test, and Verify iOS App on Real Device
+**Priority:** HIGH
+**Status:** Not started
+
+The entire iOS app has been written on a PC without ever being compiled or run. It has NEVER been built in Xcode or tested on a device/simulator. This must happen before any other mobile work.
+
+**Prerequisites:**
+- Access to Mac with Xcode installed
+- Apple Developer account (for device testing / TestFlight)
+
+**Steps:**
+1. Open `picframe_mgr` project in Xcode on Mac
+2. Build and fix any compile errors
+3. Run on simulator - verify all screens load
+4. Test against live tkframe API (192.168.102.210:8000):
+   - Pairing flow (QR code scan)
+   - Status display (verify FrameStatus model works)
+   - Folder listing (known FoldersResponse mismatch - see below)
+   - Service restart
+   - Photo upload to Koofr
+5. Fix any runtime issues found
+6. TestFlight beta once stable
+
+**Known issues to hit during testing:**
+- FoldersResponse mismatch (see below)
+- Untested Koofr upload flow
+- Untested QR scanner / pairing flow
+
+### Fix FoldersResponse Mismatch
+**Priority:** High (will block iOS testing)
+**Status:** Not started
+
+Backend `GET /api/folders` returns `list[PhotoSourceResponse]` (flat list), but mobile expects `{ folders: [...], current_source: "..." }` (wrapped with current source). JSON decoding will fail for folder listing.
+
+Files:
+- `picframe_4.0/src/api/routes/folders.py`
+- `picframe_mgr/iosApp/iosApp/Models/FrameStatus.swift` (FoldersResponse)
 
 ### ~~Fix Port Mismatch (5000 -> 8000)~~
 **Priority:** High
