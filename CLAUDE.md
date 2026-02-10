@@ -85,3 +85,14 @@ When making API changes, update `docs/API.md` so mobile repo can reference it.
 - Never interpolate user input into shell commands
 - Use `asyncio.create_subprocess_exec()` for external commands (rclone, systemctl)
 - Use `systemctl --user` (not system-level) for all service operations
+
+### Settings Cache Pattern
+
+`get_settings()` uses `@lru_cache` for performance. After modifying config via `config_manager.set()`, you **must** call `reload_settings()` to clear the cache:
+
+```python
+from src.config.settings import get_settings, reload_settings
+
+config_manager.set("display.current_source", source_id)
+reload_settings()  # Required! Otherwise get_settings() returns stale data
+```
