@@ -210,23 +210,38 @@ logging:
 
 ## Step 8: Start the API
 
-**PROMPT USER**: "Ready to start the API for testing?"
+**PROMPT USER**: "Ready to start the API and sync services?"
 
-For development/testing:
+Copy systemd unit files and enable services:
+```bash
+cp ~/picframe_4.0/systemd/picframe-api.service ~/.config/systemd/user/
+cp ~/picframe_4.0/systemd/picframe-sync.service ~/.config/systemd/user/
+cp ~/picframe_4.0/systemd/picframe-sync.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+
+# Enable and start the API
+systemctl --user enable picframe-api.service
+systemctl --user start picframe-api.service
+
+# Enable and start the sync timer (runs every 15 minutes)
+systemctl --user enable picframe-sync.timer
+systemctl --user start picframe-sync.timer
+```
+
+Verify services are running:
+```bash
+systemctl --user status picframe-api.service
+systemctl --user status picframe-sync.timer
+```
+
+For development/testing (run API in foreground instead):
 ```bash
 cd ~/picframe_4.0
 source venv/bin/activate
 python -m src.main
 ```
 
-For production (systemd service - coming in Phase 4):
-```bash
-# Not yet implemented
-systemctl --user enable picframe-api.service
-systemctl --user start picframe-api.service
-```
-
-**CHECKPOINT**: Ask user to confirm API started without errors.
+**CHECKPOINT**: Ask user to confirm `picframe-api.service` shows active (running) and `picframe-sync.timer` shows active (waiting).
 
 ---
 
