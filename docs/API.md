@@ -274,6 +274,27 @@ Switch display folder/source. Admin only.
 
 ---
 
+### GET /api/folders
+
+List all configured photo sources with current source. Admin only.
+
+**Response (200):**
+```json
+{
+  "folders": [
+    {
+      "id": "koofr_main",
+      "name": "Main Photos",
+      "path": "/home/matt/Pictures/koofr_main",
+      "photo_count": 150
+    }
+  ],
+  "current_source": "koofr_main"
+}
+```
+
+---
+
 ### POST /sync
 
 Trigger a manual sync. Admin only.
@@ -321,7 +342,7 @@ All errors follow this format:
 | `/services` | ✅ Implemented |
 | `/services/{name}/restart` | ✅ Implemented |
 | `/display/folder` | ✅ Implemented |
-| `/folders` | Stub only |
+| `/folders` | ✅ Implemented |
 | `/contributors` | Stub only |
 | `/sync` | ✅ Implemented |
 | `/logs` | ✅ Implemented |

@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from src.api.dependencies import require_admin
+from src.config.settings import get_settings
 from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
 from src.utils.rclone import count_local_files, get_sync_status, rclone_list_remotes
@@ -35,6 +36,20 @@ class PhotoSourceResponse(BaseModel):
     rclone_remote: Optional[str]
     enabled: bool
     photo_count: int
+
+
+class FolderItem(BaseModel):
+    """A folder item matching mobile app FrameFolder model."""
+    id: str
+    name: str
+    path: str
+    photo_count: int
+
+
+class FoldersListResponse(BaseModel):
+    """Wrapped response for GET /folders, matching mobile FoldersResponse."""
+    folders: list[FolderItem]
+    current_source: str
 
 
 class CreateFolderRequest(BaseModel):
@@ -59,24 +74,28 @@ class SyncTriggerResponse(BaseModel):
     source_id: str
 
 
-@router.get("", response_model=list[PhotoSourceResponse])
+@router.get("", response_model=FoldersListResponse)
 async def list_folders(admin=Depends(require_admin)):
     """
     List all configured photo sources.
+
+    Returns wrapped response with folders list and current_source ID.
     """
+    settings = get_settings()
     sources = source_manager.list_sources()
-    result = []
+    folders = []
     for source in sources:
         photo_count = count_local_files(source.local_path)
-        result.append(PhotoSourceResponse(
+        folders.append(FolderItem(
             id=source.id,
             name=source.name,
-            local_path=source.local_path,
-            rclone_remote=source.rclone_remote,
-            enabled=source.enabled,
+            path=source.local_path,
             photo_count=photo_count,
         ))
-    return result
+    return FoldersListResponse(
+        folders=folders,
+        current_source=settings.display.current_source,
+    )
 
 
 @router.post("", response_model=PhotoSourceResponse, status_code=status.HTTP_201_CREATED)
