@@ -39,10 +39,14 @@ function switchTab(tabId) {
     });
     document.getElementById(`tab-${tabId}`).classList.add('active');
 
-    // Initialize sources manager on first load
-    if (tabId === 'sources' && !sourcesInitialized) {
-        initSourcesManager();
-        sourcesInitialized = true;
+    // Initialize or refresh sources when tab is opened
+    if (tabId === 'sources') {
+        if (!sourcesInitialized) {
+            initSourcesManager();
+            sourcesInitialized = true;
+        } else {
+            loadSources();
+        }
     }
 }
 
