@@ -44,6 +44,7 @@ class FolderItem(BaseModel):
     name: str
     path: str
     photo_count: int
+    remote_path: Optional[str] = None
 
 
 class FoldersListResponse(BaseModel):
@@ -86,11 +87,17 @@ async def list_folders(admin=Depends(require_admin)):
     folders = []
     for source in sources:
         photo_count = count_local_files(source.local_path)
+        # Extract cloud path from rclone remote (e.g. "kfr_tkframe:KFR_tkframe" → "/KFR_tkframe")
+        remote_path = None
+        if source.rclone_remote and ":" in source.rclone_remote:
+            cloud_path = source.rclone_remote.split(":", 1)[1]
+            remote_path = f"/{cloud_path}" if not cloud_path.startswith("/") else cloud_path
         folders.append(FolderItem(
             id=source.id,
             name=source.name,
             path=source.local_path,
             photo_count=photo_count,
+            remote_path=remote_path,
         ))
     return FoldersListResponse(
         folders=folders,
