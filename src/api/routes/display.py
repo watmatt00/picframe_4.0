@@ -6,9 +6,10 @@ Controls the Pi3D PictureFrame display:
 - POST /display/folder: Switch display folder
 """
 
+import logging
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from src.api.dependencies import require_admin
@@ -16,6 +17,9 @@ from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
 from src.services.display_service import display_service
 from src.services.source_manager import source_manager
+from src.services.sync_service import sync_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/display", tags=["display"])
 
@@ -75,11 +79,16 @@ async def get_current_folder(admin=Depends(require_admin)):
 
 
 @router.post("/folder", response_model=SwitchFolderResponse)
-async def switch_folder(request: SwitchFolderRequest, admin=Depends(require_admin)):
+async def switch_folder(
+    request: SwitchFolderRequest,
+    background_tasks: BackgroundTasks,
+    admin=Depends(require_admin),
+):
     """
     Switch the display to a different photo source.
 
-    This updates the Pi3D configuration and restarts the display service.
+    This updates the Pi3D configuration, restarts the display service,
+    and triggers a background sync for the new source if it has a remote.
     """
     # Validate source exists
     source = source_manager.get_source(request.source_id)
@@ -113,6 +122,23 @@ async def switch_folder(request: SwitchFolderRequest, admin=Depends(require_admi
     # Update our config to track current source
     config_manager.set("display.current_source", request.source_id)
     reload_settings()  # Clear cached settings
+
+    # Auto-sync the new source in the background if it has a remote
+    if source.rclone_remote and not sync_service._is_syncing:
+        async def _run_sync():
+            """Background sync for the newly activated source."""
+            try:
+                await sync_service.sync_source(
+                    source_id=source.id,
+                    local_path=Path(source.local_path),
+                    rclone_remote=source.rclone_remote,
+                )
+                logger.info(f"Auto-sync completed for '{source.id}'")
+            except Exception as e:
+                logger.error(f"Auto-sync failed for '{source.id}': {e}")
+
+        background_tasks.add_task(_run_sync)
+        logger.info(f"Auto-sync triggered for '{source.id}' after activation")
 
     return SwitchFolderResponse(
         success=True,
