@@ -372,17 +372,22 @@ def _get_last_restart_time() -> str | None:
 @router.post("/sync")
 async def trigger_sync():
     """Trigger a sync from the dashboard."""
-    sources = source_manager.list_sources()
-    syncable = [s for s in sources if s.enabled and s.rclone_remote]
+    settings = get_settings()
+    current_source_id = settings.display.current_source
 
-    if not syncable:
-        return {"error": "No sources with remotes configured"}
+    # Find the active source
+    source = source_manager.get_source(current_source_id) if current_source_id else None
+
+    if not source or not source.rclone_remote:
+        # Fall back to first enabled source with a remote
+        sources = source_manager.list_sources()
+        syncable = [s for s in sources if s.enabled and s.rclone_remote]
+        if not syncable:
+            return {"error": "No sources with remotes configured"}
+        source = syncable[0]
 
     if sync_service._is_syncing:
         return {"error": "Sync already in progress"}
-
-    # Sync the first enabled source
-    source = syncable[0]
 
     async def run_sync_with_logging():
         """Run sync and update timestamp/logs."""
@@ -470,6 +475,7 @@ async def get_dashboard_status():
                 logger.warning(f"Failed to count remote files: {e}")
 
     # Determine sync status
+    # Note: JS handles count comparison for traffic light severity
     sync_status = "idle"
     if sync_service._is_syncing:
         sync_status = "syncing"
