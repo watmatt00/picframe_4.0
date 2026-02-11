@@ -157,33 +157,27 @@ async def get_status(admin=Depends(require_admin)):
     if current_source:
         photo_count = count_local_files(current_source.local_path)
 
-    # Get total photo count across all sources
-    total_local_count = sum(count_local_files(s.local_path) for s in sources)
-
-    # Count remote files across all sources with rclone remotes
-    total_remote_count = 0
-    remote_sources = [s for s in sources if s.rclone_remote]
-    if remote_sources:
+    # Count remote files for the active source only
+    active_remote_count = 0
+    if current_source and current_source.rclone_remote:
         try:
-            counts = await asyncio.wait_for(
-                asyncio.gather(
-                    *(rclone_count(s.rclone_remote) for s in remote_sources),
-                    return_exceptions=True,
-                ),
+            active_remote_count = await asyncio.wait_for(
+                rclone_count(current_source.rclone_remote),
                 timeout=15,
             )
-            for count in counts:
-                if isinstance(count, int):
-                    total_remote_count += count
-        except asyncio.TimeoutError:
-            pass  # Use 0 if remote counting times out
+        except (asyncio.TimeoutError, Exception):
+            pass  # Use 0 if remote counting fails
 
     # Determine sync status
     sync_status = "idle"
     if sync_service._is_syncing:
         sync_status = "syncing"
-    elif sync_service._last_sync:
-        sync_status = "match" if sync_service._last_sync.success else "error"
+    elif sync_service._last_sync and not sync_service._last_sync.success:
+        sync_status = "error"
+    elif photo_count == active_remote_count and active_remote_count > 0:
+        sync_status = "match"
+    elif active_remote_count > 0 and photo_count != active_remote_count:
+        sync_status = "mismatch"
 
     last_sync_str = None
     if sync_service._last_sync:
@@ -202,8 +196,8 @@ async def get_status(admin=Depends(require_admin)):
         sync=SyncStatusInfo(
             last_sync=last_sync_str,
             status=sync_status,
-            local_count=total_local_count,
-            remote_count=total_remote_count,
+            local_count=photo_count,
+            remote_count=active_remote_count,
             is_syncing=sync_service._is_syncing,
             current_source=sync_service._current_source,
         ),
