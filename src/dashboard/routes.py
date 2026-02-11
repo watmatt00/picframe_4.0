@@ -362,10 +362,35 @@ def _get_last_sync_time() -> str | None:
            _last_matching_timestamp(log_file, "rclone")
 
 
-def _get_last_restart_time() -> str | None:
-    """Get timestamp of last service restart from logs."""
-    log_file = LOGS_DIR / "picframe.log"
-    return _last_matching_timestamp(log_file, "restart")
+async def _get_last_restart_time() -> str | None:
+    """Get timestamp of last service restart from systemd."""
+    latest = None
+    for svc in ("picframe", "picframe-api"):
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "systemctl", "--user", "show", f"{svc}.service",
+                "--property=ActiveEnterTimestamp",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await proc.communicate()
+            line = stdout.decode().strip()
+            # Format: ActiveEnterTimestamp=Wed 2026-02-11 14:28:23 MST
+            if "=" in line:
+                ts_str = line.split("=", 1)[1].strip()
+                if ts_str:
+                    # Parse systemd timestamp (e.g. "Wed 2026-02-11 14:28:23 MST")
+                    # Strip day name and timezone for parsing
+                    parts = ts_str.split()
+                    if len(parts) >= 4:
+                        dt = datetime.strptime(
+                            f"{parts[1]} {parts[2]}", "%Y-%m-%d %H:%M:%S"
+                        )
+                        if latest is None or dt > latest:
+                            latest = dt
+        except Exception:
+            continue
+    return latest.strftime("%Y-%m-%d %H:%M:%S") if latest else None
 
 
 # Dashboard sync trigger (no auth required on LAN)
@@ -501,9 +526,9 @@ async def get_dashboard_status():
         storage_total = 0
         storage_percent = 0
 
-    # Get last sync/restart from logs
+    # Get last sync/restart times
     last_sync = _get_last_sync_time()
-    last_restart = _get_last_restart_time()
+    last_restart = await _get_last_restart_time()
 
     # Get recent logs
     logs = _read_log_file("ops", 20)
