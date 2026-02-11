@@ -109,7 +109,7 @@ The dashboard is a tabbed interface with three main sections:
 | **Rotation Interval** | `POST /api/settings` | Seconds between photos (auto-restarts frame) |
 | **Sync Interval** | `POST /api/settings` | Minutes between cloud syncs |
 | **Log Level** | `POST /api/settings` | DEBUG/INFO/WARNING/ERROR |
-| **Mobile Pairing** | `GET /pairing` | Link to QR code generation |
+| **Mobile Pairing** | `POST /pairing/generate` (AJAX) | Inline QR code generation in Settings tab |
 | **Device Management** | `GET /devices` | Link to paired devices list |
 
 #### Other Dashboard Pages

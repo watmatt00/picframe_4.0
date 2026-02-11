@@ -297,7 +297,9 @@ List all configured photo sources with current source. Admin only.
 
 ### POST /sync
 
-Trigger a manual sync. Admin only.
+Trigger a manual sync (dashboard, no auth on LAN).
+
+Syncs the **currently active display source**. If the active source has no remote configured, falls back to the first enabled source with a remote.
 
 **Response (200):**
 ```json
@@ -422,7 +424,7 @@ Returns real-time dashboard data for AJAX updates.
   "storage_total": 64.0,
   "storage_percent": 19.5,
   "last_sync": "2026-02-04 10:30:00",
-  "last_restart": "2026-02-04 08:00:00",
+  "last_restart": "2026-02-04 08:00:00",  // from systemd ActiveEnterTimestamp
   "logs": ["2026-02-04 10:30:00 INFO Sync completed", "..."]
 }
 ```

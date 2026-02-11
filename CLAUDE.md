@@ -58,14 +58,17 @@ All systemd services are **user services** (`systemctl --user`), not system serv
 Three-tab interface:
 - **Status Tab**: Traffic light (green/amber/red), photo counts (cloud + local), current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API), activity logs
 - **Switch Photos Tab**: Source table, add new source form with rclone folder browser, source switching
-- **Settings Tab**: Frame name, rotation interval (seconds), sync interval (minutes), log level, device pairing links
+- **Settings Tab**: Frame name, rotation interval (seconds), sync interval (minutes), log level, inline device pairing (QR code via AJAX), manage devices link
 
 ### Key Behaviors
 - Rotation interval changes write to `~/picframe_data/config/configuration.yaml` (model.time_delay) and auto-restart picframe service
 - Sync interval is stored in seconds but displayed as minutes in UI
+- `POST /sync` syncs the **active display source** (falls back to first enabled source if active has no remote)
+- Photo counts (cloud/local) reflect the active source only, not all sources combined
 - Traffic light goes AMBER when cloud/local counts don't match
 - Dashboard auto-refreshes every 15 seconds via AJAX to `/dashboard/status`
 - Cloud photo count uses `rclone ls` with 30-second timeout
+- "Last restart" queries systemd `ActiveEnterTimestamp` (survives log rotation)
 
 ## Mobile App Scope
 
