@@ -17,7 +17,7 @@ from src.api.dependencies import require_admin
 from src.config.settings import get_settings
 from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
-from src.utils.rclone import count_local_files
+from src.utils.rclone import count_local_files, rclone_count
 
 router = APIRouter(tags=["status"])
 
@@ -160,6 +160,24 @@ async def get_status(admin=Depends(require_admin)):
     # Get total photo count across all sources
     total_local_count = sum(count_local_files(s.local_path) for s in sources)
 
+    # Count remote files across all sources with rclone remotes
+    total_remote_count = 0
+    remote_sources = [s for s in sources if s.rclone_remote]
+    if remote_sources:
+        try:
+            counts = await asyncio.wait_for(
+                asyncio.gather(
+                    *(rclone_count(s.rclone_remote) for s in remote_sources),
+                    return_exceptions=True,
+                ),
+                timeout=15,
+            )
+            for count in counts:
+                if isinstance(count, int):
+                    total_remote_count += count
+        except asyncio.TimeoutError:
+            pass  # Use 0 if remote counting times out
+
     # Determine sync status
     sync_status = "idle"
     if sync_service._is_syncing:
@@ -185,7 +203,7 @@ async def get_status(admin=Depends(require_admin)):
             last_sync=last_sync_str,
             status=sync_status,
             local_count=total_local_count,
-            remote_count=0,  # Would need to query all remotes
+            remote_count=total_remote_count,
             is_syncing=sync_service._is_syncing,
             current_source=sync_service._current_source,
         ),
