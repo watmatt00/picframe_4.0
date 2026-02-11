@@ -121,6 +121,7 @@ async def dashboard_home(request: Request):
         "rotation_interval": rotation_interval,
         "sync_interval": settings.sync.interval,
         "log_level": pf_log_level,
+        "funnel_url": settings.frame.funnel_url or "",
     }
     return templates.TemplateResponse("dashboard.html", context)
 

@@ -321,14 +321,29 @@
             <section class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">
                     <div>
-                        <div class="card-title">📱 Mobile App Pairing</div>
+                        <div class="card-title">Mobile App Pairing</div>
                         <div class="card-subtitle">Connect your phone to control this frame</div>
                     </div>
                 </div>
 
                 <div style="padding: 0 1.5rem 1.5rem;">
-                    <a href="/pairing" class="btn">Generate Pairing QR Code</a>
-                    <a href="/devices" class="btn secondary" style="margin-left: 0.5rem;">Manage Devices</a>
+                    <div id="pairing-actions">
+                        <button class="btn btn-primary" onclick="generatePairingCode()">Generate Pairing QR Code</button>
+                        <a href="/devices" class="btn secondary" style="margin-left: 0.5rem;">Manage Devices</a>
+                    </div>
+
+                    <div id="pairing-result" style="display: none; margin-top: 1rem;">
+                        <div style="background: white; display: inline-block; padding: 0.5rem; border-radius: 8px;">
+                            <img id="pairing-qr" src="" alt="Pairing QR Code" style="width: 200px; height: 200px;">
+                        </div>
+                        <p style="margin-top: 0.75rem; color: #9ca3af;">Manual Code:</p>
+                        <p style="font-size: 1.5rem; font-weight: bold; letter-spacing: 0.1em;" id="pairing-code"></p>
+                        <p style="color: #9ca3af;">Expires in <span id="pairing-countdown"></span> seconds</p>
+                        <p style="color: #6b7280; font-size: 0.85rem; margin-top: 0.25rem;">
+                            Frame URL: {{ funnel_url }}
+                        </p>
+                        <button class="btn btn-primary" style="margin-top: 0.75rem;" onclick="generatePairingCode()">Regenerate Code</button>
+                    </div>
                 </div>
             </section>
         </main>

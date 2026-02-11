@@ -1015,3 +1015,47 @@ function initSettingsForm() {
         }
     });
 }
+
+// =============================================================================
+// PAIRING
+// =============================================================================
+
+let pairingCountdownInterval = null;
+
+async function generatePairingCode() {
+    try {
+        const resp = await fetch("/pairing/generate", { method: "POST" });
+        const data = await resp.json();
+
+        if (data.error) {
+            alert("Failed to generate code: " + data.error);
+            return;
+        }
+
+        const resultDiv = document.getElementById("pairing-result");
+        const qrImg = document.getElementById("pairing-qr");
+        const codeEl = document.getElementById("pairing-code");
+        const countdownEl = document.getElementById("pairing-countdown");
+
+        if (qrImg) qrImg.src = data.qr_data_url;
+        if (codeEl) codeEl.textContent = data.code;
+
+        // Start countdown
+        if (pairingCountdownInterval) clearInterval(pairingCountdownInterval);
+        const expiresAt = new Date(data.expires_at);
+        function updateCountdown() {
+            const remaining = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+            if (countdownEl) countdownEl.textContent = remaining;
+            if (remaining <= 0) {
+                clearInterval(pairingCountdownInterval);
+                if (resultDiv) resultDiv.style.display = "none";
+            }
+        }
+        updateCountdown();
+        pairingCountdownInterval = setInterval(updateCountdown, 1000);
+
+        if (resultDiv) resultDiv.style.display = "block";
+    } catch (err) {
+        alert("Error generating pairing code: " + err.message);
+    }
+}
