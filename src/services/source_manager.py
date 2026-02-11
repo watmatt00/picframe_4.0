@@ -4,7 +4,10 @@ PicFrame 4.0 - Source Manager.
 Manages photo sources (folders) and their configurations.
 """
 
+import asyncio
 import logging
+import re
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -91,6 +94,9 @@ class SourceManager:
         """
         Create a new photo source.
 
+        If rclone_remote is not provided, auto-configures one using the
+        first available Koofr rclone remote and creates the cloud folder.
+
         Args:
             name: Human-readable name
             rclone_remote: Optional rclone remote specification
@@ -102,6 +108,8 @@ class SourceManager:
 
         # Generate ID from name
         source_id = name.lower().replace(" ", "_")
+        # Sanitize: only allow alphanumeric and underscores
+        source_id = re.sub(r"[^a-z0-9_]", "_", source_id)
 
         # Ensure unique ID
         existing_ids = {s.id for s in sources}
@@ -115,6 +123,10 @@ class SourceManager:
         local_path = Path.home() / "Pictures" / source_id
         local_path.mkdir(parents=True, exist_ok=True)
 
+        # Auto-configure rclone remote if not provided
+        if not rclone_remote:
+            rclone_remote = self._auto_configure_remote(source_id)
+
         source = PhotoSource(
             id=source_id,
             name=name,
@@ -126,8 +138,68 @@ class SourceManager:
         sources.append(source)
         self._save_sources(sources)
 
-        logger.info(f"Created source '{source_id}': {local_path}")
+        logger.info(f"Created source '{source_id}': {local_path}, remote: {rclone_remote}")
         return source
+
+    def _auto_configure_remote(self, source_id: str) -> Optional[str]:
+        """
+        Auto-configure an rclone remote for a new source.
+
+        Finds the first Koofr rclone remote and creates a cloud folder
+        named KFR_<source_id>.
+
+        Args:
+            source_id: The source identifier
+
+        Returns:
+            rclone remote string (e.g. "kfr_tkframe:KFR_source_id") or None
+        """
+        try:
+            # Find Koofr remotes
+            result = subprocess.run(
+                ["rclone", "listremotes"],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode != 0:
+                logger.warning("Failed to list rclone remotes")
+                return None
+
+            remote_name = None
+            for line in result.stdout.strip().split("\n"):
+                line = line.strip()
+                if line.endswith(":"):
+                    candidate = line[:-1]
+                    # Check if it's a Koofr remote
+                    type_result = subprocess.run(
+                        ["rclone", "config", "show", candidate],
+                        capture_output=True, text=True, timeout=10,
+                    )
+                    if "koofr" in type_result.stdout.lower():
+                        remote_name = candidate
+                        break
+
+            if not remote_name:
+                logger.warning("No Koofr rclone remote found")
+                return None
+
+            # Create cloud folder
+            cloud_folder = f"KFR_{source_id}"
+            rclone_remote = f"{remote_name}:{cloud_folder}"
+
+            mkdir_result = subprocess.run(
+                ["rclone", "mkdir", rclone_remote],
+                capture_output=True, text=True, timeout=30,
+            )
+            if mkdir_result.returncode != 0:
+                logger.error(f"Failed to create cloud folder: {mkdir_result.stderr}")
+                return None
+
+            logger.info(f"Auto-configured remote: {rclone_remote}")
+            return rclone_remote
+
+        except Exception as e:
+            logger.error(f"Failed to auto-configure remote: {e}")
+            return None
 
     def delete_source(self, source_id: str) -> bool:
         """
