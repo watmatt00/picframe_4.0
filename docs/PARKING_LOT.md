@@ -31,6 +31,20 @@ Add version prefix to API routes (`/api/v1/`) to allow breaking changes without 
 
 Files: `src/api/app.py`, all route modules in `src/api/routes/`
 
+### Open-Box Fresh Install - Cloud Storage Chicken-and-Egg Problem
+**Priority:** High (future planning)
+**Status:** Needs design discussion
+
+On a fresh "open box" install, there's a chicken-and-egg problem with cloud storage setup. The frame needs rclone/Koofr credentials configured before it can sync, but the mobile app now pulls those credentials from the frame. What comes first?
+
+Questions to resolve:
+- Does the user set up Koofr on the Pi first (via dashboard), then pair the mobile app?
+- Or should the mobile app be able to push Koofr credentials TO the frame?
+- Could the pairing flow include a "configure cloud storage" step?
+- What's the minimal setup path for a non-technical user?
+
+This requires significant thought and planning around the first-run experience.
+
 ### Consolidate Duplicated Status Logic
 **Priority:** Low
 **Status:** Not started
