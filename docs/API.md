@@ -23,26 +23,26 @@ Tokens are obtained through the pairing flow (see [Security](SECURITY.md)).
 |----------|--------|-------------|
 | `/health` | GET | Health check |
 | `/version` | GET | API version |
-| `/api/pair` | POST | Exchange pairing code for JWT |
+| `/api/v1/pair` | POST | Exchange pairing code for JWT |
 
-### Admin Endpoints (JWT Required, `/api` prefix)
+### Admin Endpoints (JWT Required, `/api/v1` prefix)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/pairing/generate` | POST | Generate new pairing QR code |
-| `/api/status` | GET | Frame status, capacity |
-| `/api/devices` | GET | List paired devices |
-| `/api/devices/{id}` | DELETE | Revoke device |
-| `/api/services` | GET | List services + status |
-| `/api/services/{name}/restart` | POST | Restart service |
-| `/api/display/folder` | GET | Current display folder |
-| `/api/display/folder` | POST | Switch folder |
-| `/api/folders` | GET | List folders |
-| `/api/folders` | POST | Create folder |
-| `/api/contributors` | GET | List contributor invites |
-| `/api/contributors/invite` | POST | Generate Koofr invite |
-| `/api/sync` | POST | Trigger manual sync |
-| `/api/logs` | GET | Recent log entries |
+| `/api/v1/pairing/generate` | POST | Generate new pairing QR code |
+| `/api/v1/status` | GET | Frame status, capacity |
+| `/api/v1/devices` | GET | List paired devices |
+| `/api/v1/devices/{id}` | DELETE | Revoke device |
+| `/api/v1/services` | GET | List services + status |
+| `/api/v1/services/{name}/restart` | POST | Restart service |
+| `/api/v1/display/folder` | GET | Current display folder |
+| `/api/v1/display/folder` | POST | Switch folder |
+| `/api/v1/folders` | GET | List folders |
+| `/api/v1/folders` | POST | Create folder |
+| `/api/v1/contributors` | GET | List contributor invites |
+| `/api/v1/contributors/invite` | POST | Generate Koofr invite |
+| `/api/v1/sync` | POST | Trigger manual sync |
+| `/api/v1/logs` | GET | Recent log entries |
 
 ---
 
@@ -70,7 +70,7 @@ API version endpoint.
 
 ---
 
-### POST /api/pair
+### POST /api/v1/pair
 
 Exchange a pairing code for a JWT token.
 
@@ -130,7 +130,7 @@ Authorization: Bearer <token>
 
 ---
 
-### GET /api/status
+### GET /api/v1/status
 
 Get frame status including sync state and capacity. Admin only.
 
@@ -274,7 +274,7 @@ Switch display folder/source. Admin only.
 
 ---
 
-### GET /api/folders
+### GET /api/v1/folders
 
 List all configured photo sources with current source. Admin only.
 
@@ -374,31 +374,31 @@ The web dashboard at `http://<pi-ip>:8000` provides browser-based management acc
 | `/sync` | POST | Trigger manual sync |
 | `/switch-source` | POST | Switch display source |
 | `/services/{name}/restart` | POST | Restart service (picframe, picframe-api) |
-| `/api/settings` | POST | Save frame settings |
+| `/api/v1/settings` | POST | Save frame settings |
 
 ### Source Management API
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/sources` | GET | List all photo sources |
-| `/api/sources/create` | POST | Create a new photo source |
-| `/api/sources/delete` | POST | Delete a photo source |
-| `/api/frame-live` | POST | Switch to source and trigger sync |
+| `/api/v1/sources` | GET | List all photo sources |
+| `/api/v1/sources/create` | POST | Create a new photo source |
+| `/api/v1/sources/delete` | POST | Delete a photo source |
+| `/api/v1/frame-live` | POST | Switch to source and trigger sync |
 
 ### rclone Integration API
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/rclone/remotes` | GET | List configured rclone remotes |
-| `/api/rclone/list-dirs` | POST | Browse directories in rclone remote |
-| `/api/local/list-dirs` | GET | List directories in ~/Pictures |
-| `/api/config/test-remote` | POST | Test rclone remote connection |
+| `/api/v1/rclone/remotes` | GET | List configured rclone remotes |
+| `/api/v1/rclone/list-dirs` | POST | Browse directories in rclone remote |
+| `/api/v1/local/list-dirs` | GET | List directories in ~/Pictures |
+| `/api/v1/config/test-remote` | POST | Test rclone remote connection |
 
 ### Other Dashboard Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/logs` | GET | Get recent log entries as JSON |
+| `/api/v1/logs` | GET | Get recent log entries as JSON |
 | `/pairing/generate` | POST | Generate new pairing code (AJAX) |
 | `/devices/{id}/revoke` | POST | Revoke a paired device |
 

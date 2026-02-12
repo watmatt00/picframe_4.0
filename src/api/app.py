@@ -63,17 +63,17 @@ async def debug_token():
 # Include dashboard routes (LAN only, no auth)
 app.include_router(dashboard_routes.router)
 
-# Include API routes with /api prefix (JWT authenticated via mobile app)
-app.include_router(pairing.router, prefix="/api")
-app.include_router(status.router, prefix="/api")
-app.include_router(devices.router, prefix="/api")
-app.include_router(services.router, prefix="/api")
-app.include_router(display.router, prefix="/api")
-app.include_router(folders.router, prefix="/api")
-app.include_router(contributors.router, prefix="/api")
-app.include_router(cloud.router, prefix="/api")
-app.include_router(settings.router, prefix="/api")
-app.include_router(logs.router, prefix="/api")
+# Include API routes with /api/v1 prefix (JWT authenticated via mobile app)
+app.include_router(pairing.router, prefix="/api/v1")
+app.include_router(status.router, prefix="/api/v1")
+app.include_router(devices.router, prefix="/api/v1")
+app.include_router(services.router, prefix="/api/v1")
+app.include_router(display.router, prefix="/api/v1")
+app.include_router(folders.router, prefix="/api/v1")
+app.include_router(contributors.router, prefix="/api/v1")
+app.include_router(cloud.router, prefix="/api/v1")
+app.include_router(settings.router, prefix="/api/v1")
+app.include_router(logs.router, prefix="/api/v1")
 
 # Mount static files for dashboard
 static_dir = Path(__file__).parent.parent / "dashboard" / "static"
