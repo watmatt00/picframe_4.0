@@ -57,7 +57,7 @@ All systemd services are **user services** (`systemctl --user`), not system serv
 
 Three-tab interface:
 - **Status Tab**: Traffic light (green/amber/red), photo counts (cloud + local), current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API), activity logs
-- **Switch Photos Tab**: Source table, add new source form with rclone folder browser, source switching
+- **Switch Source Tab**: Source table, add new source form with rclone folder browser, source switching
 - **Settings Tab**: Frame name, rotation interval (seconds), sync interval (minutes), log level, inline device pairing (QR code via AJAX), manage devices link
 
 ### Key Behaviors
@@ -67,7 +67,7 @@ Three-tab interface:
 - Photo counts (cloud/local) reflect the active source only, not all sources combined
 - Traffic light goes AMBER when cloud/local counts don't match
 - Dashboard auto-refreshes every 15 seconds via AJAX to `/dashboard/status`
-- Cloud photo count uses `rclone ls` with 30-second timeout
+- Cloud photo count uses shared `rclone_count()` via `status_service.py` with 15-second timeout
 - "Last restart" queries systemd `ActiveEnterTimestamp` (survives log rotation)
 
 ## Mobile App Scope

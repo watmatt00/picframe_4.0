@@ -30,7 +30,7 @@
 ```
 ┌─────────────────┐                              ┌──────────────────────────────┐
 │  Mobile App     │                              │  Pi Frame (4.0)              │
-│  (iOS/Android)  │      HTTPS (Funnel)          │                              │
+│  (iOS)          │      HTTPS (Funnel)          │                              │
 │                 │─────────────────────────────>│  ┌────────────────────────┐  │
 │  No VPN needed  │  https://frame.ts.net        │  │ Tailscale Funnel       │  │
 └─────────────────┘                              │  └───────────┬────────────┘  │
@@ -91,7 +91,7 @@ The dashboard is a tabbed interface with three main sections:
 | **Quick Actions** | Various POST | Refresh, Sync Now, Restart Frame, Restart API |
 | **Activity Log** | `GET /api/logs` | Recent log entries (collapsible) |
 
-#### Switch Photos Tab
+#### Switch Source Tab
 | Feature | Endpoint | Description |
 |---------|----------|-------------|
 | **Source List** | `GET /api/sources` | Table of configured photo sources |
@@ -293,6 +293,7 @@ picframe_4.0/
 │   │   ├── sync_service.py     # rclone sync operations
 │   │   ├── display_service.py  # Display control, folder switching
 │   │   ├── source_manager.py   # Photo source management
+│   │   ├── status_service.py   # Shared status logic (counts, sync, capacity)
 │   │   └── systemd_service.py  # Service control wrapper
 │   │
 │   ├── config/
@@ -338,38 +339,31 @@ picframe_4.0/
 └── README.md
 ```
 
-### picframe_mgr (Updated - Mobile)
+### picframe_mgr (iOS Mobile App)
 
-Changes to existing repo:
+**iOS only. Android is permanently on hold.**
 
 ```
 picframe_mgr/
 ├── iosApp/
-│   ├── FrameClient.swift           # Update for Funnel URLs
-│   ├── PairingView.swift           # Add QR scanner
-│   ├── QRScannerView.swift         # NEW - Camera QR scanning
-│   ├── FrameListView.swift         # Minor updates
-│   ├── FrameDetailView.swift       # Minor updates
-│   ├── ContributorInviteView.swift # NEW - Generate invites
-│   └── Models/
-│       └── PairedFrame.swift       # url field instead of tailscaleIP
+│   ├── iosApp/
+│   │   ├── FrameClient.swift           # HTTP client for Pi API (/api/v1)
+│   │   ├── KoofrClient.swift           # Koofr cloud upload client
+│   │   ├── MainViewModel.swift         # View model with all API calls
+│   │   ├── MainMenuView.swift          # Main menu with paired frames
+│   │   ├── FrameDetailView.swift       # Frame detail (status, actions)
+│   │   ├── DestinationsView.swift      # Switch Source view
+│   │   ├── UploadSheetView.swift       # Photo upload to Koofr
+│   │   ├── SettingsView.swift          # Settings (sync interval, logs)
+│   │   ├── LogViewerView.swift         # Log viewer (ops/security)
+│   │   ├── PairingView.swift           # Manual code pairing
+│   │   └── Models/
+│   │       ├── PairedFrame.swift       # Frame model with baseURL
+│   │       └── FrameStatus.swift       # Status/response models
+│   └── iosApp.xcodeproj/
 │
-├── androidApp/                     # NEW - Frame support
-│   └── src/main/kotlin/.../
-│       ├── ui/screens/
-│       │   ├── FrameListScreen.kt
-│       │   ├── FrameDetailScreen.kt
-│       │   ├── PairingScreen.kt
-│       │   └── QRScannerScreen.kt
-│       └── viewmodel/
-│           └── FrameViewModel.kt
-│
-└── shared/
-    └── src/commonMain/.../
-        ├── api/FrameApiClient.kt   # Update for Funnel URLs
-        ├── storage/FrameStorage.kt # NEW - KMP frame storage
-        └── models/
-            └── PairedFrame.kt      # url field instead of tailscaleIP
+└── api-tests/                          # Python CLI upload tool (legacy)
+    └── koofr_upload.py
 ```
 
 ---
@@ -424,21 +418,22 @@ picframe_mgr/
 |----------|--------|------|------|-------------|
 | `/version` | GET | None | - | API version |
 | `/health` | GET | None | - | Health check |
-| `/pair` | POST | Code | - | Exchange code for JWT |
-| `/pairing/generate` | POST | JWT | Admin | Generate new pairing QR |
-| `/status` | GET | JWT | Admin | Frame status, capacity |
-| `/devices` | GET | JWT | Admin | List paired devices |
-| `/devices/{id}` | DELETE | JWT | Admin | Revoke device |
-| `/services` | GET | JWT | Admin | List services + status |
-| `/services/{name}/restart` | POST | JWT | Admin | Restart service |
-| `/display/folder` | GET | JWT | Admin | Current display folder |
-| `/display/folder` | POST | JWT | Admin | Switch folder |
-| `/folders` | GET | JWT | Admin | List folders |
-| `/folders` | POST | JWT | Admin | Create folder |
-| `/contributors` | GET | JWT | Admin | List contributor invites |
-| `/contributors/invite` | POST | JWT | Admin | Generate Koofr invite |
-| `/sync` | POST | JWT | Admin | Trigger manual sync |
-| `/logs` | GET | JWT | Admin | Recent log entries |
+| `/api/v1/pair` | POST | Code | - | Exchange code for JWT |
+| `/api/v1/pairing/generate` | POST | JWT | Admin | Generate new pairing QR |
+| `/api/v1/status` | GET | JWT | Admin | Frame status, capacity |
+| `/api/v1/devices` | GET | JWT | Admin | List paired devices |
+| `/api/v1/devices/{id}` | DELETE | JWT | Admin | Revoke device |
+| `/api/v1/services` | GET | JWT | Admin | List services + status |
+| `/api/v1/services/{name}/restart` | POST | JWT | Admin | Restart service |
+| `/api/v1/display/folder` | GET | JWT | Admin | Current display folder |
+| `/api/v1/display/folder` | POST | JWT | Admin | Switch folder (source_id) |
+| `/api/v1/folders` | GET | JWT | Admin | List folders |
+| `/api/v1/folders` | POST | JWT | Admin | Create folder |
+| `/api/v1/contributors` | GET | JWT | Admin | List contributor invites |
+| `/api/v1/contributors/invite` | POST | JWT | Admin | Generate Koofr invite |
+| `/api/v1/settings` | GET | JWT | Admin | Get frame settings |
+| `/api/v1/settings/sync-interval` | PUT | JWT | Admin | Update sync interval |
+| `/api/v1/logs` | GET | JWT | Admin | Recent log entries |
 
 ---
 
@@ -571,19 +566,19 @@ sources:
 22. Integration tests (API endpoints)
 23. Dashboard tests (page loads, form submissions, UI interactions)
 
-### Phase 5: Mobile Updates (picframe_mgr - iOS only)
+### Phase 5: Mobile App (picframe_mgr - iOS only)
 
 **Note: Android is permanently on hold. iOS only.**
 
-**CRITICAL: iOS app has never been built or tested. All code written on PC without Xcode. Must build and test on Mac before any further mobile work.**
+**Status: Core functionality complete.** App builds, runs on simulator, and works against live Pi API.
 
-23. QR scanner view (iOS)
-24. Update FrameClient for Funnel URLs
-25. Update PairedFrame model
-26. Build in Xcode, fix compile errors
-27. Test on device/simulator against live Pi API
-28. Fix runtime issues
-29. TestFlight beta distribution
+- ✅ Update FrameClient for Funnel URLs and `/api/v1` prefix
+- ✅ Update PairedFrame model with baseURL
+- ✅ Build in Xcode, fix compile errors
+- ✅ Test on simulator against live Pi API
+- ✅ Fix runtime issues (multiple rounds)
+- ⬜ QR scanner view (iOS) - future
+- ⬜ TestFlight beta distribution
 
 ### Phase 6: Admin Features (both)
 29. Service restart endpoints + UI (dashboard + mobile)
@@ -629,11 +624,9 @@ dev = [
 ]
 ```
 
-### picframe_mgr (Mobile)
+### picframe_mgr (iOS)
 
-**iOS**: AVFoundation (QR scanning) - no new dependencies
-**Android**: ML Kit Barcode Scanning or ZXing
-**KMP**: No new dependencies
+**iOS**: SwiftUI, Foundation (URLSession), AVFoundation (future QR scanning) - no external dependencies
 
 ---
 

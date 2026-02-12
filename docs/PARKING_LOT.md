@@ -6,30 +6,13 @@ Future tasks and improvements tracked for later work.
 
 ## picframe_4.0 (Backend)
 
-### Sync Interval Improvements
-**Priority:** Medium
-**Status:** Not started
+### Sync Interval - systemd Timer Integration
+**Priority:** Low
+**Status:** Partial
 
-Questions to resolve:
-- Should sync run on a fixed 15-minute interval or be configurable?
-- Does triggering a manual sync (via "Sync Now" button) reset the timer countdown?
-- Should the settings UI offer preconfigured intervals (15 min, 30 min, 1 hour) or allow custom entry?
+Sync interval is configurable in Settings (dashboard + mobile app) and stored in `config.yaml`. However, the systemd timer (`picframe-sync.timer`) still uses a fixed 15-minute interval. Future improvement: update the systemd timer when sync interval changes, or replace with an in-process scheduler.
 
-Current state: Sync interval is configurable in Settings tab (minutes). systemd timer triggers `/sync` endpoint. Manual sync via dashboard doesn't reset the timer.
-
-### Generate OpenAPI Spec
-**Priority:** Medium
-**Status:** Not started
-
-FastAPI has built-in OpenAPI generation. Export to `docs/openapi.json` so mobile app can reference it as the API contract. Optionally add CI check to detect unversioned changes.
-
-### Add API Versioning (/api/v1/ prefix)
-**Priority:** Medium
-**Status:** Not started
-
-Add version prefix to API routes (`/api/v1/`) to allow breaking changes without immediately breaking mobile clients. Return version in response headers.
-
-Files: `src/api/app.py`, all route modules in `src/api/routes/`
+Manual sync via "Sync Now" button does not reset the timer.
 
 ### Open-Box Fresh Install - Cloud Storage Chicken-and-Egg Problem
 **Priority:** High (future planning)
@@ -45,77 +28,53 @@ Questions to resolve:
 
 This requires significant thought and planning around the first-run experience.
 
-### Consolidate Duplicated Status Logic
-**Priority:** Low
-**Status:** Not started
+### ~~Generate OpenAPI Spec~~
+**Status:** Done
 
-Status gathering code is duplicated between dashboard routes and API routes. Extract into a shared service function that both can call.
+FastAPI auto-generates OpenAPI spec at `/openapi.json` (48 paths, 23 versioned under `/api/v1/`). Interactive Swagger UI at `/docs`.
 
-Files:
-- `src/dashboard/routes.py` (get_dashboard_status, lines ~433-516)
-- `src/api/routes/status.py` (lines ~95-153)
+### ~~Add API Versioning (/api/v1/ prefix)~~
+**Status:** Done
+
+All JWT-authenticated mobile API routes use `/api/v1/` prefix. Dashboard LAN-only routes are unaffected. iOS app updated to use `/api/v1` base URL.
+
+### ~~Consolidate Duplicated Status Logic~~
+**Status:** Done
+
+Extracted shared logic into `src/services/status_service.py`. Both API `status.py` and dashboard `routes.py` now use shared functions for source resolution, photo counting, sync status, and disk capacity.
 
 ---
 
 ## picframe_mgr (iOS Mobile App)
 
-### Build, Test, and Verify iOS App on Real Device
-**Priority:** HIGH
-**Status:** Not started
+### ~~Build, Test, and Verify iOS App~~
+**Status:** Done
 
-The entire iOS app has been written on a PC without ever being compiled or run. It has NEVER been built in Xcode or tested on a device/simulator. This must happen before any other mobile work.
+iOS app has been built in Xcode, deployed to simulator, and tested against live tkframe API. Pairing, status, folder listing, source switching, uploads, and service restart all verified working.
 
-**Prerequisites:**
-- Access to Mac with Xcode installed
-- Apple Developer account (for device testing / TestFlight)
+### ~~Fix FoldersResponse Mismatch~~
+**Status:** Done
 
-**Steps:**
-1. Open `picframe_mgr` project in Xcode on Mac
-2. Build and fix any compile errors
-3. Run on simulator - verify all screens load
-4. Test against live tkframe API (192.168.102.210:8000):
-   - Pairing flow (QR code scan)
-   - Status display (verify FrameStatus model works)
-   - Folder listing (known FoldersResponse mismatch - see below)
-   - Service restart
-   - Photo upload to Koofr
-5. Fix any runtime issues found
-6. TestFlight beta once stable
-
-**Known issues to hit during testing:**
-- FoldersResponse mismatch (see below)
-- Untested Koofr upload flow
-- Untested QR scanner / pairing flow
-
-### Fix FoldersResponse Mismatch
-**Priority:** High (will block iOS testing)
-**Status:** Not started
-
-Backend `GET /api/folders` returns `list[PhotoSourceResponse]` (flat list), but mobile expects `{ folders: [...], current_source: "..." }` (wrapped with current source). JSON decoding will fail for folder listing.
-
-Files:
-- `picframe_4.0/src/api/routes/folders.py`
-- `picframe_mgr/iosApp/iosApp/Models/FrameStatus.swift` (FoldersResponse)
+Backend `GET /api/v1/folders` now returns wrapped response `{ folders: [...], current_source: "..." }` matching iOS expectations.
 
 ### ~~Fix Port Mismatch (5000 -> 8000)~~
-**Priority:** High
 **Status:** Done
 
-Fixed: Port is now configurable (stored in PairedFrame, defaults to 8000). Backend includes `api_port` in pairing response. Also fixed missing `/api` prefix on all mobile API URLs.
+Port is now configurable (stored in PairedFrame, defaults to 8000). Backend includes `api_port` in pairing response.
 
 ### ~~Fix iOS FrameStatus Model Mismatch~~
-**Priority:** High
 **Status:** Done
 
-Fixed: iOS and Kotlin `FrameStatus` models updated to match backend response. Backend `ServiceStatus` enriched with `display_name`, `can_restart`, and mobile-friendly status strings. `CapacityInfo` now includes byte-level fields for mobile.
+iOS `FrameStatus` model matches backend response. Backend `ServiceStatus` enriched with `display_name`, `can_restart`, and mobile-friendly status strings.
 
-### Fix FoldersResponse Mismatch
+### Revert Pi Rate Limit
+**Priority:** Medium
+**Status:** Pending (tabled until testing complete)
+
+Pi rate limit was increased from 3 to 50 pairing codes per hour for testing. Revert to 3 when testing is complete.
+
+### TestFlight Distribution
 **Priority:** Medium
 **Status:** Not started
 
-Backend `GET /api/folders` returns `list[PhotoSourceResponse]` (flat list), but mobile expects `{ folders: [...], current_source: "..." }` (wrapped with current source). JSON decoding will fail for folder listing.
-
-Files:
-- `picframe_4.0/src/api/routes/folders.py`
-- `picframe_mgr/iosApp/iosApp/Models/FrameStatus.swift` (FoldersResponse)
-- `picframe_mgr/shared/.../models/frame/FrameStatus.kt` (FoldersResponse)
+Set up App Store Connect, configure signing/provisioning, archive and upload to TestFlight for family beta testing.

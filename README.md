@@ -37,10 +37,11 @@ Contributors ──(Koofr)──────────> Cloud ──> rclone s
 
 ### Web Dashboard Features
 - **Status Tab**: Photo sync status, cloud/local photo counts, traffic light indicator, current image thumbnail
-- **Switch Photos Tab**: Source management, add new sources with rclone folder browser
+- **Switch Source Tab**: Source management, add new sources with rclone folder browser
 - **Settings Tab**: Frame name, rotation interval, sync interval (minutes), log level
 - **Quick Actions**: Refresh, Sync Now, Restart Frame, Restart API
 - **Device Pairing**: QR code generation for mobile app pairing
+- **OpenAPI Docs**: Auto-generated at `/docs` and `/openapi.json`
 
 ## Quick Start
 
