@@ -339,9 +339,21 @@
                         <p style="margin-top: 0.75rem; color: #9ca3af;">Manual Code:</p>
                         <p style="font-size: 1.5rem; font-weight: bold; letter-spacing: 0.1em;" id="pairing-code"></p>
                         <p style="color: #9ca3af;">Expires in <span id="pairing-countdown"></span> seconds</p>
-                        <p style="color: #6b7280; font-size: 0.85rem; margin-top: 0.25rem;">
-                            Frame URL: {{ funnel_url }}
-                        </p>
+
+                        <div style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px; text-align: left;">
+                            <p style="color: #9ca3af; font-size: 0.8rem; margin-bottom: 0.5rem; font-weight: 600;">Enter in mobile app:</p>
+                            {% if tailscale_ip %}
+                            <p style="color: #e5e7eb; font-size: 0.85rem;">
+                                <span style="color: #9ca3af;">Tailscale IP:</span> <strong>{{ tailscale_ip }}</strong>
+                            </p>
+                            {% endif %}
+                            {% if funnel_url %}
+                            <p style="color: #e5e7eb; font-size: 0.85rem;">
+                                <span style="color: #9ca3af;">Frame URL:</span> {{ funnel_url }}
+                            </p>
+                            {% endif %}
+                        </div>
+
                         <button class="btn btn-primary" style="margin-top: 0.75rem;" onclick="generatePairingCode()">Regenerate Code</button>
                     </div>
                 </div>

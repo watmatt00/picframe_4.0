@@ -56,6 +56,21 @@ def _get_picframe_config() -> dict:
     return {}
 
 
+def _get_tailscale_ip() -> str:
+    """Get the Tailscale IPv4 address."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["tailscale", "ip", "-4"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception as e:
+        logger.warning(f"Failed to get Tailscale IP: {e}")
+    return ""
+
+
 
 @router.get("/", response_class=HTMLResponse)
 async def dashboard_home(request: Request):
@@ -122,6 +137,8 @@ async def dashboard_home(request: Request):
         "sync_interval": settings.sync.interval,
         "log_level": pf_log_level,
         "funnel_url": settings.frame.funnel_url or "",
+        "tailscale_ip": _get_tailscale_ip(),
+        "api_port": 8000,
     }
     return templates.TemplateResponse("dashboard.html", context)
 
