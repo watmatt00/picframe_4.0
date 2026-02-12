@@ -6,8 +6,6 @@ Provides frame status information:
 """
 
 import asyncio
-import shutil
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends
@@ -15,9 +13,15 @@ from pydantic import BaseModel
 
 from src.api.dependencies import require_admin
 from src.config.settings import get_settings
-from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
-from src.utils.rclone import count_local_files, rclone_count
+from src.services.status_service import (
+    get_current_source,
+    get_photo_counts,
+    determine_sync_status,
+    get_last_sync_time,
+    get_disk_capacity,
+    PICTURES_PATH,
+)
 
 router = APIRouter(tags=["status"])
 
@@ -108,30 +112,6 @@ async def _get_service_status(service_name: str) -> ServiceStatus:
         )
 
 
-def _get_capacity(path: Path) -> CapacityInfo:
-    """Get disk capacity for the given path."""
-    try:
-        usage = shutil.disk_usage(path)
-        total_gb = usage.total / (1024**3)
-        used_gb = usage.used / (1024**3)
-        available_gb = usage.free / (1024**3)
-        percent_used = (usage.used / usage.total) * 100 if usage.total > 0 else 0
-        return CapacityInfo(
-            total_gb=round(total_gb, 2),
-            used_gb=round(used_gb, 2),
-            available_gb=round(available_gb, 2),
-            percent_used=round(percent_used, 1),
-            total_bytes=usage.total,
-            used_bytes=usage.used,
-            free_bytes=usage.free,
-        )
-    except Exception:
-        return CapacityInfo(
-            total_gb=0, used_gb=0, available_gb=0, percent_used=0,
-            total_bytes=0, used_bytes=0, free_bytes=0,
-        )
-
-
 @router.get("/status", response_model=FrameStatus)
 async def get_status(admin=Depends(require_admin)):
     """
@@ -147,45 +127,16 @@ async def get_status(admin=Depends(require_admin)):
         _get_service_status("picframe-api.service"),
     )
 
-    # Get current source info
-    current_source_id = settings.display.current_source
-    sources = source_manager.list_sources()
-    current_source = next((s for s in sources if s.id == current_source_id), None)
+    # Get current source and photo counts (shared logic)
+    current_source_id, current_source = get_current_source()
+    photo_count, remote_count = await get_photo_counts(current_source)
 
-    # Count photos
-    photo_count = 0
-    if current_source:
-        photo_count = count_local_files(current_source.local_path)
+    # Determine sync status (shared logic)
+    sync_status = determine_sync_status(photo_count, remote_count)
 
-    # Count remote files for the active source only
-    active_remote_count = 0
-    if current_source and current_source.rclone_remote:
-        try:
-            active_remote_count = await asyncio.wait_for(
-                rclone_count(current_source.rclone_remote),
-                timeout=15,
-            )
-        except (asyncio.TimeoutError, Exception):
-            pass  # Use 0 if remote counting fails
-
-    # Determine sync status
-    sync_status = "idle"
-    if sync_service._is_syncing:
-        sync_status = "syncing"
-    elif sync_service._last_sync and not sync_service._last_sync.success:
-        sync_status = "error"
-    elif photo_count == active_remote_count and active_remote_count > 0:
-        sync_status = "match"
-    elif active_remote_count > 0 and photo_count != active_remote_count:
-        sync_status = "mismatch"
-
-    last_sync_str = None
-    if sync_service._last_sync:
-        last_sync_str = sync_service._last_sync.completed_at.isoformat()
-
-    # Get capacity for Pictures directory
-    pictures_path = Path.home() / "Pictures"
-    capacity = _get_capacity(pictures_path)
+    # Get capacity (shared logic)
+    capacity_data = get_disk_capacity(PICTURES_PATH)
+    capacity = CapacityInfo(**capacity_data)
 
     return FrameStatus(
         frame_id=settings.frame.id,
@@ -194,10 +145,10 @@ async def get_status(admin=Depends(require_admin)):
         photo_count=photo_count,
         services=list(services),
         sync=SyncStatusInfo(
-            last_sync=last_sync_str,
+            last_sync=get_last_sync_time(),
             status=sync_status,
             local_count=photo_count,
-            remote_count=active_remote_count,
+            remote_count=remote_count,
             is_syncing=sync_service._is_syncing,
             current_source=sync_service._current_source,
         ),

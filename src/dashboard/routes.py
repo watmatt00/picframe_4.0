@@ -8,7 +8,6 @@ Uses Jinja2 templates.
 import asyncio
 import logging
 import re
-import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -25,6 +24,13 @@ from src.services.source_manager import source_manager, PhotoSource
 from src.services.sync_service import sync_service
 from src.services.systemd_service import systemd_service
 from src.services.display_service import display_service
+from src.services.status_service import (
+    get_current_source,
+    get_photo_counts,
+    determine_sync_status,
+    get_disk_capacity,
+    PICTURES_PATH,
+)
 from src.storage.devices import device_storage
 from src.auth.pairing import generate_pairing_code
 from src.utils.qr_generator import generate_qr_data_url
@@ -81,37 +87,23 @@ async def dashboard_home(request: Request):
     """
     settings = get_settings()
 
-    # Get current source info
-    current_source_id = settings.display.current_source
+    # Get current source info (shared logic)
+    current_source_id, current_source = get_current_source()
     sources = source_manager.list_sources()
-    current_source = next((s for s in sources if s.id == current_source_id), None)
 
-    # Count photos
+    # Count photos (local only for initial page render)
     local_count = 0
     if current_source:
         local_count = count_local_files(current_source.local_path)
 
-    # Determine sync status
-    sync_status = "idle"
-    if sync_service._is_syncing:
-        sync_status = "syncing"
-    elif sync_service._last_sync:
-        sync_status = "match" if sync_service._last_sync.success else "error"
+    # Determine sync status (shared logic)
+    sync_status = determine_sync_status(local_count, 0)
 
     # Get service statuses
     services = await systemd_service.list_services()
 
-    # Get storage capacity
-    pictures_path = Path.home() / "Pictures"
-    try:
-        usage = shutil.disk_usage(pictures_path)
-        storage_used = round(usage.used / (1024**3), 1)
-        storage_total = round(usage.total / (1024**3), 1)
-        storage_percent = round((usage.used / usage.total) * 100, 1) if usage.total > 0 else 0
-    except Exception:
-        storage_used = 0
-        storage_total = 0
-        storage_percent = 0
+    # Get storage capacity (shared logic)
+    capacity = get_disk_capacity(PICTURES_PATH)
 
     # Get rotation interval from picframe config
     picframe_config = _get_picframe_config()
@@ -130,9 +122,9 @@ async def dashboard_home(request: Request):
         "sync_status": sync_status,
         "is_syncing": sync_service._is_syncing,
         "services": services,
-        "storage_used": storage_used,
-        "storage_total": storage_total,
-        "storage_percent": storage_percent,
+        "storage_used": capacity["used_gb"],
+        "storage_total": capacity["total_gb"],
+        "storage_percent": capacity["percent_used"],
         "rotation_interval": rotation_interval,
         "sync_interval": settings.sync.interval,
         "log_level": pf_log_level,
@@ -487,43 +479,14 @@ async def get_dashboard_status():
 
     Returns sync status, file counts, service status, storage info.
     """
-    settings = get_settings()
+    # Get current source info (shared logic)
+    current_source_id, current_source = get_current_source()
 
-    # Get current source info
-    current_source_id = settings.display.current_source
-    sources = source_manager.list_sources()
-    current_source = next((s for s in sources if s.id == current_source_id), None)
+    # Count photos (shared logic - uses rclone_count instead of manual subprocess)
+    local_count, remote_count = await get_photo_counts(current_source)
 
-    # Count photos
-    local_count = 0
-    remote_count = 0
-    if current_source:
-        local_count = count_local_files(current_source.local_path)
-        # Count remote files if rclone_remote is configured
-        if current_source.rclone_remote:
-            try:
-                proc = await asyncio.create_subprocess_exec(
-                    "rclone", "ls", current_source.rclone_remote,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
-                if proc.returncode == 0:
-                    # Count non-empty lines (each line is a file)
-                    lines = [l for l in stdout.decode().strip().split("\n") if l.strip()]
-                    remote_count = len(lines)
-            except asyncio.TimeoutError:
-                logger.warning("Timeout counting remote files")
-            except Exception as e:
-                logger.warning(f"Failed to count remote files: {e}")
-
-    # Determine sync status
-    # Note: JS handles count comparison for traffic light severity
-    sync_status = "idle"
-    if sync_service._is_syncing:
-        sync_status = "syncing"
-    elif sync_service._last_sync:
-        sync_status = "match" if sync_service._last_sync.success else "error"
+    # Determine sync status (shared logic)
+    sync_status = determine_sync_status(local_count, remote_count)
 
     # Get service statuses
     services = await systemd_service.list_services()
@@ -532,17 +495,8 @@ async def get_dashboard_status():
         for s in services
     ]
 
-    # Get storage capacity
-    pictures_path = Path.home() / "Pictures"
-    try:
-        usage = shutil.disk_usage(pictures_path)
-        storage_used = round(usage.used / (1024**3), 1)
-        storage_total = round(usage.total / (1024**3), 1)
-        storage_percent = round((usage.used / usage.total) * 100, 1) if usage.total > 0 else 0
-    except Exception:
-        storage_used = 0
-        storage_total = 0
-        storage_percent = 0
+    # Get storage capacity (shared logic)
+    capacity = get_disk_capacity(PICTURES_PATH)
 
     # Get last sync/restart times
     last_sync = _get_last_sync_time()
@@ -557,9 +511,9 @@ async def get_dashboard_status():
         "remote_count": remote_count,
         "current_source": current_source.name if current_source else "Unknown",
         "services": services_data,
-        "storage_used": storage_used,
-        "storage_total": storage_total,
-        "storage_percent": storage_percent,
+        "storage_used": capacity["used_gb"],
+        "storage_total": capacity["total_gb"],
+        "storage_percent": capacity["percent_used"],
         "last_sync": last_sync,
         "last_restart": last_restart,
         "logs": logs,
