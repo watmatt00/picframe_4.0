@@ -36,11 +36,9 @@ Contributors ──(Koofr)──────────> Cloud ──> rclone s
 | systemd service | ✅ Done |
 
 ### Web Dashboard Features
-- **Status Tab**: Photo sync status, cloud/local photo counts, traffic light indicator, current image thumbnail
+- **Status Tab**: Photo sync status, cloud/local photo counts, traffic light indicator, current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API)
 - **Switch Source Tab**: Source management, add new sources with rclone folder browser
-- **Settings Tab**: Frame name, rotation interval, sync interval (minutes), log level
-- **Quick Actions**: Refresh, Sync Now, Restart Frame, Restart API
-- **Device Pairing**: QR code generation for mobile app pairing
+- **Settings Tab**: Frame settings (name, rotation interval, sync interval, log level), device pairing (QR code + instructions), manage paired devices (inline table with revoke), log viewer (ops/security with auto-refresh)
 - **OpenAPI Docs**: Auto-generated at `/docs` and `/openapi.json`
 
 ## Quick Start

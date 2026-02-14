@@ -55,10 +55,11 @@ All systemd services are **user services** (`systemctl --user`), not system serv
 
 ## Dashboard Architecture
 
-Three-tab interface:
-- **Status Tab**: Traffic light (green/amber/red), photo counts (cloud + local), current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API), activity logs
+Single-page three-tab interface (`dashboard.html`). No standalone pages — all features are consolidated into tabs.
+
+- **Status Tab**: Traffic light (green/amber/red), photo counts (cloud + local), current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API)
 - **Switch Source Tab**: Source table, add new source form with rclone folder browser, source switching
-- **Settings Tab**: Frame name, rotation interval (seconds), sync interval (minutes), log level, inline device pairing (QR code via AJAX), manage devices link
+- **Settings Tab**: Frame settings (name, rotation interval, sync interval, log level, read-only Frame ID + Funnel URL), device pairing (QR code, manual code, countdown, Tailscale IP, instructions), manage devices (inline table with AJAX revoke via `GET /api/devices`), log viewer (expandable, ops/security toggle, line count, auto-refresh)
 
 ### Key Behaviors
 - Rotation interval changes write to `~/picframe_data/config/configuration.yaml` (model.time_delay) and auto-restart picframe service

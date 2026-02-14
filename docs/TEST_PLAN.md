@@ -134,16 +134,17 @@ systemctl --user start picframe-api picframe
 
 **Endpoints:** `POST /api/v1/pairing/generate`, `POST /api/v1/pair`
 
-#### Dashboard: Generate Pairing Code
+#### Dashboard: Generate Pairing Code (Settings Tab)
 
-- [ ] Navigate to `http://192.168.102.210:8000/pairing`
+- [ ] Navigate to `http://192.168.102.210:8000/` → Settings tab → Mobile App Pairing card
+- [ ] Click "Generate Pairing QR Code" button
 - [ ] QR code image is displayed and non-empty
 - [ ] Manual code is displayed in `ABC-XYZ` format (6 alphanumeric characters)
 - [ ] Expiry countdown is shown (starts at ~5 minutes)
-- [ ] Funnel URL is displayed on the page
+- [ ] Tailscale IP and Frame URL are displayed below the QR code
 - [ ] 4-step pairing instructions are visible
 - [ ] "Regenerate Code" button generates a new code
-- [ ] Page auto-reloads when countdown expires
+- [ ] Pairing result auto-hides when countdown expires
 
 #### iOS: Pair a Frame
 
@@ -215,60 +216,63 @@ systemctl --user start picframe-api picframe
 
 ---
 
-### 3.4 Dashboard - Settings Page
+### 3.4 Dashboard - Settings Tab
 
-**URL:** `http://192.168.102.210:8000/settings`
-**API:** `GET /api/v1/settings`, `POST /api/v1/settings`
+**URL:** `http://192.168.102.210:8000/` → Settings tab
+**API:** `POST /api/settings`
 
-- [ ] Frame ID displayed (read-only)
+- [ ] Frame ID displayed (read-only, grayed out)
 - [ ] Frame Name displayed and editable
-- [ ] Funnel URL displayed (read-only)
+- [ ] Funnel URL displayed (read-only, grayed out)
 - [ ] Rotation Interval field shown with current value (seconds)
 - [ ] Rotation Interval accepts values 5-3600
-- [ ] Sync Interval field shown with current value (seconds)
-- [ ] Sync Interval accepts values 60-86400
+- [ ] Sync Interval field shown with current value (minutes)
 - [ ] Log Level dropdown: DEBUG, INFO, WARNING, ERROR
-- [ ] Submit form → success message displayed
+- [ ] "Save Settings" button → success message displayed
 - [ ] Reload page → saved values persist
-- [ ] **Negative:** Rotation interval < 5 → validation error
-- [ ] **Negative:** Sync interval < 60 → validation error
+- [ ] Changing rotation interval triggers frame display restart (message confirms)
 
 ---
 
-### 3.5 Dashboard - Device Management Page
+### 3.5 Dashboard - Device Management (Settings Tab)
 
-**URL:** `http://192.168.102.210:8000/devices`
-**API:** `GET /api/v1/devices`, `DELETE /api/v1/devices/{id}`
+**URL:** `http://192.168.102.210:8000/` → Settings tab → "Manage Devices" button
+**API:** `GET /api/devices`, `POST /devices/{id}/revoke`
 
-- [ ] Page lists all paired devices
-- [ ] Each device shows: name, role, paired date, last seen
+- [ ] Click "Manage Devices" button → device table card appears
+- [ ] Device table lists all paired devices
+- [ ] Each device shows: name, role (badge), paired date, last seen
+- [ ] Device summary shows count and admin count
 - [ ] "Revoke" button present for each device
-- [ ] Revoke a device → device removed from list
+- [ ] Revoke a device → confirm dialog → device removed from table (inline refresh)
+- [ ] Success message shown after revoke
 - [ ] After revoking, that device's JWT no longer works (app shows unauthorized)
-- [ ] **Negative:** Cannot revoke the last admin device → error message
+- [ ] **Negative:** Cannot revoke the last admin device → revoke button disabled
+- [ ] Click "Manage Devices" again → card hides (toggle behavior)
 
 ---
 
-### 3.6 Dashboard - Pairing Page
-
-**URL:** `http://192.168.102.210:8000/pairing`
+### 3.6 Dashboard - Pairing (Settings Tab)
 
 _(Covered in section 3.2 above - Dashboard: Generate Pairing Code)_
 
 ---
 
-### 3.7 Dashboard - Logs Page
+### 3.7 Dashboard - Log Viewer (Settings Tab)
 
-**URL:** `http://192.168.102.210:8000/logs`
-**API:** `GET /api/v1/logs`
+**URL:** `http://192.168.102.210:8000/` → Settings tab → "Show logs" toggle
+**API:** `GET /api/logs`
 
-- [ ] Page loads with operations log displayed by default
-- [ ] Toggle between "Operations" and "Security" log types
-- [ ] Line count selector works (adjustable 1-500)
-- [ ] Log entries display with timestamps
+- [ ] Click "Show logs" toggle → log viewer expands
+- [ ] Operations log displayed by default
+- [ ] Toggle between "Operations" and "Security" log types via dropdown
+- [ ] Line count selector works (50 / 100 / 500)
+- [ ] Log entries display with timestamps in monospaced font
 - [ ] Security log shows pairing attempts and auth events
 - [ ] Operations log shows sync events and service actions
-- [ ] Refresh loads latest entries
+- [ ] "Refresh" button loads latest entries
+- [ ] Auto-refresh checkbox enables 5-second polling
+- [ ] Click "Hide logs" toggle → log viewer collapses
 
 ---
 
@@ -584,7 +588,7 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 **Goal:** Validate the complete onboarding flow from scratch.
 
 - [ ] Start with clean iOS app (no stored data)
-- [ ] Generate pairing code on dashboard (`http://192.168.102.210:8000/pairing`)
+- [ ] Generate pairing code on dashboard (Settings tab → "Generate Pairing QR Code")
 - [ ] In app: enter IP, code, device name → pair successfully
 - [ ] Frame appears in app with online status
 - [ ] Configure Koofr credentials in Settings (or via SetupView)
@@ -633,10 +637,10 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 **Goal:** Validate that changes made in one interface are reflected in the other.
 
 - [ ] **Dashboard → App:** Switch source on dashboard → refresh app → app shows new source
-- [ ] **App → Dashboard:** Change sync interval in app Settings (e.g., 5 min) → reload dashboard Settings → shows new value
+- [ ] **App → Dashboard:** Change sync interval in app Settings (e.g., 5 min) → reload dashboard Settings tab → shows new value
 - [ ] **App → Dashboard:** Restart a service from app → dashboard shows service restarting/recovering
 - [ ] **App → Dashboard:** Upload photos in app → trigger sync → dashboard counts update
-- [ ] **Dashboard → App:** Revoke a device on dashboard → app for that device gets unauthorized errors
+- [ ] **Dashboard → App:** Revoke a device on dashboard (Settings tab → Manage Devices) → app for that device gets unauthorized errors
 
 ---
 
@@ -658,10 +662,10 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 **Goal:** Validate multi-device pairing and revocation.
 
 - [ ] Pair a second device (or simulate with different device name)
-- [ ] Dashboard devices page shows both devices
+- [ ] Dashboard Settings tab → Manage Devices shows both devices
 - [ ] App Frame Detail shows paired device count = 2
 - [ ] Revoke second device from app → device removed
-- [ ] Dashboard devices page updates to show only 1 device
+- [ ] Dashboard Manage Devices table updates to show only 1 device
 - [ ] **Negative:** Attempt to revoke last admin → error: "Cannot revoke last admin device"
 
 ---
@@ -1019,25 +1023,30 @@ curl -s -X POST http://192.168.102.210:8000/api/v1/config/test-remote \
 - [ ] 5.36 Local directories list returns ~/Pictures contents
 - [ ] 5.37 Remote connection test returns success for valid remote
 
-### Device Revocation (Dashboard)
+### Device Management (Dashboard)
 
 ```bash
-# 5.38 Revoke device via dashboard endpoint
+# 5.38 List devices (dashboard, no auth)
+curl -s http://192.168.102.210:8000/api/devices
+# Expected: {"devices":[...],"admin_count":...,"device_count":...}
+
+# 5.39a Revoke device via dashboard endpoint (no auth, LAN only)
 curl -s -X POST http://192.168.102.210:8000/devices/{device_id}/revoke
-# Expected: device revoked
+# Expected: {"ok": true} or {"ok": false, "error": "..."}
 ```
 
-- [ ] 5.38 Dashboard device revocation works (test with expendable device)
+- [ ] 5.38 Dashboard device list returns devices array with admin_count
+- [ ] 5.39a Dashboard device revocation works (test with expendable device)
 
 ### Contributor Endpoints (Stubs)
 
 ```bash
-# 5.39 List contributors (stub)
+# 5.40 List contributors (stub)
 curl -s http://192.168.102.210:8000/api/v1/contributors \
   -H "Authorization: Bearer $TOKEN"
 # Expected: 501 Not Implemented (or empty list)
 
-# 5.40 Create contributor invite (stub)
+# 5.41 Create contributor invite (stub)
 curl -s -X POST http://192.168.102.210:8000/api/v1/contributors/invite \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
@@ -1045,8 +1054,8 @@ curl -s -X POST http://192.168.102.210:8000/api/v1/contributors/invite \
 # Expected: 501 Not Implemented
 ```
 
-- [ ] 5.39 Contributors list returns 501 or empty (stub endpoint)
-- [ ] 5.40 Contributor invite returns 501 (not yet implemented)
+- [ ] 5.40 Contributors list returns 501 or empty (stub endpoint)
+- [ ] 5.41 Contributor invite returns 501 (not yet implemented)
 
 > **Automation candidate:** This entire section is scriptable as a pytest or bash test suite.
 
@@ -1059,10 +1068,8 @@ curl -s -X POST http://192.168.102.210:8000/api/v1/contributors/invite \
 | 3.1 Health & Connectivity | Fully | High | curl / pytest |
 | 3.2 Pairing (API level) | Fully | High | pytest |
 | 3.2 Pairing (iOS UI) | Partially | Medium | XCUITest |
-| 3.3 Dashboard Home | Partially | Medium | Selenium / Playwright |
-| 3.4 Dashboard Settings | Partially | Medium | Selenium / Playwright |
-| 3.5 Dashboard Devices | Partially | Medium | Selenium / Playwright |
-| 3.7 Dashboard Logs | Partially | Low | Selenium / Playwright |
+| 3.3 Dashboard Status Tab | Partially | Medium | Selenium / Playwright |
+| 3.4-3.7 Dashboard Settings Tab | Partially | Medium | Selenium / Playwright |
 | 3.8-3.18 iOS Views | Partially | Medium | XCUITest |
 | 4.x End-to-End Scenarios | Partially | High | pytest + XCUITest |
 | 5.x API Validation | Fully | High | pytest / bash script |
@@ -1073,7 +1080,7 @@ curl -s -X POST http://192.168.102.210:8000/api/v1/contributors/invite \
 2. **Health & Connectivity (3.1)** - Quick smoke test, run on every deploy
 3. **Pairing Flow (3.2 API)** - Critical path, automatable without UI
 4. **End-to-End Scenarios (4.x)** - Combined API + manual UI verification
-5. **Dashboard Pages (3.3-3.7)** - Browser automation if resources allow
+5. **Dashboard Tabs (3.3-3.7)** - Browser automation if resources allow
 6. **iOS UI Tests (3.8-3.18)** - XCUITest for critical flows
 
 ### Suggested Tools

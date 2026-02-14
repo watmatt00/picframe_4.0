@@ -391,7 +391,6 @@ ContentView
   - Restart Frame button (confirmation dialog)
   - Restart API button (confirmation dialog, page reloads after 3s)
   - Last sync / last restart timestamps
-  - Collapsible logs section (last 20 lines)
 
 - **Auto-Refresh:** Status every 15 seconds, thumbnail every 30 seconds
 - **Footer:** "Auto-updates every 15 seconds"
@@ -438,6 +437,8 @@ ContentView
   **Frame Settings Card:**
   - Frame Name - text input
   - Rotation Interval - number input (5-3600 seconds)
+  - Frame ID - read-only input (unique identifier)
+  - Funnel URL - read-only input (Tailscale Funnel URL)
   - Sync Interval - number input (1-1440 minutes, converted to seconds for API)
   - Log Level - dropdown (DEBUG, INFO, WARNING, ERROR)
   - Save Settings button (shows "Saving...", updates header frame name on success)
@@ -445,106 +446,50 @@ ContentView
 
   **Mobile App Pairing Card:**
   - "Generate Pairing QR Code" button
-  - "Manage Devices" link (to /devices page)
+  - "Manage Devices" toggle button (shows/hides device management card)
+  - Inline error display for pairing failures
   - Pairing result section (hidden until generated):
     - QR code image (200x200px)
     - Manual code (large bold text)
     - Countdown timer (seconds until expiry)
     - Connection info: Tailscale IP, Frame URL (if available)
     - Regenerate button
+    - How-to-pair instructions (4-step list with security note)
   - Auto-hides when countdown expires
 
----
+  **Manage Devices Card** (hidden by default, toggled via button):
+  - Device table: Name, Role (badge), Paired (date), Last Seen (date), Actions
+  - Revoke button per device (AJAX POST with `confirm()` dialog)
+  - Empty state: "No devices paired. Use Generate Pairing QR Code above."
+  - Device summary: count + admin count (e.g., "3 device(s), 1 admin(s)")
+  - Inline status messages for revoke success/error
+  - Last-admin protection: Revoke button disabled for sole admin
+  - Loads via AJAX: `GET /api/devices`
+  - Revoke via AJAX: `POST /devices/{id}/revoke` (returns JSON)
 
-### DASH-DEVICES - Manage Devices (Standalone)
-
-- **File:** `devices.html`
-- **Access:** Navbar "Devices" link, or "Manage Devices" button on DASH-SETTINGS
-- **UI Elements:**
-  - Page title: "Paired Devices"
-  - Description: "These mobile devices can manage this frame."
-  - "Add a new device" link > DASH-PAIR
-  - Device table (in card):
-    - Columns: Name, Role (badge), Paired (date), Last Seen (date), Actions
-    - Revoke button per device (POST form with JS `confirm()` dialog)
-    - Empty state: "No devices paired. Pair a device to get started." with link to DASH-PAIR
-  - Footer info: device count + admin count (e.g., "3 device(s) paired, 1 admin(s)")
-- **Conditional States:**
-  - Error alert: `?error=last_admin` — "Cannot revoke the last admin device. Add another admin first."
-  - Error alert: `?error` (generic) — "Failed to revoke device."
-  - Success alert: `?revoked` — "Device revoked successfully."
-  - Last-admin protection: Revoke button disabled for sole admin (`can_revoke` flag)
-- **Navigation:**
-  - "Add a new device" link > DASH-PAIR
-  - Revoke POST > `/devices/{id}/revoke` (redirects back to DASH-DEVICES with query param)
-
----
-
-### DASH-PAIR - Pair a Device (Standalone)
-
-- **File:** `pairing.html`
-- **Access:** Navbar "Pairing" link, or "Add a new device" from DASH-DEVICES
-- **UI Elements:**
-  - Page title: "Pair a Device"
-  - Description: "Pair {frame_name} with a mobile device"
-  - Pairing card:
-    - QR code image (or "Unable to generate QR code" placeholder)
-    - Manual Code (large text)
-    - Countdown timer: "Expires in {N} seconds"
-    - Frame URL (small text)
-    - Generate/Regenerate Code button (link to `/pairing`)
-  - Instructions section:
-    - 4-step ordered list (open app, tap Add Frame, scan/enter code, auto-paired)
-    - Security note: "The code expires after 5 minutes and can only be used once."
-  - Error alert (if generation fails)
-- **Behavior:**
-  - Countdown auto-decrements every second via JS
-  - Page auto-reloads when countdown reaches 0
-  - Generate button POST to `/pairing/generate`, reloads page on success
-- **Conditional States:**
-  - Code active: QR + manual code + countdown visible
-  - No code yet: QR placeholder, "Generate Code" button (vs "Regenerate Code")
-
----
-
-### DASH-LOGS - Log Viewer (Standalone)
-
-- **File:** `logs.html`
-- **Access:** Navbar "Logs" link
-- **UI Elements:**
-  - Page title: "Logs"
-  - Controls (in card):
-    - Log type dropdown: Operations Log / Security Log
-    - Line count dropdown: Last 50 lines / Last 100 lines (default) / Last 500 lines
-    - Refresh button
-    - Auto-refresh checkbox
+  **Log Viewer Card** (expandable via "Show logs" toggle):
+  - Log type dropdown: Operations Log / Security Log
+  - Line count dropdown: Last 50 lines / Last 100 lines (default) / Last 500 lines
+  - Refresh button
+  - Auto-refresh checkbox (5-second interval)
   - Log content: `<pre>` block with monospaced text
-- **Behavior:**
-  - Loads logs via AJAX: `GET /api/logs?log_type={ops|security}&lines={50|100|500}`
-  - Auto-scrolls to bottom after load
-  - Auto-refresh polls every 5 seconds when checkbox enabled
-  - Reloads on log type or line count change
-- **Conditional States:**
-  - Loading: "Loading..." placeholder
-  - Logs loaded: log text content
-  - Empty: "No log entries found."
-  - Error: "Failed to load logs: {message}"
+  - Loads via AJAX: `GET /api/logs?log_type={ops|security}&lines={50|100|500}`
+  - Loads on first expand, reloads on type/count change
 
 ---
 
 ## Dashboard Navigation
 
 ```
-Dashboard Site (base.html navbar)
-  ├── / → dashboard.html (unified 3-tab dashboard)
-  │     ├── Status Banner (always visible, all tabs)
-  │     ├── Tab 1: Photo Status (DASH-STATUS) [default]
-  │     ├── Tab 2: Switch Photos (DASH-SWITCH) [lazy init]
-  │     └── Tab 3: Settings (DASH-SETTINGS)
-  ├── /devices → devices.html (DASH-DEVICES)
-  ├── /pairing → pairing.html (DASH-PAIR)
-  ├── /logs → logs.html (DASH-LOGS)
-  └── /settings → settings.html (legacy, see DASH-SETTINGS)
+Dashboard (single-page, dashboard.html)
+  ├── Status Banner (always visible, all tabs)
+  ├── Tab 1: Photo Status (DASH-STATUS) [default]
+  ├── Tab 2: Switch Photos (DASH-SWITCH) [lazy init]
+  └── Tab 3: Settings (DASH-SETTINGS)
+        ├── Frame Settings card
+        ├── Mobile App Pairing card
+        ├── Manage Devices card [toggled via button]
+        └── Log Viewer card [expandable]
 ```
 
 ---
@@ -558,8 +503,7 @@ Dashboard Site (base.html navbar)
 | Sync Now | IOS-SWITCH, IOS-SETTINGS, IOS-SRCDETAIL | DASH-STATUS |
 | Restart Frame service | IOS-DETAIL, IOS-SETTINGS | DASH-STATUS |
 | Restart API service | IOS-SETTINGS | DASH-STATUS |
-| View logs (full) | IOS-LOGS | DASH-LOGS |
-| View logs (quick tail) | -- | DASH-STATUS (collapsible, 20 lines) |
+| View logs (full) | IOS-LOGS | DASH-SETTINGS (expandable log viewer) |
 | Source listing | IOS-SWITCH | DASH-SWITCH (table) |
 | Switch/activate source | IOS-SWITCH, IOS-SRCDETAIL | DASH-SWITCH (Activate button) |
 | Add new source | IOS-ADDSRC | DASH-SWITCH (form) |
@@ -567,25 +511,16 @@ Dashboard Site (base.html navbar)
 | Source detail/sync status | IOS-SRCDETAIL | -- |
 | Upload photos | IOS-UPLOAD | -- (via Koofr web) |
 | Frame settings (name, rotation, sync interval, log level) | IOS-SETTINGS (sync interval only) | DASH-SETTINGS |
-| Generate pairing code | -- | DASH-SETTINGS (inline), DASH-PAIR (standalone) |
+| Frame ID / Funnel URL (read-only) | -- | DASH-SETTINGS |
+| Generate pairing code | -- | DASH-SETTINGS (inline QR + instructions) |
 | Enter pairing code | IOS-PAIR | -- |
-| Manage paired devices | IOS-DEVICES | DASH-DEVICES |
-| Revoke device access | IOS-DEVICES | DASH-DEVICES |
+| Manage paired devices | IOS-DEVICES | DASH-SETTINGS (inline device table) |
+| Revoke device access | IOS-DEVICES | DASH-SETTINGS (inline revoke) |
 | Koofr storage quota | IOS-MENU, IOS-SETTINGS | -- |
 | Frame storage capacity | IOS-MENU, IOS-DETAIL | DASH-STATUS |
 | Current image preview | -- | DASH-STATUS (thumbnail) |
 | Unpair frames | IOS-FRAMES, IOS-SETTINGS | -- |
 | Clear credentials | IOS-SETTINGS | -- |
-
----
-
-## Legacy Dashboard Pages
-
-These pages are still accessible via the navbar but have been superseded by the unified dashboard.
-
-| Route | File | Superseded By | Notes |
-|---|---|---|---|
-| `/settings` | `settings.html` | DASH-SETTINGS (Tab 3) | Same fields: frame name, rotation interval, sync interval, log level. Legacy uses form POST; dashboard tab uses AJAX. |
 
 ---
 
