@@ -55,6 +55,9 @@ All core features verified:
 ### 5.5 ~~Fix Runtime Issues~~ - DONE (iterative)
 Multiple rounds of testing and fixes completed. See task list for details.
 
+### 5.5b ~~Manual Test Plan~~ - DONE
+Comprehensive test plan created at `docs/TEST_PLAN.md`. 308 test cases covering backend API (40 endpoints), web dashboard (5 pages), iOS app (16 views), and 7 end-to-end scenarios. Copy-per-run workflow with `docs/test_runs/` directory.
+
 ### 5.6 TestFlight Beta - REMAINING
 **What:** Distribute to family for testing.
 **Action:**
@@ -86,6 +89,7 @@ Multiple rounds of testing and fixes completed. See task list for details.
 | Service restart | Done |
 | Sync interval settings | Done |
 | Log viewer | Done |
+| Manual test plan (308 test cases) | Done |
 | Dashboard pairing improvements | Done |
 | FoldersResponse fix | Done |
 | FrameClient Funnel URL support | Done |

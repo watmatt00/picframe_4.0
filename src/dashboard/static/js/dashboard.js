@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initAdvancedToggles();
     initStatusDashboard();
     initSettingsForm();
+    initDeviceManagement();
+    initSettingsLogViewer();
 });
 
 // =============================================================================
@@ -67,15 +69,19 @@ function initAdvancedToggles() {
         });
     }
 
-    // Logs advanced toggle
-    const logsAdvancedToggle = document.getElementById('logs-advanced-toggle');
-    const logsAdvancedSection = document.getElementById('logs-advanced-section');
-    if (logsAdvancedToggle && logsAdvancedSection) {
-        logsAdvancedToggle.addEventListener('click', () => {
-            logsAdvancedSection.classList.toggle('visible');
-            logsAdvancedToggle.textContent = logsAdvancedSection.classList.contains('visible')
+    // Settings logs toggle
+    const settingsLogsToggle = document.getElementById('settings-logs-toggle');
+    const settingsLogsSection = document.getElementById('settings-logs-section');
+    if (settingsLogsToggle && settingsLogsSection) {
+        settingsLogsToggle.addEventListener('click', () => {
+            settingsLogsSection.classList.toggle('visible');
+            settingsLogsToggle.textContent = settingsLogsSection.classList.contains('visible')
                 ? '▾ Hide logs'
                 : '▸ Show logs';
+            // Load logs on first open
+            if (settingsLogsSection.classList.contains('visible')) {
+                loadSettingsLogs();
+            }
         });
     }
 
@@ -122,7 +128,6 @@ function initStatusDashboard() {
 
     const lastSyncEl = document.getElementById("last-sync");
     const lastRestartEl = document.getElementById("last-restart");
-    const logTailEl = document.getElementById("log-tail");
 
     const btnRefresh = document.getElementById("btn-refresh");
     const btnSyncNow = document.getElementById("btn-sync-now");
@@ -251,11 +256,6 @@ function initStatusDashboard() {
             // Last sync and restart
             if (lastSyncEl) lastSyncEl.textContent = data.last_sync || "--";
             if (lastRestartEl) lastRestartEl.textContent = data.last_restart || "--";
-
-            // Logs
-            if (logTailEl && data.logs) {
-                logTailEl.textContent = data.logs.slice(0, 20).join("\n") || "(no log data)";
-            }
         } catch (err) {
             console.error("Failed to refresh status", err);
             if (bannerText) bannerText.textContent = "Error fetching status";
@@ -1027,12 +1027,20 @@ function initSettingsForm() {
 let pairingCountdownInterval = null;
 
 async function generatePairingCode() {
+    const errorEl = document.getElementById("pairing-error");
+    if (errorEl) errorEl.style.display = "none";
+
     try {
         const resp = await fetch("/pairing/generate", { method: "POST" });
         const data = await resp.json();
 
         if (data.error) {
-            alert("Failed to generate code: " + data.error);
+            if (errorEl) {
+                errorEl.textContent = data.error;
+                errorEl.style.display = "block";
+            } else {
+                alert("Failed to generate code: " + data.error);
+            }
             return;
         }
 
@@ -1060,6 +1068,162 @@ async function generatePairingCode() {
 
         if (resultDiv) resultDiv.style.display = "block";
     } catch (err) {
-        alert("Error generating pairing code: " + err.message);
+        if (errorEl) {
+            errorEl.textContent = "Error generating pairing code: " + err.message;
+            errorEl.style.display = "block";
+        } else {
+            alert("Error generating pairing code: " + err.message);
+        }
+    }
+}
+
+// =============================================================================
+// DEVICE MANAGEMENT
+// =============================================================================
+
+let devicesLoaded = false;
+
+function initDeviceManagement() {
+    const toggleBtn = document.getElementById('btn-toggle-devices');
+    const devicesCard = document.getElementById('devices-card');
+    if (toggleBtn && devicesCard) {
+        toggleBtn.addEventListener('click', () => {
+            const isVisible = devicesCard.style.display !== 'none';
+            devicesCard.style.display = isVisible ? 'none' : 'block';
+            toggleBtn.textContent = isVisible ? 'Manage Devices' : 'Hide Devices';
+            if (!isVisible) {
+                loadDevices();
+            }
+        });
+    }
+}
+
+async function loadDevices() {
+    const tbody = document.getElementById('devices-tbody');
+    const summary = document.getElementById('device-summary');
+    if (!tbody) return;
+
+    try {
+        const response = await fetch('/api/devices');
+        const data = await response.json();
+
+        if (summary) {
+            summary.textContent = data.device_count + ' device(s), ' + data.admin_count + ' admin(s)';
+        }
+
+        if (!data.devices || data.devices.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; opacity: 0.6; padding: 2rem;">No devices paired. Use "Generate Pairing QR Code" above to pair a device.</td></tr>';
+            return;
+        }
+
+        const canRevoke = data.admin_count > 1;
+
+        const rows = data.devices.map(function(device) {
+            const badgeClass = device.role === 'admin' ? 'badge-admin' : 'badge-user';
+            const revokeDisabled = (!canRevoke && device.role === 'admin');
+            const revokeBtn = revokeDisabled
+                ? '<button class="btn-small btn-danger" disabled title="Cannot remove last admin">Revoke</button>'
+                : '<button class="btn-small btn-danger" onclick="revokeDevice(\'' + escapeHtml(device.id) + '\', \'' + escapeHtml(device.name) + '\')">Revoke</button>';
+
+            return '<tr>' +
+                '<td>' + escapeHtml(device.name) + '</td>' +
+                '<td><span class="badge ' + badgeClass + '">' + escapeHtml(device.role) + '</span></td>' +
+                '<td>' + (device.paired_at || 'Unknown') + '</td>' +
+                '<td>' + (device.last_seen || 'Never') + '</td>' +
+                '<td>' + revokeBtn + '</td>' +
+                '</tr>';
+        }).join('');
+
+        tbody.innerHTML = rows;
+    } catch (err) {
+        console.error('Failed to load devices:', err);
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #fca5a5; padding: 2rem;">Error loading devices: ' + escapeHtml(err.message) + '</td></tr>';
+    }
+}
+
+async function revokeDevice(deviceId, deviceName) {
+    if (!confirm('Revoke access for "' + deviceName + '"? This device will no longer be able to manage this frame.')) {
+        return;
+    }
+
+    const statusEl = document.getElementById('devices-status-message');
+
+    try {
+        const response = await fetch('/devices/' + deviceId + '/revoke', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.ok) {
+            if (statusEl) {
+                statusEl.className = 'status-message success';
+                statusEl.textContent = 'Device "' + deviceName + '" revoked successfully.';
+                statusEl.style.display = 'block';
+                setTimeout(function() { statusEl.style.display = 'none'; }, 5000);
+            }
+            await loadDevices();
+        } else {
+            if (statusEl) {
+                statusEl.className = 'status-message error';
+                statusEl.textContent = data.error || 'Failed to revoke device';
+                statusEl.style.display = 'block';
+            }
+        }
+    } catch (err) {
+        console.error('Failed to revoke device:', err);
+        if (statusEl) {
+            statusEl.className = 'status-message error';
+            statusEl.textContent = 'Error: ' + err.message;
+            statusEl.style.display = 'block';
+        }
+    }
+}
+
+// =============================================================================
+// SETTINGS LOG VIEWER
+// =============================================================================
+
+let settingsAutoRefreshInterval = null;
+
+async function loadSettingsLogs() {
+    const logType = document.getElementById('settings-log-type');
+    const logLines = document.getElementById('settings-log-lines');
+    const content = document.getElementById('settings-log-content');
+    if (!content) return;
+
+    const type = logType ? logType.value : 'ops';
+    const lines = logLines ? logLines.value : '100';
+
+    try {
+        const response = await fetch('/api/logs?log_type=' + type + '&lines=' + lines);
+        const data = await response.json();
+
+        if (data.logs && data.logs.length > 0) {
+            content.textContent = data.logs.join('\n');
+        } else {
+            content.textContent = 'No log entries found.';
+        }
+    } catch (err) {
+        content.textContent = 'Failed to load logs: ' + err.message;
+    }
+}
+
+function initSettingsLogViewer() {
+    const refreshBtn = document.getElementById('btn-refresh-logs');
+    const logType = document.getElementById('settings-log-type');
+    const logLines = document.getElementById('settings-log-lines');
+    const autoRefresh = document.getElementById('settings-auto-refresh');
+
+    if (refreshBtn) refreshBtn.addEventListener('click', loadSettingsLogs);
+    if (logType) logType.addEventListener('change', loadSettingsLogs);
+    if (logLines) logLines.addEventListener('change', loadSettingsLogs);
+
+    if (autoRefresh) {
+        autoRefresh.addEventListener('change', function() {
+            if (autoRefresh.checked) {
+                settingsAutoRefreshInterval = setInterval(loadSettingsLogs, 5000);
+            } else {
+                clearInterval(settingsAutoRefreshInterval);
+                settingsAutoRefreshInterval = null;
+            }
+        });
     }
 }

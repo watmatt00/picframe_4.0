@@ -74,7 +74,7 @@ Three-tab interface:
 
 **Android is permanently on hold. iOS only.** Do NOT suggest, plan, or reference Android work.
 
-**CRITICAL: The iOS app has NEVER been built or tested.** All code was written on PC without Xcode. It must be built and tested on a Mac before it can be considered functional. Always include this as a next step when reviewing project status.
+The iOS app has been built in Xcode and tested on simulator against live tkframe API. Core features verified working. See `docs/TEST_PLAN.md` for the comprehensive manual test plan covering both backend and iOS app.
 
 ## Cross-Repo Relationship
 
@@ -85,6 +85,7 @@ Three-tab interface:
 
 Known issues tracked in `docs/PARKING_LOT.md`.
 Phase 4 & 5 completion plan in `docs/PHASE_4_5_PLAN.md` - **always reference this for next steps**.
+Test plan in `docs/TEST_PLAN.md` - covers backend, dashboard, and iOS app. Test runs stored in `docs/test_runs/`.
 
 When making API changes, update `docs/API.md` so mobile repo can reference it.
 

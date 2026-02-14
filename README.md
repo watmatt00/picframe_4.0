@@ -90,6 +90,7 @@ curl http://localhost:8000/version
 - [Full Specification](docs/SPECIFICATION.md)
 - [Security Model](docs/SECURITY.md)
 - [API Reference](docs/API.md)
+- [Test Plan](docs/TEST_PLAN.md)
 - [Pi3D Integration](docs/PI3D_INTEGRATION.md)
 - [Pi Setup Guide](docs/PI_SETUP.md)
 

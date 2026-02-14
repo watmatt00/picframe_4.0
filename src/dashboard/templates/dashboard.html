@@ -147,16 +147,6 @@
                     </div>
                 </div>
 
-                <!-- Advanced section for logs -->
-                <div style="padding: 0 1.5rem;">
-                    <button class="advanced-toggle" id="logs-advanced-toggle">▸ Show logs</button>
-                    <div class="advanced-section" id="logs-advanced-section">
-                        <div class="log-section-header">
-                            <span>Recent Activity Log</span>
-                        </div>
-                        <div class="log-text" id="log-tail">(Loading...)</div>
-                    </div>
-                </div>
             </section>
         </main>
     </div>
@@ -295,6 +285,21 @@
 
                     <div class="form-row">
                         <div class="form-group">
+                            <label class="form-label">Frame ID</label>
+                            <input type="text" class="form-input" value="{{ frame_id }}" readonly disabled
+                                   style="opacity: 0.6; cursor: not-allowed;">
+                            <div class="form-hint">Unique identifier (read-only)</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Funnel URL</label>
+                            <input type="text" class="form-input" value="{{ funnel_url or 'Not configured' }}" readonly disabled
+                                   style="opacity: 0.6; cursor: not-allowed;">
+                            <div class="form-hint">Tailscale Funnel URL (read-only)</div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
                             <label class="form-label">Sync Interval (minutes)</label>
                             <input type="number" id="settings-sync-interval" class="form-input" value="{{ sync_interval // 60 }}" min="1" max="1440">
                         </div>
@@ -329,8 +334,10 @@
                 <div style="padding: 0 1.5rem 1.5rem;">
                     <div id="pairing-actions">
                         <button class="btn btn-primary" onclick="generatePairingCode()">Generate Pairing QR Code</button>
-                        <a href="/devices" class="btn secondary" style="margin-left: 0.5rem;">Manage Devices</a>
+                        <button class="btn secondary" id="btn-toggle-devices" style="margin-left: 0.5rem;">Manage Devices</button>
                     </div>
+
+                    <div id="pairing-error" class="status-message error" style="display: none;"></div>
 
                     <div id="pairing-result" style="display: none; margin-top: 1rem;">
                         <div style="background: white; display: inline-block; padding: 0.5rem; border-radius: 8px;">
@@ -355,6 +362,75 @@
                         </div>
 
                         <button class="btn btn-primary" style="margin-top: 0.75rem;" onclick="generatePairingCode()">Regenerate Code</button>
+
+                        <div style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px; text-align: left;">
+                            <p style="font-weight: 600; margin-bottom: 0.5rem;">How to pair:</p>
+                            <ol style="margin: 0; padding-left: 1.25rem; color: #d1d5db; font-size: 0.85rem; line-height: 1.6;">
+                                <li>Open the PicFrame app on your mobile device</li>
+                                <li>Tap "Add Frame" or the + button</li>
+                                <li>Scan the QR code above, or enter the code manually</li>
+                                <li>Your device will be paired automatically</li>
+                            </ol>
+                            <p style="color: #9ca3af; font-size: 0.8rem; margin-top: 0.5rem;"><strong>Security:</strong> The code expires after 5 minutes and can only be used once.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Manage Devices Card -->
+            <section class="card" id="devices-card" style="margin-top: 1.5rem; display: none;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">Paired Devices</div>
+                        <div class="card-subtitle">Mobile devices that can manage this frame</div>
+                    </div>
+                    <div id="device-summary" style="font-size: 0.85rem; color: #9ca3af;"></div>
+                </div>
+
+                <div style="padding: 0 1.5rem 1.5rem;">
+                    <div id="devices-status-message" class="status-message" style="display: none;"></div>
+
+                    <table class="device-table" id="devices-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Paired</th>
+                                <th>Last Seen</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="devices-tbody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; opacity: 0.6; padding: 2rem;">Loading devices...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Log Viewer Card -->
+            <section class="card" style="margin-top: 1.5rem;">
+                <div style="padding: 0 1.5rem 0;">
+                    <button class="advanced-toggle" id="settings-logs-toggle">▸ Show logs</button>
+                    <div class="advanced-section" id="settings-logs-section">
+                        <div class="log-controls">
+                            <select id="settings-log-type" class="form-select" style="width: auto;">
+                                <option value="ops">Operations Log</option>
+                                <option value="security">Security Log</option>
+                            </select>
+                            <select id="settings-log-lines" class="form-select" style="width: auto;">
+                                <option value="50">Last 50 lines</option>
+                                <option value="100" selected>Last 100 lines</option>
+                                <option value="500">Last 500 lines</option>
+                            </select>
+                            <button class="btn secondary" id="btn-refresh-logs" style="font-size: 0.75rem;">Refresh</button>
+                            <label class="checkbox-label" style="font-size: 0.8rem;">
+                                <input type="checkbox" id="settings-auto-refresh">
+                                <span>Auto-refresh (5s)</span>
+                            </label>
+                        </div>
+                        <pre class="log-viewer" id="settings-log-content">Loading...</pre>
                     </div>
                 </div>
             </section>

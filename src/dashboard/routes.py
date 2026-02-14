@@ -135,123 +135,27 @@ async def dashboard_home(request: Request):
     return templates.TemplateResponse("dashboard.html", context)
 
 
-@router.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request):
-    """
-    Settings page.
-
-    Allows editing frame configuration.
-    """
-    settings = get_settings()
-
-    context = {
-        "request": request,
-        "frame_id": settings.frame.id,
-        "frame_name": settings.frame.name,
-        "funnel_url": settings.frame.funnel_url,
-        "current_source": settings.display.current_source,
-        "rotation_interval": settings.display.rotation_interval,
-        "sync_interval": settings.sync.interval,
-        "log_level": settings.logging.level,
-    }
-    return templates.TemplateResponse("settings.html", context)
-
-
-@router.post("/settings")
-async def save_settings(
-    request: Request,
-    frame_name: str = Form(...),
-    rotation_interval: int = Form(...),
-    sync_interval: int = Form(...),
-    log_level: str = Form(...),
-):
-    """Save settings from form submission."""
-    config_manager.set("frame.name", frame_name)
-    config_manager.set("display.rotation_interval", rotation_interval)
-    config_manager.set("sync.interval", sync_interval)
-    config_manager.set("logging.level", log_level)
-    reload_settings()  # Clear cached settings
-
-    return RedirectResponse(url="/settings?saved=1", status_code=303)
-
-
-@router.get("/devices", response_class=HTMLResponse)
-async def devices_page(request: Request):
-    """
-    Device management page.
-
-    Lists paired devices with option to revoke.
-    """
-    devices = device_storage.list_devices()
-    admin_count = device_storage.count_admins()
-
-    context = {
-        "request": request,
-        "devices": devices,
-        "admin_count": admin_count,
-        "can_revoke": admin_count > 1,
-    }
-    return templates.TemplateResponse("devices.html", context)
-
-
 @router.post("/devices/{device_id}/revoke")
 async def revoke_device(device_id: str):
-    """Revoke a paired device."""
+    """Revoke a paired device (AJAX endpoint)."""
+    # Validate device_id format
+    if not re.match(r"^[a-zA-Z0-9_-]+$", device_id):
+        return {"ok": False, "error": "Invalid device ID"}
+
     device = device_storage.get_device(device_id)
     if not device:
-        return RedirectResponse(url="/devices?error=not_found", status_code=303)
+        return {"ok": False, "error": "Device not found"}
 
     # Check if this is the last admin
     if device.role == "admin" and device_storage.count_admins() <= 1:
-        return RedirectResponse(url="/devices?error=last_admin", status_code=303)
+        return {"ok": False, "error": "Cannot revoke the last admin device"}
 
     success = device_storage.remove_device(device_id)
     if success:
-        return RedirectResponse(url="/devices?revoked=1", status_code=303)
+        logger.info(f"Device '{device.name}' ({device_id}) revoked via dashboard")
+        return {"ok": True}
     else:
-        return RedirectResponse(url="/devices?error=failed", status_code=303)
-
-
-@router.get("/pairing", response_class=HTMLResponse)
-async def pairing_page(request: Request):
-    """
-    Pairing page.
-
-    Shows QR code for mobile app pairing.
-    """
-    settings = get_settings()
-
-    # Generate a new pairing code
-    pairing_code = generate_pairing_code()
-
-    if pairing_code:
-        # Generate QR code with frame URL and code
-        qr_data_url = generate_qr_data_url(
-            url=settings.frame.funnel_url,
-            code=pairing_code.code,
-            frame_name=settings.frame.name,
-        )
-        context = {
-            "request": request,
-            "qr_data_url": qr_data_url,
-            "code": pairing_code.code,
-            "expires_in": 300,
-            "frame_name": settings.frame.name,
-            "funnel_url": settings.frame.funnel_url,
-            "error": None,
-        }
-    else:
-        context = {
-            "request": request,
-            "qr_data_url": "",
-            "code": "",
-            "expires_in": 0,
-            "frame_name": settings.frame.name,
-            "funnel_url": settings.frame.funnel_url,
-            "error": "Rate limit exceeded. Try again in a few minutes.",
-        }
-
-    return templates.TemplateResponse("pairing.html", context)
+        return {"ok": False, "error": "Failed to revoke device"}
 
 
 @router.post("/pairing/generate")
@@ -273,24 +177,6 @@ async def generate_pairing_endpoint():
         }
     else:
         return {"error": "Rate limit exceeded"}
-
-
-@router.get("/logs", response_class=HTMLResponse)
-async def logs_page(request: Request, log_type: str = "ops", lines: int = 100):
-    """
-    Log viewer page.
-
-    Shows recent log entries.
-    """
-    logs = _read_log_file(log_type, lines)
-
-    context = {
-        "request": request,
-        "logs": logs,
-        "log_type": log_type,
-        "lines": lines,
-    }
-    return templates.TemplateResponse("logs.html", context)
 
 
 @router.get("/api/logs")
@@ -502,9 +388,6 @@ async def get_dashboard_status():
     last_sync = _get_last_sync_time()
     last_restart = await _get_last_restart_time()
 
-    # Get recent logs
-    logs = _read_log_file("ops", 20)
-
     return {
         "sync_status": sync_status,
         "local_count": local_count,
@@ -516,7 +399,6 @@ async def get_dashboard_status():
         "storage_percent": capacity["percent_used"],
         "last_sync": last_sync,
         "last_restart": last_restart,
-        "logs": logs,
     }
 
 
@@ -585,6 +467,33 @@ class ListDirsRequest(BaseModel):
     """Request to list remote directories."""
     remote: str
     path: str = ""
+
+
+@router.get("/api/devices")
+async def list_devices_api():
+    """
+    List paired devices as JSON for dashboard AJAX.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    devices = device_storage.list_devices()
+    admin_count = device_storage.count_admins()
+
+    result = []
+    for device in devices:
+        result.append({
+            "id": device.id,
+            "name": device.name,
+            "role": device.role,
+            "paired_at": device.paired_at.strftime("%Y-%m-%d %H:%M") if device.paired_at else None,
+            "last_seen": device.last_seen.strftime("%Y-%m-%d %H:%M") if device.last_seen else None,
+        })
+
+    return {
+        "devices": result,
+        "admin_count": admin_count,
+        "device_count": len(result),
+    }
 
 
 @router.get("/api/sources")
