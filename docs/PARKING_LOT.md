@@ -14,19 +14,10 @@ Sync interval is configurable in Settings (dashboard + mobile app) and stored in
 
 Manual sync via "Sync Now" button does not reset the timer.
 
-### Open-Box Fresh Install - Cloud Storage Chicken-and-Egg Problem
-**Priority:** High (future planning)
-**Status:** Needs design discussion
+### ~~Open-Box Fresh Install - Cloud Storage Chicken-and-Egg Problem~~
+**Status:** Addressed in Phase 6
 
-On a fresh "open box" install, there's a chicken-and-egg problem with cloud storage setup. The frame needs rclone/Koofr credentials configured before it can sync, but the mobile app now pulls those credentials from the frame. What comes first?
-
-Questions to resolve:
-- Does the user set up Koofr on the Pi first (via dashboard), then pair the mobile app?
-- Or should the mobile app be able to push Koofr credentials TO the frame?
-- Could the pairing flow include a "configure cloud storage" step?
-- What's the minimal setup path for a non-technical user?
-
-This requires significant thought and planning around the first-run experience.
+First-run flow is designed: setup mode (BLE + AP captive portal) collects WiFi + Koofr creds + frame name before provisioning. See Phase 6 in `docs/PHASE_4_5_PLAN.md`.
 
 ### ~~Generate OpenAPI Spec~~
 **Status:** Done
@@ -78,3 +69,25 @@ Pi rate limit was increased from 3 to 50 pairing codes per hour for testing. Rev
 **Status:** Not started
 
 Set up App Store Connect, configure signing/provisioning, archive and upload to TestFlight for family beta testing.
+
+---
+
+## Phase 6: WiFi Recovery & Setup Mode
+
+### BLE Service UUID / GATT Characteristic Spec
+**Priority:** High (blocks 6.2 implementation)
+**Status:** Open question — finalize before implementing BLE setup service
+
+### AP Password Strategy
+**Priority:** Low
+**Status:** Open question — hardcoded `"picframe"` or derived from Pi serial number?
+
+### First-Run Sync Failure UX
+**Priority:** Medium
+**Status:** Open question — on bad Koofr creds during first sync: drop back to setup mode or show error screen?
+
+### Status Overlay
+**Priority:** Low
+**Status:** Deferred — implement after WiFi watchdog + setup mode core logic is working
+
+Dots in upper right corner (12–16px), hidden during healthy operation. States: hidden / grey / yellow / red / orange+blue pulse / spinner. See Phase 6 in `docs/PHASE_4_5_PLAN.md`.

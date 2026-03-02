@@ -105,6 +105,107 @@ Comprehensive test plan created at `docs/TEST_PLAN.md`. 308 test cases covering 
 
 ---
 
+## Phase 6: WiFi Recovery & Setup Mode
+
+**Status:** Design complete — ready for implementation
+**Problem:** Frames deployed to family have no recovery path when WiFi changes. Fix requires physical SD card removal today.
+
+### Design Decisions (finalized 2026-03-02)
+
+- **WiFi check = association only** (`iw dev wlan0 link`). Never ping 8.8.8.8. Internet down ≠ WiFi down.
+- **Display always runs** from local cache regardless of network state — no exceptions.
+- **10-minute outage threshold** → set `needs_setup = true` in `state.yaml`. If WiFi recovers at any time, clear flag immediately.
+- **`needs_setup` only acts on next reboot** — no mid-session disruption ever.
+- **Setup mode = BLE + AP simultaneously.** First to complete wins. No app required (AP/captive portal covers it).
+- **Updates** only when WiFi associated AND internet reachable. Skipped silently otherwise.
+- **No separate boot grace period** — the 10-min timer is the grace period.
+
+### State File: `state.yaml`
+
+```yaml
+frame_name: kframe
+provisioned: true/false          # false = never configured
+first_run_complete: true/false   # false = awaiting initial sync
+koofr_configured: true/false
+needs_setup: false               # true = enter setup mode on next boot
+last_wifi_connected: "2026-03-01T10:23:00"
+setup_mode_reason: null          # "boot_no_wifi" | "extended_outage" | "unprovisioned"
+```
+
+### 6.1 WiFi Watchdog (`picframe-watchdog.service`)
+
+- Polls every 30s via `iw dev wlan0 link`
+- Starts 10-min countdown on loss; sets `needs_setup = true` at expiry
+- Clears flag immediately when WiFi recovers
+- Fully independent of display process
+
+### 6.2 BLE Setup Service (`picframe-ble-setup.service`)
+
+- Active only in setup mode
+- Advertises `picframe-[framename]-setup`
+- Accepts WiFi credentials via GATT: `{ "ssid": "...", "password": "..." }`
+- On receive: writes `wpa_supplicant.conf`, clears flag, reboots
+- **Open question:** finalize service UUID and GATT characteristic spec
+
+### 6.3 AP / Captive Portal (`picframe-ap-setup.service`)
+
+- Active simultaneously with BLE during setup mode
+- hostapd hotspot: `PicFrame-[framename]`
+- dnsmasq: DHCP + DNS hijack → any URL opens portal
+- Flask page at `192.168.4.1`
+- First run: collects WiFi + Koofr creds + frame name
+- Reconfiguration: collects WiFi SSID/password only
+- **Open question:** AP password hardcoded `"picframe"` or from Pi serial?
+
+### 6.4 First-Run Flow
+
+```
+Boot (provisioned = false)
+  └─► Skip watchdog
+  └─► Enter setup mode (BLE + AP)
+  └─► Write config, provisioned = true, first_run_complete = false
+  └─► Reboot → connect WiFi → verify Koofr → initial sync
+  └─► first_run_complete = true → normal operation
+```
+
+**Open question:** On initial sync failure (bad Koofr creds) — drop back to setup mode or show error screen?
+
+### 6.5 `picframe-config` Bash Wrapper
+
+SSH/Tailscale maintenance tool. No UI or app required.
+
+```bash
+picframe-config --wifi-ssid "Name" --wifi-password "secret"
+picframe-config --frame-name "kframe"
+picframe-config --koofr-user "user" --koofr-pass "secret"
+picframe-config --show
+picframe-config --clear-setup   # manually clear flag
+picframe-config --force-setup   # manually trigger setup mode on next boot
+```
+
+### 6.6 Status Overlay (Deferred — after core logic)
+
+Small dots, upper right corner, hidden during healthy operation.
+
+| State | Overlay |
+|-------|---------|
+| Normal, WiFi + internet | Hidden |
+| WiFi associated, no internet | Grey dot |
+| WiFi down < 10 min | Yellow dot |
+| WiFi down > 10 min | Red dot |
+| Setup mode active | Orange pulse + blue pulse (BLE) |
+| First run syncing | Spinner |
+
+### Rejected Approaches
+
+- Separate 3-min boot grace period (redundant with 10-min timer)
+- Mid-session AP activation (flag only acts on reboot)
+- `maintenance_reboot` flag (use `--clear-setup` instead)
+- Internet reachability for WiFi check (association only)
+- Staged BLE-before-AP (both run simultaneously)
+
+---
+
 ## Key Files
 
 **Backend (picframe_4.0):**
