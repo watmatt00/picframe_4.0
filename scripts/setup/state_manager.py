@@ -6,6 +6,7 @@ Tracks provisioning state, WiFi status, and setup mode flag.
 """
 
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -77,6 +78,8 @@ class StateManager:
             try:
                 with open(temp_path, "w") as f:
                     yaml.safe_dump(state, f, default_flow_style=False)
+                    f.flush()
+                    os.fsync(f.fileno())  # Ensure data is on disk before rename
                 temp_path.rename(self._path)
                 logger.debug("state.yaml updated")
             except Exception as e:

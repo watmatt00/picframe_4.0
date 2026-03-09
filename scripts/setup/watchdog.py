@@ -186,6 +186,12 @@ def main() -> None:
     state = state_manager.read()
     provisioned = state.get("provisioned", False)
     needs_setup = state.get("needs_setup", False)
+    reason = state.get("setup_mode_reason", "none")
+
+    logger.info(
+        f"Boot state: provisioned={provisioned}, needs_setup={needs_setup}, "
+        f"reason={reason}, state_file={state_manager._path}"
+    )
 
     # Boot-time check: enter setup mode immediately if flagged
     if not provisioned:

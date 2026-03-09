@@ -105,23 +105,27 @@ cmd_frame_name() {
 
     LOG "Setting frame name to '$name'..."
     "${SETUP_PYTHON}" - <<PYEOF
-import yaml, pathlib
+import os, yaml, pathlib
 p = pathlib.Path('$PICFRAME_CONFIG')
 cfg = yaml.safe_load(p.read_text()) if p.exists() else {}
 cfg.setdefault('frame', {})['name'] = '$name'
 tmp = p.with_suffix('.tmp')
-tmp.write_text(yaml.safe_dump(cfg, default_flow_style=False))
+with open(tmp, 'w') as f:
+    f.write(yaml.safe_dump(cfg, default_flow_style=False))
+    f.flush(); os.fsync(f.fileno())
 tmp.chmod(0o600)
 tmp.rename(p)
 PYEOF
 
     "${SETUP_PYTHON}" - <<PYEOF
-import yaml, pathlib
+import os, yaml, pathlib
 p = pathlib.Path('$PICFRAME_STATE')
 state = yaml.safe_load(p.read_text()) if p.exists() else {}
 state['frame_name'] = '$name'
 tmp = p.with_suffix('.tmp')
-tmp.write_text(yaml.safe_dump(state, default_flow_style=False))
+with open(tmp, 'w') as f:
+    f.write(yaml.safe_dump(state, default_flow_style=False))
+    f.flush(); os.fsync(f.fileno())
 tmp.rename(p)
 PYEOF
 
@@ -150,14 +154,16 @@ cmd_koofr() {
 
     # Write via Python to avoid any shell interpolation of special characters
     "${SETUP_PYTHON}" - <<PYEOF
-import sys, yaml, pathlib
+import os, sys, yaml, pathlib
 koofr_user = sys.argv[1]
 koofr_pass = sys.argv[2]
 p = pathlib.Path('$PICFRAME_CONFIG')
 cfg = yaml.safe_load(p.read_text()) if p.exists() else {}
 cfg.setdefault('sync', {}).update({'koofr_user': koofr_user, 'koofr_pass': koofr_pass})
 tmp = p.with_suffix('.tmp')
-tmp.write_text(yaml.safe_dump(cfg, default_flow_style=False))
+with open(tmp, 'w') as f:
+    f.write(yaml.safe_dump(cfg, default_flow_style=False))
+    f.flush(); os.fsync(f.fileno())
 tmp.chmod(0o600)
 tmp.rename(p)
 PYEOF
@@ -199,13 +205,15 @@ cmd_show() {
 cmd_clear_setup() {
     LOG "Clearing needs_setup flag..."
     "${SETUP_PYTHON}" - <<PYEOF
-import yaml, pathlib
+import os, yaml, pathlib
 p = pathlib.Path('$PICFRAME_STATE')
 state = yaml.safe_load(p.read_text()) if p.exists() else {}
 state['needs_setup'] = False
 state['setup_mode_reason'] = None
 tmp = p.with_suffix('.tmp')
-tmp.write_text(yaml.safe_dump(state, default_flow_style=False))
+with open(tmp, 'w') as f:
+    f.write(yaml.safe_dump(state, default_flow_style=False))
+    f.flush(); os.fsync(f.fileno())
 tmp.rename(p)
 PYEOF
     LOG "needs_setup flag cleared. Normal boot will occur on next reboot."
@@ -214,14 +222,18 @@ PYEOF
 cmd_force_setup() {
     LOG "Setting needs_setup flag (setup mode will start on next reboot)..."
     "${SETUP_PYTHON}" - <<PYEOF
-import yaml, pathlib
+import os, yaml, pathlib
 p = pathlib.Path('$PICFRAME_STATE')
 state = yaml.safe_load(p.read_text()) if p.exists() else {}
 state['needs_setup'] = True
 state['setup_mode_reason'] = 'manual'
 tmp = p.with_suffix('.tmp')
-tmp.write_text(yaml.safe_dump(state, default_flow_style=False))
+with open(tmp, 'w') as f:
+    f.write(yaml.safe_dump(state, default_flow_style=False))
+    f.flush(); os.fsync(f.fileno())
 tmp.rename(p)
+print(f"Wrote: needs_setup=True to {p}")
+print(f"Contents: {p.read_text()}")
 PYEOF
     LOG "needs_setup flag set. Frame will enter setup mode on next reboot."
 }
