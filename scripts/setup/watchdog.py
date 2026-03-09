@@ -115,9 +115,12 @@ def run_monitoring_loop(in_setup_mode: bool = False) -> None:
     Main watchdog loop. Polls WiFi every 30 seconds.
 
     On loss: starts 10-min countdown, sets needs_setup flag at expiry.
-    On recovery: clears needs_setup flag. If in setup mode (flag was set
-    at boot), stops setup services and reboots per design spec.
+    On recovery: clears needs_setup flag.
     Display is never touched.
+
+    In setup mode: wlan0 is controlled by hostapd (AP mode) and wpa_supplicant
+    may reconnect in the background. Do not poll WiFi — the portal/BLE handler
+    writes new credentials and reboots when the user is done. Just idle.
 
     Args:
         in_setup_mode: True if setup mode services were started this boot.
@@ -128,6 +131,12 @@ def run_monitoring_loop(in_setup_mode: bool = False) -> None:
     logger.info("Watchdog monitoring loop started")
 
     while True:
+        # In setup mode, wlan0 is owned by hostapd — don't poll WiFi.
+        # The portal handles rebooting when the user submits credentials.
+        if in_setup_mode:
+            time.sleep(POLL_INTERVAL_SECONDS)
+            continue
+
         associated = is_wifi_associated()
 
         if associated:
@@ -138,17 +147,6 @@ def run_monitoring_loop(in_setup_mode: bool = False) -> None:
                 logger.info(f"WiFi recovered after {duration:.0f}s")
                 wifi_down_since = None
                 flag_already_set = False
-
-            # If we were in setup mode and WiFi recovered, stop services and reboot
-            if in_setup_mode and state_manager.needs_setup():
-                logger.info(
-                    "WiFi recovered during setup mode — clearing flag, "
-                    "stopping setup services, rebooting to normal"
-                )
-                state_manager.clear_needs_setup()
-                stop_setup_mode()
-                subprocess.run(["reboot"], check=False)
-                return
 
             # Normal recovery: clear flag if it was set during this outage
             if state_manager.needs_setup():
