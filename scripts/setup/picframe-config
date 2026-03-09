@@ -14,12 +14,10 @@
 set -euo pipefail
 
 PICFRAME_STATE="/var/lib/picframe/state.yaml"
-PICFRAME_CONFIG="${HOME}/.picframe/config.yaml"
+PICFRAME_CONFIG="/home/matt/.picframe/config.yaml"
 WPA_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
-SETUP_VENV="${HOME}/picframe_4.0/scripts/setup/venv"
-SETUP_PYTHON="${SETUP_VENV}/bin/python3"
-# Fallback to system python3 if venv not yet created
-command -v "${SETUP_PYTHON}" &>/dev/null 2>&1 || SETUP_PYTHON="/usr/bin/python3"
+# Hardcoded venv path — HOME resolves to /root when run as sudo
+SETUP_PYTHON="/home/matt/picframe_4.0/scripts/setup/venv/bin/python3"
 TIMESTAMP() { date +'%Y-%m-%d %H:%M:%S'; }
 LOG() { echo "[$(TIMESTAMP)] $*"; }
 ERROR() { echo "[$(TIMESTAMP)] ERROR: $*" >&2; }

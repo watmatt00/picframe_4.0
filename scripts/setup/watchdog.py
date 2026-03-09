@@ -80,13 +80,26 @@ def start_setup_mode() -> None:
         logger.error(f"Failed to start setup mode services: {e}")
 
 
-def run_monitoring_loop() -> None:
+def stop_setup_mode() -> None:
+    """Stop BLE and AP setup services."""
+    logger.info("Stopping setup mode services")
+    subprocess.run(
+        ["systemctl", "stop", "picframe-ble-setup", "picframe-ap-setup"],
+        check=False,
+    )
+
+
+def run_monitoring_loop(in_setup_mode: bool = False) -> None:
     """
     Main watchdog loop. Polls WiFi every 30 seconds.
 
     On loss: starts 10-min countdown, sets needs_setup flag at expiry.
-    On recovery: clears needs_setup flag immediately.
+    On recovery: clears needs_setup flag. If in setup mode (flag was set
+    at boot), stops setup services and reboots per design spec.
     Display is never touched.
+
+    Args:
+        in_setup_mode: True if setup mode services were started this boot.
     """
     wifi_down_since: float | None = None
     flag_already_set = False
@@ -105,7 +118,18 @@ def run_monitoring_loop() -> None:
                 wifi_down_since = None
                 flag_already_set = False
 
-            # Clear flag if it was set during this outage
+            # If we were in setup mode and WiFi recovered, stop services and reboot
+            if in_setup_mode and state_manager.needs_setup():
+                logger.info(
+                    "WiFi recovered during setup mode — clearing flag, "
+                    "stopping setup services, rebooting to normal"
+                )
+                state_manager.clear_needs_setup()
+                stop_setup_mode()
+                subprocess.run(["reboot"], check=False)
+                return
+
+            # Normal recovery: clear flag if it was set during this outage
             if state_manager.needs_setup():
                 state_manager.clear_needs_setup()
                 logger.info("needs_setup flag cleared after WiFi recovery")
@@ -147,16 +171,14 @@ def main() -> None:
         logger.info("Frame not provisioned — entering setup mode")
         state_manager.mark_needs_setup("unprovisioned")
         start_setup_mode()
-        # Keep watchdog alive to detect if WiFi comes up and clear any stale flags
-        run_monitoring_loop()
+        run_monitoring_loop(in_setup_mode=True)
         return
 
     if needs_setup:
         reason = state.get("setup_mode_reason", "unknown")
         logger.info(f"needs_setup=true (reason: {reason}) — entering setup mode")
         start_setup_mode()
-        # Keep watchdog alive to clear flag if WiFi recovers during setup
-        run_monitoring_loop()
+        run_monitoring_loop(in_setup_mode=True)
         return
 
     # Normal operation: check WiFi on boot, then monitor
