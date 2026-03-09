@@ -67,9 +67,31 @@ for _path in CAPTIVE_DETECT_PATHS:
 def index():
     """Serve the appropriate config form based on provisioning state."""
     state = state_manager.read()
+    is_first_run = not state.get("provisioned", False)
+    frame_name = state.get("frame_name", "picframe")
+    if is_first_run:
+        return render_template("index.html", frame_name=frame_name)
+    return render_template("reconfigure.html", frame_name=frame_name)
+
+
+@app.route("/skip")
+def skip():
+    """
+    Skip WiFi setup and return to gallery.
+
+    Clears the needs_setup flag and reboots to normal operation.
+    Only available when the frame is already provisioned (not first-run).
+    """
+    state = state_manager.read()
     if not state.get("provisioned", False):
-        return render_template("index.html", frame_name=state.get("frame_name", "picframe"))
-    return render_template("reconfigure.html", frame_name=state.get("frame_name", "picframe"))
+        # Can't skip on first run — WiFi must be configured
+        return redirect(url_for("index"))
+
+    logger.info("User skipped WiFi setup — clearing flag and rebooting to gallery")
+    state_manager.clear_needs_setup()
+    subprocess.run(["systemctl", "stop", "picframe-ble-setup"], check=False)
+    subprocess.Popen(["sh", "-c", "sleep 2 && reboot"])
+    return render_template("skip.html")
 
 
 @app.route("/save", methods=["POST"])

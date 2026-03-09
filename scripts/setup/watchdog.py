@@ -15,6 +15,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+
 # Allow running from any working directory
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -68,14 +69,34 @@ def is_wifi_associated() -> bool:
 
 
 def start_setup_mode() -> None:
-    """Start BLE and AP setup services simultaneously."""
-    logger.info("Starting setup mode (BLE + AP)")
+    """
+    Enter setup mode: stop the photo display, write dnsmasq config,
+    then start BLE and AP services simultaneously.
+    """
+    logger.info("Starting setup mode")
+
+    # Stop the photo display — show nothing rather than cycling photos
+    subprocess.run(["systemctl", "stop", "picframe"], check=False)
+    logger.info("Stopped picframe display service")
+
+    # Write dnsmasq config for DNS hijack (any URL → 192.168.4.1)
+    dnsmasq_conf = (
+        "interface=wlan0\n"
+        "dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h\n"
+        "address=/#/192.168.4.1\n"
+    )
+    try:
+        Path("/tmp/picframe-dnsmasq.conf").write_text(dnsmasq_conf)
+    except Exception as e:
+        logger.error(f"Failed to write dnsmasq config: {e}")
+
+    # Start BLE + AP simultaneously
     try:
         subprocess.run(
             ["systemctl", "start", "picframe-ble-setup", "picframe-ap-setup"],
             check=True,
         )
-        logger.info("Setup mode services started")
+        logger.info("Setup mode services started (BLE + AP)")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to start setup mode services: {e}")
 
