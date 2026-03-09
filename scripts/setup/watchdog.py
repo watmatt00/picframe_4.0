@@ -32,7 +32,7 @@ logging.basicConfig(
     datefmt=LOG_DATE_FORMAT,
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler(Path.home() / ".picframe" / "logs" / "watchdog.log"),
+        logging.FileHandler(Path("/var/log/picframe-watchdog.log")),
     ],
 )
 logger = logging.getLogger("watchdog")

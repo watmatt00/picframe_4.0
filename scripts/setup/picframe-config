@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-PICFRAME_STATE="${HOME}/.picframe/state.yaml"
+PICFRAME_STATE="/var/lib/picframe/state.yaml"
 PICFRAME_CONFIG="${HOME}/.picframe/config.yaml"
 WPA_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
 SETUP_VENV="${HOME}/picframe_4.0/scripts/setup/venv"

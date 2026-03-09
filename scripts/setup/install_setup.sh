@@ -19,7 +19,7 @@ SETUP_PYTHON="${SETUP_VENV}/bin/python3"
 SYSTEMD_SRC="${SETUP_DIR}/systemd"
 SYSTEMD_DEST="/etc/systemd/system"
 HOSTAPD_CONF="/etc/hostapd/picframe-hostapd.conf"
-STATE_FILE="${HOME}/.picframe/state.yaml"
+STATE_FILE="/var/lib/picframe/state.yaml"
 CONFIG_DIR="${HOME}/.picframe"
 
 # ── Preflight checks ──────────────────────────────────────────────────────────
@@ -59,6 +59,10 @@ LOG "Installing Python packages into setup venv (flask, bless, pyyaml, filelock)
 LOG "Python packages installed"
 
 # ── hostapd config ────────────────────────────────────────────────────────────
+
+LOG "Creating /var/lib/picframe/ state directory..."
+mkdir -p /var/lib/picframe
+chmod 755 /var/lib/picframe
 
 LOG "Writing hostapd configuration..."
 
@@ -143,7 +147,7 @@ echo ""
 echo "Tools installed:"
 echo "  /usr/local/bin/picframe-config"
 echo ""
-echo "State file: ${STATE_FILE}"
+echo "State file: /var/lib/picframe/state.yaml"
 echo ""
 echo "Next steps:"
 echo "  1. Reboot: sudo reboot"

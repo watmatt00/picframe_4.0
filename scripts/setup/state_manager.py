@@ -15,7 +15,7 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-STATE_DIR = Path.home() / ".picframe"
+STATE_DIR = Path("/var/lib/picframe")
 STATE_FILE = STATE_DIR / "state.yaml"
 LOCK_TIMEOUT = 10
 

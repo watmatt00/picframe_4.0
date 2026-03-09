@@ -32,7 +32,7 @@ logging.basicConfig(
     datefmt=LOG_DATE_FORMAT,
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler(Path.home() / ".picframe" / "logs" / "ble_setup.log"),
+        logging.FileHandler(Path("/var/log/picframe-ble-setup.log")),
     ],
 )
 logger = logging.getLogger("ble_setup")
