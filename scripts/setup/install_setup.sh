@@ -121,13 +121,13 @@ LOG "picframe-config installed to /usr/local/bin/picframe-config"
 
 if [[ ! -f "$STATE_FILE" ]]; then
     LOG "Initializing state.yaml..."
-    sudo -u "${SUDO_USER:-$(logname)}" "${SETUP_PYTHON}" - <<PYEOF
+    "${SETUP_PYTHON}" - <<PYEOF
 import sys
 sys.path.insert(0, '${SETUP_DIR}')
 from state_manager import state_manager
 state_manager.initialize()
 PYEOF
-    LOG "state.yaml initialized"
+    LOG "state.yaml initialized at ${STATE_FILE}"
 else
     LOG "state.yaml already exists — not overwriting"
 fi
