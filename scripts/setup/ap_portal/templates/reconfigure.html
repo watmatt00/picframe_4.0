@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PicFrame — Update WiFi</title>
+<link rel="stylesheet" href="/static/portal.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">🖼</div>
+    <h1>{{ frame_name }}</h1>
+    <p class="subtitle">Update WiFi connection</p>
+  </div>
+
+  {% if errors %}
+  <div class="errors">
+    {% for error in errors %}
+    <p>{{ error }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/save">
+
+    <section>
+      <h2>New WiFi Network</h2>
+      <div class="field">
+        <label for="ssid">Network name (SSID)</label>
+        <input type="text" id="ssid" name="ssid"
+               placeholder="Your WiFi network name"
+               maxlength="32"
+               required>
+      </div>
+      <div class="field">
+        <label for="wifi_password">WiFi password</label>
+        <input type="password" id="wifi_password" name="wifi_password"
+               placeholder="WiFi password"
+               minlength="8" maxlength="63"
+               required>
+        <span class="hint">Minimum 8 characters.</span>
+      </div>
+    </section>
+
+    <button type="submit" class="btn-submit">Save &amp; Reconnect</button>
+
+  </form>
+
+  <p class="footer-note">The frame will reboot and connect to your new network.</p>
+</div>
+</body>
+</html>

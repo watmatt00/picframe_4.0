@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PicFrame Setup</title>
+<link rel="stylesheet" href="/static/portal.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">🖼</div>
+    <h1>PicFrame Setup</h1>
+    <p class="subtitle">Let's get your frame connected</p>
+  </div>
+
+  {% if errors %}
+  <div class="errors">
+    {% for error in errors %}
+    <p>{{ error }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/save">
+
+    <section>
+      <h2>Frame Name</h2>
+      <div class="field">
+        <label for="frame_name">Give this frame a name</label>
+        <input type="text" id="frame_name" name="frame_name"
+               value="{{ frame_name }}"
+               placeholder="e.g. kitchen-frame"
+               pattern="[a-zA-Z0-9_\-]{1,32}"
+               required>
+        <span class="hint">Letters, numbers, hyphens, underscores. No spaces.</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>WiFi Network</h2>
+      <div class="field">
+        <label for="ssid">Network name (SSID)</label>
+        <input type="text" id="ssid" name="ssid"
+               placeholder="Your WiFi network name"
+               maxlength="32"
+               required>
+      </div>
+      <div class="field">
+        <label for="wifi_password">WiFi password</label>
+        <input type="password" id="wifi_password" name="wifi_password"
+               placeholder="WiFi password"
+               minlength="8" maxlength="63"
+               required>
+        <span class="hint">Minimum 8 characters.</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Koofr Cloud Storage</h2>
+      <p class="section-note">Your photos sync from Koofr. Enter your Koofr account credentials.</p>
+      <div class="field">
+        <label for="koofr_user">Koofr email</label>
+        <input type="email" id="koofr_user" name="koofr_user"
+               placeholder="you@example.com"
+               required>
+      </div>
+      <div class="field">
+        <label for="koofr_pass">Koofr password</label>
+        <input type="password" id="koofr_pass" name="koofr_pass"
+               placeholder="Koofr password"
+               required>
+      </div>
+    </section>
+
+    <button type="submit" class="btn-submit">Save &amp; Connect</button>
+
+  </form>
+
+  <p class="footer-note">The frame will reboot and connect to your network.</p>
+</div>
+</body>
+</html>

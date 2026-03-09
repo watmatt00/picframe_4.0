@@ -1,0 +1,262 @@
+#!/bin/bash
+# picframe-config — PicFrame configuration wrapper
+# Works over SSH or Tailscale. No UI or app required.
+# Must run as root (writes to /etc/wpa_supplicant/ and system config).
+#
+# Usage:
+#   picframe-config --wifi-ssid "Name" --wifi-password "secret"
+#   picframe-config --frame-name "kframe"
+#   picframe-config --koofr-user "user@example.com" --koofr-pass "secret"
+#   picframe-config --show
+#   picframe-config --clear-setup
+#   picframe-config --force-setup
+
+set -euo pipefail
+
+PICFRAME_STATE="${HOME}/.picframe/state.yaml"
+PICFRAME_CONFIG="${HOME}/.picframe/config.yaml"
+WPA_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
+TIMESTAMP() { date +'%Y-%m-%d %H:%M:%S'; }
+LOG() { echo "[$(TIMESTAMP)] $*"; }
+ERROR() { echo "[$(TIMESTAMP)] ERROR: $*" >&2; }
+
+# ── Input validation ─────────────────────────────────────────────────────────
+
+validate_ssid() {
+    local ssid="$1"
+    if [[ ! "$ssid" =~ ^[[:alnum:][:space:]_.~-]{1,32}$ ]]; then
+        ERROR "Invalid SSID: must be 1-32 chars (letters, numbers, spaces, hyphens, underscores)"
+        exit 1
+    fi
+}
+
+validate_wifi_password() {
+    local pw="$1"
+    if [[ ${#pw} -lt 8 || ${#pw} -gt 63 ]]; then
+        ERROR "WiFi password must be 8-63 characters"
+        exit 1
+    fi
+}
+
+validate_frame_name() {
+    local name="$1"
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]{1,32}$ ]]; then
+        ERROR "Frame name must be 1-32 chars (letters, numbers, hyphens, underscores, no spaces)"
+        exit 1
+    fi
+}
+
+validate_email() {
+    local email="$1"
+    if [[ ! "$email" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]]; then
+        ERROR "Invalid email address: $email"
+        exit 1
+    fi
+}
+
+# ── WiFi configuration ────────────────────────────────────────────────────────
+
+cmd_wifi() {
+    local ssid="" wifi_password=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --wifi-ssid)     ssid="$2";          shift 2 ;;
+            --wifi-password) wifi_password="$2"; shift 2 ;;
+            *) ERROR "Unknown option: $1"; exit 1 ;;
+        esac
+    done
+
+    [[ -z "$ssid" ]]          && { ERROR "--wifi-ssid is required"; exit 1; }
+    [[ -z "$wifi_password" ]] && { ERROR "--wifi-password is required"; exit 1; }
+
+    validate_ssid "$ssid"
+    validate_wifi_password "$wifi_password"
+
+    LOG "Writing WiFi configuration for SSID '$ssid'..."
+
+    # Use wpa_passphrase to generate the network block (hashes the PSK)
+    local tmp_conf
+    tmp_conf="$(mktemp)"
+
+    {
+        echo "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev"
+        echo "update_config=1"
+        echo "country=US"
+        echo ""
+        # Filter out plaintext #psk= comment for security
+        wpa_passphrase "$ssid" "$wifi_password" | grep -v '#psk='
+    } > "$tmp_conf"
+
+    chmod 600 "$tmp_conf"
+    mv "$tmp_conf" "$WPA_CONF"
+
+    LOG "WiFi configuration written to $WPA_CONF"
+    LOG "Run 'sudo reboot' to connect to the new network."
+}
+
+# ── Frame name ────────────────────────────────────────────────────────────────
+
+cmd_frame_name() {
+    local name="$1"
+    validate_frame_name "$name"
+
+    LOG "Setting frame name to '$name'..."
+    python3 - <<PYEOF
+import yaml, pathlib
+p = pathlib.Path('$PICFRAME_CONFIG')
+cfg = yaml.safe_load(p.read_text()) if p.exists() else {}
+cfg.setdefault('frame', {})['name'] = '$name'
+tmp = p.with_suffix('.tmp')
+tmp.write_text(yaml.safe_dump(cfg, default_flow_style=False))
+tmp.chmod(0o600)
+tmp.rename(p)
+PYEOF
+
+    python3 - <<PYEOF
+import yaml, pathlib
+p = pathlib.Path('$PICFRAME_STATE')
+state = yaml.safe_load(p.read_text()) if p.exists() else {}
+state['frame_name'] = '$name'
+tmp = p.with_suffix('.tmp')
+tmp.write_text(yaml.safe_dump(state, default_flow_style=False))
+tmp.rename(p)
+PYEOF
+
+    LOG "Frame name updated to '$name'"
+}
+
+# ── Koofr credentials ─────────────────────────────────────────────────────────
+
+cmd_koofr() {
+    local koofr_user="" koofr_pass=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --koofr-user) koofr_user="$2"; shift 2 ;;
+            --koofr-pass) koofr_pass="$2"; shift 2 ;;
+            *) ERROR "Unknown option: $1"; exit 1 ;;
+        esac
+    done
+
+    [[ -z "$koofr_user" ]] && { ERROR "--koofr-user is required"; exit 1; }
+    [[ -z "$koofr_pass" ]] && { ERROR "--koofr-pass is required"; exit 1; }
+
+    validate_email "$koofr_user"
+
+    LOG "Updating Koofr credentials..."
+
+    # Write via Python to avoid any shell interpolation of special characters
+    python3 - <<PYEOF
+import sys, yaml, pathlib
+koofr_user = sys.argv[1]
+koofr_pass = sys.argv[2]
+p = pathlib.Path('$PICFRAME_CONFIG')
+cfg = yaml.safe_load(p.read_text()) if p.exists() else {}
+cfg.setdefault('sync', {}).update({'koofr_user': koofr_user, 'koofr_pass': koofr_pass})
+tmp = p.with_suffix('.tmp')
+tmp.write_text(yaml.safe_dump(cfg, default_flow_style=False))
+tmp.chmod(0o600)
+tmp.rename(p)
+PYEOF
+
+    LOG "Koofr credentials updated"
+}
+
+# ── Show current state ────────────────────────────────────────────────────────
+
+cmd_show() {
+    echo ""
+    echo "=== PicFrame Configuration ==="
+    echo ""
+
+    if [[ -f "$PICFRAME_STATE" ]]; then
+        echo "State ($PICFRAME_STATE):"
+        cat "$PICFRAME_STATE" | sed 's/^/  /'
+    else
+        echo "State file not found: $PICFRAME_STATE"
+    fi
+
+    echo ""
+
+    if [[ -f "$PICFRAME_CONFIG" ]]; then
+        echo "Config ($PICFRAME_CONFIG):"
+        # Mask sensitive values
+        grep -v 'koofr_pass\|password\|psk' "$PICFRAME_CONFIG" | sed 's/^/  /' || true
+        grep -q 'koofr_pass\|password' "$PICFRAME_CONFIG" \
+            && echo "  [sensitive values hidden]" || true
+    else
+        echo "Config file not found: $PICFRAME_CONFIG"
+    fi
+
+    echo ""
+}
+
+# ── Setup flag management ─────────────────────────────────────────────────────
+
+cmd_clear_setup() {
+    LOG "Clearing needs_setup flag..."
+    python3 - <<PYEOF
+import yaml, pathlib
+p = pathlib.Path('$PICFRAME_STATE')
+state = yaml.safe_load(p.read_text()) if p.exists() else {}
+state['needs_setup'] = False
+state['setup_mode_reason'] = None
+tmp = p.with_suffix('.tmp')
+tmp.write_text(yaml.safe_dump(state, default_flow_style=False))
+tmp.rename(p)
+PYEOF
+    LOG "needs_setup flag cleared. Normal boot will occur on next reboot."
+}
+
+cmd_force_setup() {
+    LOG "Setting needs_setup flag (setup mode will start on next reboot)..."
+    python3 - <<PYEOF
+import yaml, pathlib
+p = pathlib.Path('$PICFRAME_STATE')
+state = yaml.safe_load(p.read_text()) if p.exists() else {}
+state['needs_setup'] = True
+state['setup_mode_reason'] = 'manual'
+tmp = p.with_suffix('.tmp')
+tmp.write_text(yaml.safe_dump(state, default_flow_style=False))
+tmp.rename(p)
+PYEOF
+    LOG "needs_setup flag set. Frame will enter setup mode on next reboot."
+}
+
+# ── Usage ─────────────────────────────────────────────────────────────────────
+
+usage() {
+    cat <<EOF
+picframe-config — PicFrame configuration tool
+
+Usage:
+  picframe-config --wifi-ssid "Name" --wifi-password "secret"
+  picframe-config --frame-name "kframe"
+  picframe-config --koofr-user "user@example.com" --koofr-pass "secret"
+  picframe-config --show
+  picframe-config --clear-setup
+  picframe-config --force-setup
+  picframe-config --help
+
+Note: WiFi changes require sudo. Run with 'sudo picframe-config ...'
+EOF
+}
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+if [[ $# -eq 0 ]]; then
+    usage
+    exit 0
+fi
+
+case "$1" in
+    --wifi-ssid)    cmd_wifi "$@" ;;
+    --frame-name)   cmd_frame_name "$2" ;;
+    --koofr-user)   cmd_koofr "$@" ;;
+    --show)         cmd_show ;;
+    --clear-setup)  cmd_clear_setup ;;
+    --force-setup)  cmd_force_setup ;;
+    --help|-h)      usage ;;
+    *)              ERROR "Unknown command: $1"; usage; exit 1 ;;
+esac

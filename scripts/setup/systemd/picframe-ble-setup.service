@@ -1,0 +1,17 @@
+[Unit]
+Description=PicFrame BLE Setup Service
+After=bluetooth.target
+Requires=bluetooth.target
+# Do not run automatically — started by picframe-watchdog when needs_setup=true
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/matt/picframe_4.0/scripts/setup/ble_setup.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+# Not enabled by default — started on demand by watchdog
+WantedBy=multi-user.target
