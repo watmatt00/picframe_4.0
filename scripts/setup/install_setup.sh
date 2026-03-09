@@ -14,6 +14,8 @@ WARN()  { echo "[$(TIMESTAMP)] WARN:  $*"; }
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SETUP_DIR="${PROJECT_DIR}/scripts/setup"
+SETUP_VENV="${SETUP_DIR}/venv"
+SETUP_PYTHON="${SETUP_VENV}/bin/python3"
 SYSTEMD_SRC="${SETUP_DIR}/systemd"
 SYSTEMD_DEST="/etc/systemd/system"
 HOSTAPD_CONF="/etc/hostapd/picframe-hostapd.conf"
@@ -39,19 +41,21 @@ LOG "Project directory: ${PROJECT_DIR}"
 
 # ── System packages ───────────────────────────────────────────────────────────
 
-LOG "Installing system packages (hostapd, dnsmasq, bluez, python3-pip)..."
+LOG "Installing system packages (hostapd, dnsmasq, bluez, python3-venv, wireless-tools)..."
 apt-get update -qq
-apt-get install -y hostapd dnsmasq bluez python3-pip wireless-tools
+apt-get install -y hostapd dnsmasq bluez python3-venv python3-full wireless-tools
 
 # Disable hostapd and dnsmasq system-wide services (we manage them ourselves)
 systemctl disable --now hostapd 2>/dev/null || true
 systemctl disable --now dnsmasq 2>/dev/null || true
 LOG "System packages installed"
 
-# ── Python packages (system Python, not venv) ─────────────────────────────────
+# ── Python venv for setup scripts ────────────────────────────────────────────
 
-LOG "Installing Python packages (flask, bless, pyyaml, filelock)..."
-pip3 install --quiet flask bless pyyaml filelock
+LOG "Creating setup venv at ${SETUP_VENV}..."
+python3 -m venv "${SETUP_VENV}"
+LOG "Installing Python packages into setup venv (flask, bless, pyyaml, filelock)..."
+"${SETUP_VENV}/bin/pip" install --quiet flask bless pyyaml filelock
 LOG "Python packages installed"
 
 # ── hostapd config ────────────────────────────────────────────────────────────
@@ -113,14 +117,13 @@ LOG "picframe-config installed to /usr/local/bin/picframe-config"
 
 if [[ ! -f "$STATE_FILE" ]]; then
     LOG "Initializing state.yaml..."
-    sudo -u "${SUDO_USER:-$(logname)}" python3 "${SETUP_DIR}/state_manager.py" 2>/dev/null || \
-    python3 - <<PYEOF
+    sudo -u "${SUDO_USER:-$(logname)}" "${SETUP_PYTHON}" - <<PYEOF
 import sys
 sys.path.insert(0, '${SETUP_DIR}')
 from state_manager import state_manager
 state_manager.initialize()
-print("[$(TIMESTAMP)] state.yaml initialized")
 PYEOF
+    LOG "state.yaml initialized"
 else
     LOG "state.yaml already exists — not overwriting"
 fi

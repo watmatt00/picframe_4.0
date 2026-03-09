@@ -6,7 +6,7 @@ Requires=bluetooth.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /home/matt/picframe_4.0/scripts/setup/ble_setup.py
+ExecStart=/home/matt/picframe_4.0/scripts/setup/venv/bin/python3 /home/matt/picframe_4.0/scripts/setup/ble_setup.py
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

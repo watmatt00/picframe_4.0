@@ -16,6 +16,10 @@ set -euo pipefail
 PICFRAME_STATE="${HOME}/.picframe/state.yaml"
 PICFRAME_CONFIG="${HOME}/.picframe/config.yaml"
 WPA_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
+SETUP_VENV="${HOME}/picframe_4.0/scripts/setup/venv"
+SETUP_PYTHON="${SETUP_VENV}/bin/python3"
+# Fallback to system python3 if venv not yet created
+command -v "${SETUP_PYTHON}" &>/dev/null 2>&1 || SETUP_PYTHON="/usr/bin/python3"
 TIMESTAMP() { date +'%Y-%m-%d %H:%M:%S'; }
 LOG() { echo "[$(TIMESTAMP)] $*"; }
 ERROR() { echo "[$(TIMESTAMP)] ERROR: $*" >&2; }
@@ -102,7 +106,7 @@ cmd_frame_name() {
     validate_frame_name "$name"
 
     LOG "Setting frame name to '$name'..."
-    python3 - <<PYEOF
+    "${SETUP_PYTHON}" - <<PYEOF
 import yaml, pathlib
 p = pathlib.Path('$PICFRAME_CONFIG')
 cfg = yaml.safe_load(p.read_text()) if p.exists() else {}
@@ -113,7 +117,7 @@ tmp.chmod(0o600)
 tmp.rename(p)
 PYEOF
 
-    python3 - <<PYEOF
+    "${SETUP_PYTHON}" - <<PYEOF
 import yaml, pathlib
 p = pathlib.Path('$PICFRAME_STATE')
 state = yaml.safe_load(p.read_text()) if p.exists() else {}
@@ -147,7 +151,7 @@ cmd_koofr() {
     LOG "Updating Koofr credentials..."
 
     # Write via Python to avoid any shell interpolation of special characters
-    python3 - <<PYEOF
+    "${SETUP_PYTHON}" - <<PYEOF
 import sys, yaml, pathlib
 koofr_user = sys.argv[1]
 koofr_pass = sys.argv[2]
@@ -196,7 +200,7 @@ cmd_show() {
 
 cmd_clear_setup() {
     LOG "Clearing needs_setup flag..."
-    python3 - <<PYEOF
+    "${SETUP_PYTHON}" - <<PYEOF
 import yaml, pathlib
 p = pathlib.Path('$PICFRAME_STATE')
 state = yaml.safe_load(p.read_text()) if p.exists() else {}
@@ -211,7 +215,7 @@ PYEOF
 
 cmd_force_setup() {
     LOG "Setting needs_setup flag (setup mode will start on next reboot)..."
-    python3 - <<PYEOF
+    "${SETUP_PYTHON}" - <<PYEOF
 import yaml, pathlib
 p = pathlib.Path('$PICFRAME_STATE')
 state = yaml.safe_load(p.read_text()) if p.exists() else {}

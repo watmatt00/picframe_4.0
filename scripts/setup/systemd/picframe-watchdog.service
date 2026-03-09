@@ -5,7 +5,7 @@ Wants=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /home/matt/picframe_4.0/scripts/setup/watchdog.py
+ExecStart=/home/matt/picframe_4.0/scripts/setup/venv/bin/python3 /home/matt/picframe_4.0/scripts/setup/watchdog.py
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
