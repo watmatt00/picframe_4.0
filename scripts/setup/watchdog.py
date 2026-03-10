@@ -75,8 +75,12 @@ def start_setup_mode() -> None:
     """
     logger.info("Starting setup mode")
 
-    # Stop the photo display — show nothing rather than cycling photos
-    subprocess.run(["systemctl", "stop", "picframe"], check=False)
+    # Stop the photo display — picframe runs as a user service under 'matt'
+    # Use -M matt@ to reach the user session bus from root
+    subprocess.run(
+        ["systemctl", "--user", "-M", "matt@", "stop", "picframe"],
+        check=False,
+    )
     logger.info("Stopped picframe display service")
 
     # Write dnsmasq config for DNS hijack (any URL → 192.168.4.1)

@@ -15,7 +15,6 @@ set -euo pipefail
 
 PICFRAME_STATE="/var/lib/picframe/state.yaml"
 PICFRAME_CONFIG="/home/matt/.picframe/config.yaml"
-WPA_CONF="/etc/wpa_supplicant/wpa_supplicant.conf"
 # Hardcoded venv path — HOME resolves to /root when run as sudo
 SETUP_PYTHON="/home/matt/picframe_4.0/scripts/setup/venv/bin/python3"
 TIMESTAMP() { date +'%Y-%m-%d %H:%M:%S'; }
@@ -75,26 +74,22 @@ cmd_wifi() {
     validate_ssid "$ssid"
     validate_wifi_password "$wifi_password"
 
-    LOG "Writing WiFi configuration for SSID '$ssid'..."
+    LOG "Configuring WiFi for SSID '$ssid' via NetworkManager..."
 
-    # Use wpa_passphrase to generate the network block (hashes the PSK)
-    local tmp_conf
-    tmp_conf="$(mktemp)"
+    # Remove existing picframe-wifi connection if present
+    nmcli con delete picframe-wifi 2>/dev/null || true
 
-    {
-        echo "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev"
-        echo "update_config=1"
-        echo "country=US"
-        echo ""
-        # Filter out plaintext #psk= comment for security
-        wpa_passphrase "$ssid" "$wifi_password" | grep -v '#psk='
-    } > "$tmp_conf"
+    # Create new connection
+    nmcli con add type wifi ifname wlan0 con-name picframe-wifi ssid "$ssid"
 
-    chmod 600 "$tmp_conf"
-    mv "$tmp_conf" "$WPA_CONF"
+    # Set WPA2-PSK and autoconnect
+    nmcli con modify picframe-wifi \
+        wifi-sec.key-mgmt wpa-psk \
+        wifi-sec.psk "$wifi_password" \
+        connection.autoconnect yes \
+        connection.autoconnect-priority 10
 
-    LOG "WiFi configuration written to $WPA_CONF"
-    LOG "Run 'sudo reboot' to connect to the new network."
+    LOG "WiFi configured. Run 'sudo reboot' to connect to the new network."
 }
 
 # ── Frame name ────────────────────────────────────────────────────────────────

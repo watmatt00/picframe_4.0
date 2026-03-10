@@ -29,7 +29,6 @@ LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=LOG_DATE_FORMAT)
 logger = logging.getLogger("portal")
 
-WPA_SUPPLICANT_PATH = Path("/etc/wpa_supplicant/wpa_supplicant.conf")
 PICFRAME_CONFIG_PATH = Path.home() / ".picframe" / "config.yaml"
 
 # Input validation patterns
@@ -136,11 +135,11 @@ def save():
             frame_name=frame_name or state.get("frame_name", "picframe"),
         )
 
-    # ── Write wpa_supplicant.conf atomically ─────────────────────────────────
+    # ── Configure WiFi via NetworkManager ────────────────────────────────────
     try:
-        _write_wpa_supplicant(ssid, wifi_password)
+        _write_wifi_credentials(ssid, wifi_password)
     except Exception as e:
-        logger.error(f"Failed to write wpa_supplicant.conf: {e}")
+        logger.error(f"Failed to configure WiFi: {e}")
         template = "index.html" if is_first_run else "reconfigure.html"
         return render_template(
             template,
@@ -178,47 +177,41 @@ def save():
 
 # ── Helper functions ─────────────────────────────────────────────────────────
 
-def _write_wpa_supplicant(ssid: str, password: str) -> None:
+def _write_wifi_credentials(ssid: str, password: str) -> None:
     """
-    Write /etc/wpa_supplicant/wpa_supplicant.conf atomically.
+    Configure WiFi credentials using NetworkManager (nmcli).
 
-    Uses wpa_passphrase to properly hash the PSK rather than storing plaintext.
+    Deletes any existing 'picframe-wifi' connection and creates a new one
+    with autoconnect enabled so it persists across reboots.
 
     Args:
         ssid: WiFi network name.
-        password: WiFi password.
+        password: WiFi password (WPA2-PSK).
     """
-    # Generate the network block using wpa_passphrase
-    result = subprocess.run(
-        ["wpa_passphrase", ssid, password],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    # Remove plaintext password comment line from output
-    network_block = "\n".join(
-        line for line in result.stdout.splitlines()
-        if not line.strip().startswith("#psk=")
+    # Remove old picframe-wifi connection if it exists
+    subprocess.run(
+        ["nmcli", "con", "delete", "picframe-wifi"],
+        capture_output=True, check=False,
     )
 
-    content = (
-        "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n"
-        "update_config=1\n"
-        "country=US\n\n"
-        f"{network_block}\n"
+    # Create connection
+    subprocess.run(
+        ["nmcli", "con", "add", "type", "wifi", "ifname", "wlan0",
+         "con-name", "picframe-wifi", "ssid", ssid],
+        capture_output=True, text=True, check=True,
     )
 
-    # Atomic write: write to temp then rename
-    tmp = WPA_SUPPLICANT_PATH.with_suffix(".tmp")
-    try:
-        tmp.write_text(content)
-        tmp.chmod(0o600)
-        tmp.rename(WPA_SUPPLICANT_PATH)
-        logger.info(f"wpa_supplicant.conf written for SSID '{ssid}'")
-    except Exception:
-        if tmp.exists():
-            tmp.unlink()
-        raise
+    # Set WPA2-PSK and autoconnect with high priority
+    subprocess.run(
+        ["nmcli", "con", "modify", "picframe-wifi",
+         "wifi-sec.key-mgmt", "wpa-psk",
+         "wifi-sec.psk", password,
+         "connection.autoconnect", "yes",
+         "connection.autoconnect-priority", "10"],
+        capture_output=True, text=True, check=True,
+    )
+
+    logger.info(f"NetworkManager 'picframe-wifi' connection configured for SSID '{ssid}'")
 
 
 def _write_picframe_config(frame_name: str, koofr_user: str, koofr_pass: str) -> None:
