@@ -10,6 +10,7 @@ PicFrame 4.0 is a complete rewrite providing:
 - **Mobile app support** via Tailscale Funnel (no VPN needed)
 - **Pi3D PictureFrame** integration for GPU-accelerated display
 - **rclone sync** for cloud photo synchronization
+- **WiFi recovery** — self-hosted hotspot + captive portal when WiFi credentials change
 
 ## Architecture
 
@@ -17,11 +18,12 @@ PicFrame 4.0 is a complete rewrite providing:
 Mobile App ──(Tailscale Funnel)──> Pi API ──> Pi3D Display
 Web Dashboard ──(LAN only)──────> Pi API ──> Pi3D Display
 Contributors ──(Koofr)──────────> Cloud ──> rclone sync
+WiFi lost ──────────────────────> Hotspot + Captive Portal ──> Reconfigure
 ```
 
 ## Current Status
 
-**Phases 1-3 Complete** - API Foundation + Remote Access + Web Dashboard
+**Phases 1-3 + Phase 6 Complete**
 
 | Feature | Status |
 |---------|--------|
@@ -34,12 +36,25 @@ Contributors ──(Koofr)──────────> Cloud ──> rclone s
 | rclone sync | ✅ Done |
 | Web dashboard | ✅ Done |
 | systemd service | ✅ Done |
+| WiFi watchdog | ✅ Done |
+| AP captive portal | ✅ Done |
+| BLE setup service | ✅ Done |
+| `picframe-config` CLI | ✅ Done |
 
 ### Web Dashboard Features
 - **Status Tab**: Photo sync status, cloud/local photo counts, traffic light indicator, current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API)
 - **Switch Source Tab**: Source management, add new sources with rclone folder browser
 - **Settings Tab**: Frame settings (name, rotation interval, sync interval, log level), device pairing (QR code + instructions), manage paired devices (inline table with revoke), log viewer (ops/security with auto-refresh)
 - **OpenAPI Docs**: Auto-generated at `/docs` and `/openapi.json`
+
+### WiFi Recovery (Phase 6)
+When a frame loses WiFi for more than 10 minutes (or on first boot), it automatically enters setup mode:
+1. Photo display stops; the console shows connection instructions
+2. Frame broadcasts a `PicFrame-<name>` WiFi hotspot
+3. Connect a phone or laptop to that network and open `http://192.168.4.1`
+4. Enter new WiFi credentials — frame reboots and reconnects
+
+SSH/command-line access is preserved throughout via the `picframe-config` tool.
 
 ## Quick Start
 
@@ -81,6 +96,39 @@ curl http://localhost:8000/health
 
 # Version
 curl http://localhost:8000/version
+```
+
+## WiFi Recovery — Quick Reference
+
+### What happens when WiFi is lost
+
+| Condition | Behavior |
+|-----------|----------|
+| WiFi lost < 10 min | Gallery keeps running, watchdog waits |
+| WiFi lost > 10 min | `needs_setup` flag set; setup mode on next reboot |
+| `provisioned=false` (first boot) | Setup mode immediately |
+
+### Reconfigure via hotspot (phone/laptop)
+
+1. Look for `PicFrame-<framename>` in WiFi networks — password: `picframe`
+2. Connect and open `http://192.168.4.1` (captive portal auto-opens on most phones)
+3. Enter your home WiFi SSID and password, then submit
+4. Frame reboots and reconnects
+
+### Reconfigure via SSH / `picframe-config`
+
+```bash
+# Update WiFi credentials
+sudo picframe-config --wifi-ssid "MyNetwork" --wifi-password "secret"
+
+# Show current state
+sudo picframe-config --show
+
+# Manually trigger setup mode on next reboot
+sudo picframe-config --force-setup
+
+# Cancel a pending setup mode
+sudo picframe-config --clear-setup
 ```
 
 ## Documentation

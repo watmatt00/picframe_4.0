@@ -245,7 +245,42 @@ python -m src.main
 
 ---
 
-## Step 9: Verify Installation
+## Step 9: WiFi Recovery Setup (Phase 6)
+
+**PROMPT USER**: "Now we'll install the WiFi watchdog and captive portal. This lets you recover the frame if WiFi credentials ever change — no SD card removal needed."
+
+Run the Phase 6 installer as root:
+
+```bash
+cd ~/picframe_4.0
+sudo bash scripts/setup/install_setup.sh
+```
+
+The installer:
+- Installs `hostapd`, `dnsmasq`, `bluez` system packages
+- Creates a dedicated Python venv at `scripts/setup/venv/`
+- Copies systemd service files to `/etc/systemd/system/`
+- Enables `picframe-watchdog` to start at boot
+- Installs `picframe-config` to `/usr/local/bin/`
+- Initializes `/var/lib/picframe/state.yaml`
+
+Verify the watchdog is running:
+
+```bash
+sudo systemctl status picframe-watchdog
+```
+
+Verify `picframe-config` is available:
+
+```bash
+sudo picframe-config --show
+```
+
+**CHECKPOINT**: Ask user to confirm watchdog is active and `--show` prints state without errors.
+
+---
+
+## Step 10: Verify Installation
 
 **PROMPT USER**: "Let's verify everything is working."
 
@@ -287,6 +322,68 @@ curl https://<hostname>.<tailnet>.ts.net/health
 - [ ] `~/.picframe/config.yaml` exists
 - [ ] `curl http://localhost:8000/health` returns `{"status":"ok"}`
 - [ ] `curl https://<hostname>.<tailnet>.ts.net/health` returns `{"status":"ok"}`
+- [ ] `sudo systemctl status picframe-watchdog` shows active (running)
+- [ ] `sudo picframe-config --show` prints state without errors
+
+---
+
+---
+
+## WiFi Recovery — Usage Guide
+
+### How setup mode is triggered
+
+| Condition | When |
+|-----------|------|
+| First boot (`provisioned=false`) | Immediately on boot |
+| WiFi lost > 10 minutes | `needs_setup` flag set; setup mode on next reboot |
+| Manual trigger | `sudo picframe-config --force-setup` then reboot |
+
+### What the frame does in setup mode
+
+1. Photo display stops
+2. Console shows a box with the hotspot name, password, and portal URL
+3. Frame broadcasts a WiFi hotspot: `PicFrame-<framename>` / password `picframe`
+4. Any URL resolves to `http://192.168.4.1` (DNS hijack via dnsmasq)
+
+### Reconfiguring WiFi via hotspot
+
+1. On your phone or laptop, connect to `PicFrame-<framename>` (password: `picframe`)
+2. A captive portal should open automatically — or open a browser to `http://192.168.4.1`
+3. Enter your home WiFi SSID and password
+4. Frame reboots and reconnects; gallery resumes
+
+### Reconfiguring WiFi via SSH / `picframe-config`
+
+If you can reach the frame over Tailscale or Ethernet:
+
+```bash
+# Update WiFi credentials (creates a NetworkManager connection profile)
+sudo picframe-config --wifi-ssid "MyNetwork" --wifi-password "mysecret"
+sudo reboot
+
+# Show current frame state
+sudo picframe-config --show
+
+# Other commands
+sudo picframe-config --frame-name "kframe"
+sudo picframe-config --koofr-user "user@example.com" --koofr-pass "secret"
+sudo picframe-config --force-setup     # trigger setup mode on next reboot
+sudo picframe-config --clear-setup     # cancel a pending setup mode
+```
+
+### Checking watchdog and AP service logs
+
+```bash
+# Watchdog (WiFi monitor)
+sudo journalctl -u picframe-watchdog -f
+
+# AP setup service (hostapd + portal)
+sudo journalctl -u picframe-ap-setup -f
+
+# Current state
+sudo cat /var/lib/picframe/state.yaml
+```
 
 ---
 
@@ -303,7 +400,8 @@ When setting up a new Pi, Claude should follow this sequence:
 7. **Step 6**: "Clone picframe_4.0 repo. Confirm venv created?"
 8. **Step 7**: "Create config. What frame name? Confirm config.yaml exists?"
 9. **Step 8**: "Start API. Any errors?"
-10. **Step 9**: "Run verification checks. All passing?"
+10. **Step 9**: "Run Phase 6 installer. Confirm watchdog active and picframe-config --show works?"
+11. **Step 10**: "Run verification checks. All passing?"
 
 ## Troubleshooting
 
@@ -328,6 +426,19 @@ sudo ufw status
 1. Check service: `systemctl --user status picframe.service`
 2. Check logs: `journalctl --user -u picframe.service -f`
 3. Verify display: `echo $DISPLAY`
+
+### WiFi Hotspot Not Appearing
+
+1. Check watchdog entered setup mode: `sudo journalctl -u picframe-watchdog -n 20`
+2. Check AP service started: `sudo systemctl status picframe-ap-setup`
+3. Check hostapd is running: `sudo iw dev wlan0 info` — should show `type AP`
+4. If `type managed` instead, NetworkManager reclaimed the interface — check AP service logs: `sudo journalctl -u picframe-ap-setup -n 30`
+
+### Frame Won't Reconnect After Portal Submit
+
+1. Check `needs_setup` was cleared: `sudo cat /var/lib/picframe/state.yaml`
+2. Verify NM connection was created: `nmcli con show picframe-wifi`
+3. If connection missing, reconfigure manually: `sudo picframe-config --wifi-ssid "..." --wifi-password "..."`
 
 ### API Won't Start
 
