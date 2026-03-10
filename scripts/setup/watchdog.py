@@ -223,7 +223,10 @@ def run_monitoring_loop(in_setup_mode: bool = False) -> None:
     while True:
         # In setup mode, wlan0 is owned by hostapd — don't poll WiFi.
         # The portal handles rebooting when the user submits credentials.
+        # Redisplay the setup prompt periodically so getty can't obscure it.
         if in_setup_mode:
+            frame_name = state_manager.get("frame_name", "picframe")
+            _display_setup_prompt(frame_name)
             time.sleep(POLL_INTERVAL_SECONDS)
             continue
 
