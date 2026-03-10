@@ -78,9 +78,9 @@ Set up App Store Connect, configure signing/provisioning, archive and upload to 
 **Priority:** High (blocks 6.2 implementation)
 **Status:** Open question — finalize before implementing BLE setup service
 
-### AP Password Strategy
-**Priority:** Low
-**Status:** Open question — hardcoded `"picframe"` or derived from Pi serial number?
+### AP Password — Random Per-Frame Password
+**Priority:** Medium
+**Status:** Requested — currently hardcoded as `"picframe"`. Generate a random password (e.g. from Pi serial number or random 8-char alphanumeric) during `install_setup.sh` and store in hostapd config. The console setup prompt already reads and displays the password from hostapd config, so the display will automatically show the correct value once this is implemented.
 
 ### First-Run Sync Failure UX
 **Priority:** Medium

@@ -15,6 +15,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+HOSTAPD_CONF_PATH = Path("/etc/hostapd/picframe-hostapd.conf")
+AP_PORTAL_IP = "192.168.4.1"
+
 
 # Allow running from any working directory
 sys.path.insert(0, str(Path(__file__).parent))
@@ -68,12 +71,92 @@ def is_wifi_associated() -> bool:
         return False
 
 
+def _get_hostapd_value(key: str, default: str) -> str:
+    """Read a single key=value from the hostapd config file."""
+    try:
+        for line in HOSTAPD_CONF_PATH.read_text().splitlines():
+            if line.startswith(f"{key}="):
+                return line.split("=", 1)[1].strip()
+    except Exception:
+        pass
+    return default
+
+
+def _update_hostapd_ssid(frame_name: str) -> None:
+    """Rewrite the hostapd SSID line to match the current frame name."""
+    try:
+        content = HOSTAPD_CONF_PATH.read_text()
+        new_ssid = f"PicFrame-{frame_name}"
+        lines = [
+            f"ssid={new_ssid}" if line.startswith("ssid=") else line
+            for line in content.splitlines()
+        ]
+        HOSTAPD_CONF_PATH.write_text("\n".join(lines) + "\n")
+        logger.info(f"hostapd SSID updated to '{new_ssid}'")
+    except Exception as e:
+        logger.warning(f"Could not update hostapd SSID: {e}")
+
+
+def _display_setup_prompt(frame_name: str) -> None:
+    """
+    Print WiFi setup instructions on the physical console (tty1).
+
+    Only called when entering setup mode so this text never appears
+    during normal gallery operation.
+    """
+    ap_ssid = f"PicFrame-{frame_name}"
+    ap_password = _get_hostapd_value("wpa_passphrase", "picframe")
+
+    W = 52  # box width (inner)
+    sep = "+" + "-" * W + "+"
+
+    def row(text: str = "") -> str:
+        return f"| {text:<{W - 2}} |"
+
+    lines = [
+        "\033[2J\033[H",   # clear screen, cursor home
+        "\033[1;33m",      # bold yellow
+        sep,
+        row("  PICFRAME \u2014 WiFi Setup Mode"),
+        sep,
+        row(),
+        row("  Connect to this WiFi network:"),
+        row(),
+        row(f"  Network  :  {ap_ssid}"),
+        row(f"  Password :  {ap_password}"),
+        row(),
+        row("  Then open a browser to:"),
+        row(),
+        row(f"  \033[1;36mhttp://{AP_PORTAL_IP}\033[1;33m"),
+        row(),
+        row("  Enter your home WiFi credentials in"),
+        row("  the page that opens."),
+        row(),
+        sep,
+        "\033[0m",         # reset
+        "",
+    ]
+
+    msg = "\n".join(lines)
+    try:
+        with open("/dev/tty1", "w") as tty:
+            tty.write(msg)
+    except Exception as e:
+        logger.warning(f"Could not write setup prompt to tty1: {e}")
+
+
 def start_setup_mode() -> None:
     """
     Enter setup mode: stop the photo display, write dnsmasq config,
-    then start BLE and AP services simultaneously.
+    start BLE and AP services, and show setup instructions on the console.
     """
     logger.info("Starting setup mode")
+
+    state = state_manager.read()
+    frame_name = state.get("frame_name", "picframe")
+
+    # Keep hostapd SSID in sync with current frame name
+    _update_hostapd_ssid(frame_name)
 
     # Stop the photo display — picframe runs as a user service under 'matt'
     # Use -M matt@ to reach the user session bus from root
@@ -103,6 +186,9 @@ def start_setup_mode() -> None:
         logger.info("Setup mode services started (BLE + AP)")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to start setup mode services: {e}")
+
+    # Show instructions on the physical screen
+    _display_setup_prompt(frame_name)
 
 
 def stop_setup_mode() -> None:
