@@ -18,6 +18,7 @@ from src.auth.models import Device
 from src.auth.pairing import generate_pairing_code as gen_code, verify_pairing_code
 from src.config.settings import get_settings
 from src.storage.devices import device_storage
+from src.storage.invites import invite_storage
 from src.utils.logging import log_auth_event
 from src.utils.qr_generator import generate_pairing_qr
 
@@ -65,18 +66,23 @@ async def pair_device(request: PairRequest, http_request: Request):
         ip=client_ip,
     )
 
-    # Validate the pairing code
+    # Validate the pairing code — check admin codes first, then contributor invites
+    role = "admin"
     if not verify_pairing_code(request.code):
-        log_auth_event(
-            "PAIR",
-            success=False,
-            details={"reason": "invalid_or_expired_code"},
-            ip=client_ip,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired pairing code",
-        )
+        # Not an admin code — check contributor invite codes
+        invite = invite_storage.verify_and_claim(request.code, request.device_name)
+        if not invite:
+            log_auth_event(
+                "PAIR",
+                success=False,
+                details={"reason": "invalid_or_expired_code"},
+                ip=client_ip,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired pairing code",
+            )
+        role = invite.role
 
     # Get frame config
     settings = get_settings()
@@ -86,7 +92,7 @@ async def pair_device(request: PairRequest, http_request: Request):
     token = create_token(
         device_id=device_id,
         device_name=request.device_name,
-        role="admin",
+        role=role,
         frame_id=settings.frame.id,
     )
 
@@ -94,7 +100,7 @@ async def pair_device(request: PairRequest, http_request: Request):
     device = Device(
         id=device_id,
         name=request.device_name,
-        role="admin",
+        role=role,
         paired_at=datetime.now(timezone.utc),
     )
     device_storage.add_device(device)
@@ -111,6 +117,7 @@ async def pair_device(request: PairRequest, http_request: Request):
         token=token,
         frame_id=settings.frame.id,
         frame_name=settings.frame.name,
+        role=role,
         funnel_url=settings.frame.funnel_url,
     )
 

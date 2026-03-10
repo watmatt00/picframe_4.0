@@ -4,14 +4,18 @@ PicFrame 4.0 API - Settings Routes.
 Manage frame settings remotely:
 - GET /settings: Get current settings
 - PUT /settings/sync-interval: Update sync interval
+- PUT /settings/frame-name: Update frame display name
+- PUT /settings/rotation-interval: Update photo rotation interval
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from src.api.dependencies import require_admin
 from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
+from src.services.systemd_service import systemd_service
+from src.utils.logging import log_auth_event
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -26,6 +30,21 @@ class FrameSettings(BaseModel):
 class UpdateSyncIntervalRequest(BaseModel):
     """Request to update sync interval."""
     interval: int = Field(ge=60, le=86400, description="Sync interval in seconds (1 min to 24 hours)")
+
+
+class UpdateFrameNameRequest(BaseModel):
+    """Request to update frame display name."""
+    name: str = Field(
+        min_length=1,
+        max_length=50,
+        pattern=r'^[a-zA-Z0-9 _\-]+$',
+        description="Frame display name (alphanumeric, spaces, hyphens, underscores)",
+    )
+
+
+class UpdateRotationIntervalRequest(BaseModel):
+    """Request to update photo rotation interval."""
+    interval: int = Field(ge=5, le=3600, description="Rotation interval in seconds (5s to 60min)")
 
 
 class UpdateSettingsResponse(BaseModel):
@@ -64,3 +83,65 @@ async def update_sync_interval(
         success=True,
         message=f"Sync interval updated to {request.interval} seconds",
     )
+
+
+@router.put("/frame-name", response_model=UpdateSettingsResponse)
+async def update_frame_name(
+    request: UpdateFrameNameRequest,
+    admin=Depends(require_admin),
+):
+    """
+    Update the frame display name.
+
+    The name appears in the mobile app and pairing QR codes.
+    """
+    name = request.name.strip()
+    config_manager.set("frame.name", name)
+    reload_settings()
+
+    log_auth_event(
+        "SETTINGS_UPDATE",
+        success=True,
+        details={"field": "frame_name", "admin": admin.device_name},
+    )
+
+    return UpdateSettingsResponse(
+        success=True,
+        message=f"Frame name updated to '{name}'",
+    )
+
+
+@router.put("/rotation-interval", response_model=UpdateSettingsResponse)
+async def update_rotation_interval(
+    request: UpdateRotationIntervalRequest,
+    admin=Depends(require_admin),
+):
+    """
+    Update the photo rotation interval.
+
+    Changes how many seconds each photo is displayed.
+    Automatically restarts the Frame service to apply the change.
+    """
+    config_manager.set("display.rotation_interval", request.interval)
+    reload_settings()
+
+    restarted = await systemd_service.restart("picframe")
+
+    log_auth_event(
+        "SETTINGS_UPDATE",
+        success=True,
+        details={
+            "field": "rotation_interval",
+            "value": request.interval,
+            "admin": admin.device_name,
+            "service_restarted": restarted,
+        },
+    )
+
+    message = f"Rotation interval updated to {request.interval} seconds"
+    if restarted:
+        message += ". Frame service restarted."
+    else:
+        message += ". Warning: Frame service restart failed — change will apply on next restart."
+
+    return UpdateSettingsResponse(success=True, message=message)
