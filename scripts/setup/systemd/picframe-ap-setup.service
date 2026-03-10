@@ -1,13 +1,14 @@
 [Unit]
 Description=PicFrame AP Setup Mode (hotspot + captive portal)
-After=network.target
+After=network.target NetworkManager.service
 # Do not run automatically — started by picframe-watchdog when needs_setup=true
 
 [Service]
 Type=simple
-# Disconnect from any current WiFi so wlan0 is free for hostapd
-ExecStartPre=/usr/sbin/wpa_cli -i wlan0 disconnect
-ExecStartPre=/bin/sleep 2
+# Hand wlan0 to hostapd: tell NetworkManager to stop managing it
+ExecStartPre=/usr/bin/nmcli device disconnect wlan0
+ExecStartPre=/usr/bin/nmcli device set wlan0 managed no
+ExecStartPre=/bin/sleep 1
 # Assign static IP and start AP
 ExecStartPre=/usr/bin/ip addr flush dev wlan0
 ExecStartPre=/usr/bin/ip addr add 192.168.4.1/24 dev wlan0
@@ -15,11 +16,11 @@ ExecStartPre=/usr/sbin/hostapd -B /etc/hostapd/picframe-hostapd.conf
 ExecStartPre=/bin/sleep 1
 ExecStartPre=/usr/sbin/dnsmasq -C /tmp/picframe-dnsmasq.conf --pid-file=/tmp/picframe-dnsmasq.pid
 ExecStart=/home/matt/picframe_4.0/scripts/setup/venv/bin/python3 /home/matt/picframe_4.0/scripts/setup/ap_portal/portal.py
+# Teardown: kill AP processes, return wlan0 to NetworkManager
 ExecStopPost=/bin/sh -c 'kill $(cat /tmp/picframe-dnsmasq.pid) 2>/dev/null || true'
 ExecStopPost=/bin/sh -c '/usr/bin/pkill -f picframe-hostapd.conf || true'
 ExecStopPost=/bin/sh -c '/usr/bin/ip addr del 192.168.4.1/24 dev wlan0 || true'
-# Reconnect to WiFi after setup is done (portal handles reboot, this is for --clear-setup path)
-ExecStopPost=/bin/sh -c '/usr/sbin/wpa_cli -i wlan0 reconnect || true'
+ExecStopPost=/usr/bin/nmcli device set wlan0 managed yes
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
