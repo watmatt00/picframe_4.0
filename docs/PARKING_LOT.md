@@ -74,6 +74,11 @@ Set up App Store Connect, configure signing/provisioning, archive and upload to 
 
 ## Phase 6: WiFi Recovery & Setup Mode
 
+### ~~Console Setup Prompt~~
+**Status:** Done
+
+During setup mode, `/etc/issue` is replaced with WiFi setup instructions (SSID, password, portal URL). Shown above the login prompt so the terminal stays fully usable. Restored automatically on next normal boot via `_restore_issue()` in `watchdog.py`. Only appears when `needs_setup=true`.
+
 ### BLE Service UUID / GATT Characteristic Spec
 **Priority:** High (blocks 6.2 implementation)
 **Status:** Open question — finalize before implementing BLE setup service
