@@ -17,6 +17,8 @@ from pathlib import Path
 
 HOSTAPD_CONF_PATH = Path("/etc/hostapd/picframe-hostapd.conf")
 AP_PORTAL_IP = "192.168.4.1"
+ISSUE_PATH = Path("/etc/issue")
+ISSUE_BACKUP_PATH = Path("/etc/issue.picframe-backup")
 
 
 # Allow running from any working directory
@@ -97,27 +99,26 @@ def _update_hostapd_ssid(frame_name: str) -> None:
         logger.warning(f"Could not update hostapd SSID: {e}")
 
 
-def _display_setup_prompt(frame_name: str) -> None:
+def _write_setup_issue(frame_name: str) -> None:
     """
-    Print WiFi setup instructions on the physical console (tty1).
+    Write WiFi setup instructions to /etc/issue so they appear above
+    the login prompt. Terminal stays fully usable — user can log in
+    normally and the setup info is visible in the header.
 
-    Only called when entering setup mode so this text never appears
-    during normal gallery operation.
+    Backs up the original /etc/issue first; restored by _restore_issue().
     """
     ap_ssid = f"PicFrame-{frame_name}"
     ap_password = _get_hostapd_value("wpa_passphrase", "picframe")
 
-    W = 52  # box width (inner)
+    W = 50
     sep = "+" + "-" * W + "+"
 
     def row(text: str = "") -> str:
-        return f"| {text:<{W - 2}} |"
+        return f"| {text:<{W - 1}}|"
 
     lines = [
-        "\033[2J\033[H",   # clear screen, cursor home
-        "\033[1;33m",      # bold yellow
         sep,
-        row("  PICFRAME \u2014 WiFi Setup Mode"),
+        row(f"  PicFrame \u2014 WiFi Setup Mode"),
         sep,
         row(),
         row("  Connect to this WiFi network:"),
@@ -125,24 +126,35 @@ def _display_setup_prompt(frame_name: str) -> None:
         row(f"  Network  :  {ap_ssid}"),
         row(f"  Password :  {ap_password}"),
         row(),
-        row("  Then open a browser to:"),
+        row(f"  Open a browser to: http://{AP_PORTAL_IP}"),
         row(),
-        row(f"  \033[1;36mhttp://{AP_PORTAL_IP}\033[1;33m"),
-        row(),
-        row("  Enter your home WiFi credentials in"),
-        row("  the page that opens."),
+        row("  Enter your home WiFi credentials"),
+        row("  in the page that opens."),
         row(),
         sep,
-        "\033[0m",         # reset
         "",
     ]
 
-    msg = "\n".join(lines)
+    content = "\n".join(lines) + "\n"
     try:
-        with open("/dev/tty1", "w") as tty:
-            tty.write(msg)
+        if not ISSUE_BACKUP_PATH.exists():
+            ISSUE_PATH.rename(ISSUE_BACKUP_PATH)
+        ISSUE_PATH.write_text(content)
+        subprocess.run(["systemctl", "restart", "getty@tty1"], check=False)
+        logger.info(f"Setup info written to /etc/issue (SSID: {ap_ssid})")
     except Exception as e:
-        logger.warning(f"Could not write setup prompt to tty1: {e}")
+        logger.warning(f"Could not write setup info to /etc/issue: {e}")
+
+
+def _restore_issue() -> None:
+    """Restore /etc/issue from backup if a setup-mode backup exists."""
+    try:
+        if ISSUE_BACKUP_PATH.exists():
+            ISSUE_BACKUP_PATH.rename(ISSUE_PATH)
+            subprocess.run(["systemctl", "restart", "getty@tty1"], check=False)
+            logger.info("Restored /etc/issue from backup")
+    except Exception as e:
+        logger.warning(f"Could not restore /etc/issue: {e}")
 
 
 def start_setup_mode() -> None:
@@ -187,8 +199,8 @@ def start_setup_mode() -> None:
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to start setup mode services: {e}")
 
-    # Show instructions on the physical screen
-    _display_setup_prompt(frame_name)
+    # Show instructions in the login header (/etc/issue)
+    _write_setup_issue(frame_name)
 
 
 def stop_setup_mode() -> None:
@@ -223,10 +235,7 @@ def run_monitoring_loop(in_setup_mode: bool = False) -> None:
     while True:
         # In setup mode, wlan0 is owned by hostapd — don't poll WiFi.
         # The portal handles rebooting when the user submits credentials.
-        # Redisplay the setup prompt periodically so getty can't obscure it.
         if in_setup_mode:
-            frame_name = state_manager.get("frame_name", "picframe")
-            _display_setup_prompt(frame_name)
             time.sleep(POLL_INTERVAL_SECONDS)
             continue
 
@@ -270,6 +279,9 @@ def run_monitoring_loop(in_setup_mode: bool = False) -> None:
 def main() -> None:
     """Entry point for the watchdog service."""
     logger.info("PicFrame WiFi Watchdog starting")
+
+    # Restore /etc/issue if a previous setup run left the custom version
+    _restore_issue()
 
     # Ensure state file exists
     state_manager.initialize()
