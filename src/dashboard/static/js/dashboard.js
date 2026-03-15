@@ -350,13 +350,13 @@ function initStatusDashboard() {
     if (btnRestartPf) btnRestartPf.addEventListener("click", restartPfService);
     if (btnRestartApi) btnRestartApi.addEventListener("click", restartApiService);
 
-    // Auto-refresh thumbnail
+    // Auto-refresh thumbnail in sync with frame rotation interval
     const thumbnailImg = document.getElementById("current-image-thumbnail");
     if (thumbnailImg) {
+        const rotationSecs = parseInt(thumbnailImg.dataset.rotationInterval, 10) || 30;
         setInterval(() => {
-            const timestamp = new Date().getTime();
-            thumbnailImg.src = `/current-image?t=${timestamp}`;
-        }, 30000);
+            thumbnailImg.src = `/current-image?t=${new Date().getTime()}`;
+        }, rotationSecs * 1000);
     }
 
     // Initial load only — use the refresh button for manual updates
