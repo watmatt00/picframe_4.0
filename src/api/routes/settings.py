@@ -8,6 +8,9 @@ Manage frame settings remotely:
 - PUT /settings/rotation-interval: Update photo rotation interval
 """
 
+from pathlib import Path
+
+import yaml
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
@@ -16,6 +19,8 @@ from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
 from src.services.systemd_service import systemd_service
 from src.utils.logging import log_auth_event
+
+PICFRAME_CONFIG_PATH = Path.home() / "picframe_data" / "config" / "configuration.yaml"
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -124,6 +129,18 @@ async def update_rotation_interval(
     """
     config_manager.set("display.rotation_interval", request.interval)
     reload_settings()
+
+    # Also write to pi3d configuration.yaml so dashboard reads the same value
+    if PICFRAME_CONFIG_PATH.exists():
+        try:
+            with open(PICFRAME_CONFIG_PATH) as f:
+                picframe_config = yaml.safe_load(f) or {}
+            picframe_config.setdefault("model", {})["time_delay"] = float(request.interval)
+            with open(PICFRAME_CONFIG_PATH, "w") as f:
+                yaml.safe_dump(picframe_config, f, default_flow_style=False)
+        except Exception as e:
+            log_auth_event("SETTINGS_UPDATE", success=False,
+                           details={"field": "rotation_interval", "error": str(e)})
 
     restarted = await systemd_service.restart("picframe")
 
