@@ -107,6 +107,41 @@ async def rclone_sync(
         return RcloneResult(success=False, error=str(e))
 
 
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}
+
+
+def _validate_filename(filename: str) -> bool:
+    """Bare filename only: no path separators, no traversal, image ext."""
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return False
+    if Path(filename).suffix.lower() not in IMAGE_EXTENSIONS:
+        return False
+    return bool(re.match(r'^[a-zA-Z0-9_\-. ]+$', filename))
+
+
+async def rclone_deletefile(rclone_remote: str, filename: str) -> RcloneResult:
+    """Delete a single file from an rclone remote. No shell=True."""
+    if not _validate_remote(rclone_remote):
+        return RcloneResult(success=False, error=f"Invalid remote: {rclone_remote}")
+    if not _validate_filename(filename):
+        return RcloneResult(success=False, error=f"Invalid filename: {filename}")
+    cmd = ["rclone", "deletefile", f"{rclone_remote}/{filename}"]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    stdout, _ = await proc.communicate()
+    output = stdout.decode()
+    if proc.returncode == 0:
+        return RcloneResult(success=True, files_deleted=1, output=output)
+    return RcloneResult(
+        success=False,
+        error=f"rclone deletefile exited {proc.returncode}",
+        output=output,
+    )
+
+
 async def rclone_count(remote: str) -> int:
     """
     Count files in a remote.

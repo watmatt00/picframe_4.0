@@ -16,6 +16,9 @@ pyyaml>=6.0.1
 # QR code generation
 qrcode[pil]>=7.4.2
 
+# Image processing (thumbnails)
+Pillow>=10.0.0
+
 # File handling
 python-multipart>=0.0.6
 filelock>=3.13.0
