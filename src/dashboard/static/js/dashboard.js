@@ -359,9 +359,8 @@ function initStatusDashboard() {
         }, 30000);
     }
 
-    // Initial load and auto-refresh
+    // Initial load only — use the refresh button for manual updates
     refreshStatus();
-    setInterval(refreshStatus, 15000);
 }
 
 // =============================================================================

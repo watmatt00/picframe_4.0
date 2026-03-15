@@ -9,7 +9,6 @@ and disk capacity calculations.
 import asyncio
 import logging
 import shutil
-import time
 from pathlib import Path
 from typing import Optional
 
@@ -19,10 +18,6 @@ from src.services.sync_service import sync_service
 from src.utils.rclone import count_local_files, rclone_count
 
 logger = logging.getLogger(__name__)
-
-# Cache remote counts to avoid hammering the cloud provider on every status poll
-_remote_count_cache: dict[str, tuple[int, float]] = {}  # remote -> (count, timestamp)
-REMOTE_COUNT_CACHE_TTL = 300  # 5 minutes
 
 # Default path for capacity checks
 PICTURES_PATH = Path.home() / "Pictures"
@@ -59,20 +54,13 @@ async def get_photo_counts(source: Optional[PhotoSource]) -> tuple[int, int]:
 
     remote_count = 0
     if source.rclone_remote:
-        cached = _remote_count_cache.get(source.rclone_remote)
-        if cached and (time.monotonic() - cached[1]) < REMOTE_COUNT_CACHE_TTL:
-            remote_count = cached[0]
-        else:
-            try:
-                remote_count = await asyncio.wait_for(
-                    rclone_count(source.rclone_remote),
-                    timeout=15,
-                )
-                _remote_count_cache[source.rclone_remote] = (remote_count, time.monotonic())
-            except (asyncio.TimeoutError, Exception):
-                # Use stale cache if available rather than showing 0
-                if cached:
-                    remote_count = cached[0]
+        try:
+            remote_count = await asyncio.wait_for(
+                rclone_count(source.rclone_remote),
+                timeout=15,
+            )
+        except (asyncio.TimeoutError, Exception):
+            pass
 
     return local_count, remote_count
 
