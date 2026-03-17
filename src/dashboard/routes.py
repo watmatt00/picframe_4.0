@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
-from src.services.source_manager import source_manager, PhotoSource
+from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
 from src.services.systemd_service import systemd_service
 from src.services.display_service import display_service
@@ -455,12 +455,7 @@ async def restart_service_from_dashboard(service_name: str):
 
 class CreateSourceRequest(BaseModel):
     """Request to create a new photo source."""
-    source_id: str
-    label: str
-    rclone_remote: str
-    path: str
-    enabled: bool = True
-    create_directory: bool = False
+    name: str
 
 
 class ListDirsRequest(BaseModel):
@@ -530,36 +525,13 @@ async def create_source_api(request: CreateSourceRequest):
 
     LAN-only endpoint, no JWT auth required.
     """
-    # Validate source_id format (alphanumeric + underscore/hyphen)
-    if not re.match(r"^[a-zA-Z0-9_-]+$", request.source_id):
-        return {"ok": False, "error": "Source ID must be alphanumeric (with underscores/hyphens)"}
+    if not request.name.strip():
+        return {"ok": False, "error": "Name is required"}
 
-    # Check if source already exists
-    if source_manager.get_source(request.source_id):
-        return {"ok": False, "error": f"Source '{request.source_id}' already exists"}
-
-    # Create directory if requested
-    local_path = Path(request.path)
-    if request.create_directory:
-        try:
-            local_path.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            return {"ok": False, "error": f"Failed to create directory: {e}"}
-
-    # Create source using source_manager internals
     try:
-        sources = source_manager._load_sources()
-        new_source = PhotoSource(
-            id=request.source_id,
-            name=request.label,
-            local_path=str(local_path),
-            rclone_remote=request.rclone_remote,
-            enabled=request.enabled,
-        )
-        sources.append(new_source)
-        source_manager._save_sources(sources)
-        logger.info(f"Created source '{request.source_id}' via dashboard")
-        return {"ok": True, "source_id": request.source_id}
+        source = source_manager.create_source(name=request.name.strip())
+        logger.info(f"Created source '{source.id}' via dashboard")
+        return {"ok": True, "source_id": source.id}
     except Exception as e:
         logger.error(f"Failed to create source: {e}")
         return {"ok": False, "error": str(e)}

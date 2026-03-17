@@ -385,45 +385,22 @@ function initSourcesManager() {
 
 function initSourcesElements() {
     sourcesElements = {
-        sourceId: document.getElementById('input-source-id'),
         label: document.getElementById('input-label'),
-        remote: document.getElementById('input-remote'),
-        remotePath: document.getElementById('input-remote-path'),
-        localDir: document.getElementById('input-local-dir'),
-        newDirName: document.getElementById('input-new-dir-name'),
-        newDirContainer: document.getElementById('new-dir-input-container'),
-        enabled: document.getElementById('input-enabled'),
-        btnTest: document.getElementById('btn-test-connection'),
         btnSave: document.getElementById('btn-save-source'),
         sourcesTbody: document.getElementById('sources-tbody'),
-        breadcrumb: document.getElementById('breadcrumb-path'),
-        remoteDirList: document.getElementById('remote-dir-list'),
         statusMessage: document.getElementById('status-message'),
         form: document.getElementById('add-source-form')
     };
 }
 
 function initSourcesEventListeners() {
-    if (sourcesElements.remote) {
-        sourcesElements.remote.addEventListener('change', onRemoteChange);
-    }
-    if (sourcesElements.localDir) {
-        sourcesElements.localDir.addEventListener('change', onLocalDirChange);
-    }
     if (sourcesElements.form) {
         sourcesElements.form.addEventListener('submit', onFormSubmit);
-    }
-    if (sourcesElements.btnTest) {
-        sourcesElements.btnTest.addEventListener('click', onTestConnection);
     }
 }
 
 async function loadSourcesInitialData() {
-    await Promise.all([
-        loadSources(),
-        loadRcloneRemotes(),
-        loadLocalDirs()
-    ]);
+    await loadSources();
 }
 
 async function loadSources() {
@@ -767,71 +744,12 @@ async function onTestConnection() {
 async function onFormSubmit(event) {
     event.preventDefault();
 
-    // Handle new directory creation
-    let localPath = sourcesElements.localDir.value;
-    let createDirectory = false;
-
-    if (localPath === 'new') {
-        const newDirName = sourcesElements.newDirName.value.trim();
-        if (!newDirName) {
-            showSourcesStatus('error', 'Please enter a directory name');
-            return;
-        }
-
-        if (!/^[a-zA-Z0-9_-]+$/.test(newDirName)) {
-            showSourcesStatus('error', 'Directory name must contain only letters, numbers, hyphens, and underscores');
-            return;
-        }
-
-        // Use the pictures base path from state (set by API)
-        localPath = `${sourcesState.picturesBasePath}/${newDirName}`;
-        createDirectory = true;
-    }
-
-    // Gather form data
-    const formData = {
-        source_id: sourcesElements.sourceId.value.trim(),
-        label: sourcesElements.label.value.trim(),
-        rclone_remote: buildFullRemotePath(),
-        path: localPath,
-        enabled: sourcesElements.enabled.checked,
-        create_directory: createDirectory
-    };
-
-    // Validate
-    if (!formData.source_id) {
-        showSourcesStatus('error', 'Source ID is required');
+    const name = sourcesElements.label.value.trim();
+    if (!name) {
+        showSourcesStatus('error', 'Display name is required');
         return;
     }
 
-    if (!formData.label) {
-        showSourcesStatus('error', 'Label is required');
-        return;
-    }
-
-    if (!formData.rclone_remote) {
-        showSourcesStatus('error', 'Please select a remote');
-        return;
-    }
-
-    if (!formData.path) {
-        showSourcesStatus('error', 'Please select or create a local directory');
-        return;
-    }
-
-    // Show confirmation dialog
-    const confirmMessage = `Please confirm the new photo source:\n\n` +
-        `Name: ${formData.label}\n` +
-        `Cloud Location: ${formData.rclone_remote}\n` +
-        `Local Storage: ${formData.path}\n` +
-        (createDirectory ? `\nA new directory will be created.\n` : '') +
-        `\nDo you want to proceed?`;
-
-    if (!confirm(confirmMessage)) {
-        return;
-    }
-
-    // Disable submit button
     sourcesElements.btnSave.disabled = true;
     sourcesElements.btnSave.textContent = 'Saving...';
     showSourcesStatus('info', 'Creating new source...');
@@ -840,21 +758,14 @@ async function onFormSubmit(event) {
         const response = await fetch('/api/sources/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
+            body: JSON.stringify({ name })
         });
 
         const data = await response.json();
 
         if (data.ok) {
-            showSourcesStatus('success', `Source "${formData.source_id}" created successfully!`);
-
-            // Reset form
+            showSourcesStatus('success', `Source "${data.source_id}" created successfully!`);
             sourcesElements.form.reset();
-            sourcesState.currentPath = [];
-            renderBreadcrumb();
-            renderRemoteDirs([]);
-
-            // Reload sources
             await loadSources();
         } else {
             showSourcesStatus('error', `Failed to create source: ${data.error}`);
@@ -863,7 +774,7 @@ async function onFormSubmit(event) {
         showSourcesStatus('error', `Error: ${err.message}`);
     } finally {
         sourcesElements.btnSave.disabled = false;
-        sourcesElements.btnSave.textContent = 'Add Photo Source';
+        sourcesElements.btnSave.textContent = 'Add Source';
     }
 }
 
