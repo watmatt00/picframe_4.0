@@ -839,6 +839,29 @@ async def save_settings_api(request: SaveSettingsRequest):
         return {"ok": False, "error": str(e)}
 
 
+@router.get("/api/updates/settings")
+async def get_update_settings():
+    """
+    Get current update configuration and last check result.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    settings = get_settings()
+    local_commit = await get_local_commit()
+    local_version = await get_local_version()
+    return {
+        "auto_check": settings.updates.auto_check,
+        "auto_apply": settings.updates.auto_apply,
+        "frequency": settings.updates.frequency,
+        "day": settings.updates.day,
+        "check_time": settings.updates.check_time,
+        "last_checked": settings.updates.last_checked,
+        "last_result": settings.updates.last_result,
+        "local_version": local_version,
+        "local_commit": local_commit,
+    }
+
+
 @router.post("/api/updates/check")
 async def check_for_updates_api():
     """
