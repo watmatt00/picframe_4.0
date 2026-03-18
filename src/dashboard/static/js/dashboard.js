@@ -76,9 +76,8 @@ function initAdvancedToggles() {
         settingsLogsToggle.addEventListener('click', () => {
             settingsLogsSection.classList.toggle('visible');
             settingsLogsToggle.textContent = settingsLogsSection.classList.contains('visible')
-                ? '▾ Hide logs'
-                : '▸ Show logs';
-            // Load logs on first open
+                ? '▾ Hide'
+                : '▸ Show';
             if (settingsLogsSection.classList.contains('visible')) {
                 loadSettingsLogs();
             }
@@ -92,8 +91,8 @@ function initAdvancedToggles() {
         updatesToggle.addEventListener('click', () => {
             updatesSection.classList.toggle('visible');
             updatesToggle.textContent = updatesSection.classList.contains('visible')
-                ? '▾ Updates'
-                : '▸ Updates';
+                ? '▾ Hide'
+                : '▸ Show';
         });
     }
 

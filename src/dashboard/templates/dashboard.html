@@ -365,9 +365,15 @@
 
             <!-- Log Viewer Card -->
             <section class="card" style="margin-top: 1.5rem;">
-                <div style="padding: 0 1.5rem 0;">
-                    <button class="advanced-toggle" id="settings-logs-toggle">▸ Show logs</button>
-                    <div class="advanced-section" id="settings-logs-section">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">📋 Logs</div>
+                        <div class="card-subtitle">Operations and security log viewer</div>
+                    </div>
+                    <button class="advanced-toggle" id="settings-logs-toggle">▸ Show</button>
+                </div>
+                <div class="advanced-section" id="settings-logs-section">
+                    <div style="padding: 0 1.5rem 1.5rem;">
                         <div class="log-controls">
                             <select id="settings-log-type" class="form-select" style="width: auto;">
                                 <option value="ops">Operations Log</option>
@@ -391,10 +397,15 @@
 
             <!-- Updates Card -->
             <section class="card" style="margin-top: 1.5rem;">
-                <div style="padding: 0 1.5rem 0;">
-                    <button class="advanced-toggle" id="updates-toggle">▸ Updates</button>
-                    <div class="advanced-section" id="updates-section">
-                <div style="padding: 0 0 1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">🔄 Updates</div>
+                        <div class="card-subtitle">Check for and apply updates from GitHub</div>
+                    </div>
+                    <button class="advanced-toggle" id="updates-toggle">▸ Show</button>
+                </div>
+                <div class="advanced-section" id="updates-section">
+                <div style="padding: 0 1.5rem 1.5rem;">
                     <!-- Version comparison table -->
                     <div class="service-grid" style="margin-bottom: 1.25rem;">
                         <div class="service-label">Installed</div>
@@ -498,9 +509,8 @@
                             <button type="submit" class="btn btn-primary">Save Schedule</button>
                         </div>
                     </form>
-                </div>
-                    </div> <!-- /updates-section -->
-                </div> <!-- /padding wrapper -->
+                </div> <!-- /padding -->
+                </div> <!-- /updates-section -->
             </section>
         </main>
     </div>
