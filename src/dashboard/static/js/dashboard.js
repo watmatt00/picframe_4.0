@@ -84,6 +84,18 @@ function initAdvancedToggles() {
         });
     }
 
+    // Frame Settings card toggle
+    const settingsFormToggle = document.getElementById('settings-form-toggle');
+    const settingsFormSection = document.getElementById('settings-form-section');
+    if (settingsFormToggle && settingsFormSection) {
+        settingsFormToggle.addEventListener('click', () => {
+            settingsFormSection.classList.toggle('visible');
+            settingsFormToggle.textContent = settingsFormSection.classList.contains('visible')
+                ? '▾ Hide'
+                : '▸ Show';
+        });
+    }
+
     // Updates card toggle
     const updatesToggle = document.getElementById('updates-toggle');
     const updatesSection = document.getElementById('updates-section');
