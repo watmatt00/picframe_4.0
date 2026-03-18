@@ -196,10 +196,10 @@ async def rename_photo(source_id: str, filename: str, body: RenamePhotoRequest, 
     if source.rclone_remote:
         result = await rclone_movefile(source.rclone_remote, filename, new_filename)
         if not result.success:
-            raise HTTPException(
-                502,
-                f"Cloud rename failed: {result.error}. Local NOT renamed.",
-            )
+            detail = result.error or "unknown error"
+            if result.output and result.output.strip():
+                detail = f"{detail} — {result.output.strip()}"
+            raise HTTPException(502, f"Cloud rename failed: {detail}. Local NOT renamed.")
 
     # STEP 2: rename local (atomic)
     local_file.rename(new_local_file)
