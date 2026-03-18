@@ -148,7 +148,7 @@ async def rclone_movefile(rclone_remote: str, old_filename: str, new_filename: s
         return RcloneResult(success=False, error=f"Invalid remote: {rclone_remote}")
     if not _validate_filename(old_filename) or not _validate_filename(new_filename):
         return RcloneResult(success=False, error="Invalid filename")
-    cmd = ["rclone", "movefile", f"{rclone_remote}/{old_filename}", f"{rclone_remote}/{new_filename}"]
+    cmd = ["rclone", "moveto", f"{rclone_remote}/{old_filename}", f"{rclone_remote}/{new_filename}"]
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
