@@ -389,62 +389,70 @@
                 </div>
             </section>
 
-            <!-- Check for Updates Card -->
+            <!-- Updates Card -->
             <section class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">
                     <div>
-                        <div class="card-title">🔄 Check for Updates</div>
-                        <div class="card-subtitle">Compare installed version with GitHub</div>
+                        <div class="card-title">🔄 Updates</div>
+                        <div class="card-subtitle">Check for and apply updates from GitHub</div>
                     </div>
                 </div>
 
                 <div style="padding: 0 1.5rem 1.5rem;">
-                    <div class="service-grid" style="margin-bottom: 1rem;">
-                        <div class="service-label">Current version</div>
+                    <!-- Version comparison table -->
+                    <div class="service-grid" style="margin-bottom: 1.25rem;">
+                        <div class="service-label">Installed</div>
                         <div class="service-value"><code id="update-local-commit">{{ update_local_commit or 'unknown' }}</code></div>
 
-                        <div class="service-label">Last checked</div>
-                        <div class="service-value" id="update-last-checked">
-                            {% if update_last_checked %}
-                                {{ update_last_checked }}
-                            {% else %}
-                                Never
-                            {% endif %}
-                        </div>
+                        <div class="service-label">Available</div>
+                        <div class="service-value"><code id="update-remote-commit">
+                            {%- if update_last_result == 'update_available' -%}
+                                {{ update_available_commit }}
+                            {%- elif update_last_result == 'up_to_date' -%}
+                                {{ update_local_commit or 'same' }}
+                            {%- else -%}
+                                &mdash;
+                            {%- endif -%}
+                        </code></div>
 
                         <div class="service-label">Status</div>
                         <div class="service-value" id="update-status-text">
                             {% if update_last_result == 'up_to_date' %}
-                                Up to date
+                                <span style="color: #34d399;">Up to date</span>
                             {% elif update_last_result == 'update_available' %}
-                                <span style="color: #f59e0b;">Update available ({{ update_available_commit }})</span>
+                                <span style="color: #f59e0b;">Update available</span>
                             {% elif update_last_result == 'error' %}
                                 <span style="color: #f87171;">Check failed</span>
                             {% else %}
-                                &mdash;
+                                <span style="color: #9ca3af;">&mdash; Not checked yet</span>
                             {% endif %}
+                        </div>
+
+                        <div class="service-label">Last checked</div>
+                        <div class="service-value" id="update-last-checked">
+                            {{ update_last_checked or 'Never' }}
                         </div>
                     </div>
 
+                    <!-- Action buttons -->
                     <div class="button-row" style="margin-bottom: 0.75rem;">
                         <button class="btn" id="btn-check-updates" onclick="checkForUpdates()">
                             <div class="btn-spinner" id="btn-check-updates-spinner" style="display:none;"></div>
                             <span id="btn-check-updates-label">Check Now</span>
                         </button>
+                        <button class="btn" id="btn-apply-update" onclick="applyUpdate()"
+                                {% if update_last_result != 'update_available' %}style="opacity:0.5;"{% endif %}>
+                            <div class="btn-spinner" id="btn-apply-update-spinner" style="display:none;"></div>
+                            <span id="btn-apply-update-label">Apply Now</span>
+                        </button>
                     </div>
 
-                    <div id="update-message" class="status-message" style="display: none;"></div>
-
-                    {% if update_last_result == 'update_available' %}
-                    <div class="status-message" style="display: block; margin-top: 0.75rem;">
-                        An update is available. To install, run <code>update_app.sh</code> on the Pi.
-                    </div>
-                    {% endif %}
+                    <div id="update-message" style="margin-top: 0.5rem; font-size: 0.875rem; color: #9ca3af; min-height: 1.25rem;"></div>
 
                     <!-- Automatic Check Schedule -->
                     <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 1.25rem 0;">
 
-                    <div style="font-weight: 600; margin-bottom: 1rem; color: #d1d5db;">Automatic Checks</div>
+                    <div style="font-weight: 600; margin-bottom: 1rem; color: #d1d5db;">Automatic Schedule</div>
 
                     <form id="update-schedule-form">
                         <div class="form-group">
@@ -453,16 +461,23 @@
                                 <span>Enable automatic update checks</span>
                             </label>
                         </div>
+                        <div class="form-group" style="margin-top: 0.5rem;">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="update-auto-apply" {% if update_auto_apply %}checked{% endif %}>
+                                <span>Automatically apply updates during scheduled run</span>
+                            </label>
+                        </div>
 
                         <div class="form-row" style="margin-top: 1rem;">
                             <div class="form-group">
                                 <label class="form-label">Frequency</label>
                                 <select id="update-frequency" class="form-select" onchange="updateDayDropdown(this.value)">
-                                    <option value="monthly" {% if update_frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+                                    <option value="daily" {% if update_frequency == 'daily' %}selected{% endif %}>Daily</option>
                                     <option value="weekly" {% if update_frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+                                    <option value="monthly" {% if update_frequency == 'monthly' %}selected{% endif %}>Monthly</option>
                                 </select>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group" id="update-day-group" {% if update_frequency == 'daily' %}style="display:none;"{% endif %}>
                                 <label class="form-label" id="update-day-label">Day</label>
                                 <select id="update-day" class="form-select" data-saved-day="{{ update_day }}">
                                     <!-- Populated by updateDayDropdown() on load -->
@@ -470,8 +485,8 @@
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Time</label>
-                                <input type="text" id="update-check-time" class="form-input"
-                                       value="{{ update_check_time }}" placeholder="HH:MM" pattern="\d{2}:\d{2}">
+                                <input type="time" id="update-check-time" class="form-input"
+                                       value="{{ update_check_time }}">
                             </div>
                         </div>
 

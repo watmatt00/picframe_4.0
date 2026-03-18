@@ -51,9 +51,10 @@ class LoggingConfig(BaseModel):
 class UpdatesConfig(BaseModel):
     """Update check settings."""
     auto_check: bool = Field(default=True, description="Enable automatic update checks")
-    frequency: str = Field(default="monthly", description="Check frequency: 'monthly' or 'weekly'")
-    day: int = Field(default=1, description="Day of month (1-28) or day of week (0-6, Mon=0)")
-    check_time: str = Field(default="02:00", description="Time to run check (HH:MM)")
+    auto_apply: bool = Field(default=False, description="Automatically apply updates during scheduled run")
+    frequency: str = Field(default="monthly", description="Check frequency: 'daily', 'weekly', or 'monthly'")
+    day: int = Field(default=1, description="Day of month (1-28) or day of week (0-6, Mon=0); ignored for daily")
+    check_time: str = Field(default="02:00", description="Time to run check (HH:MM, 24-hour)")
     last_checked: Optional[str] = Field(default=None, description="ISO datetime of last check")
     last_result: Optional[str] = Field(default=None, description="Result: 'up_to_date' | 'update_available' | 'error'")
     available_commit: Optional[str] = Field(default=None, description="Short hash if update available")

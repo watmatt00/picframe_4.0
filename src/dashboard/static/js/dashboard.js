@@ -1139,16 +1139,15 @@ function initSettingsLogViewer() {
 }
 
 // =============================================================================
-// CHECK FOR UPDATES
+// UPDATES
 // =============================================================================
 
-// Initialize day dropdown and schedule form on DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize day dropdown from saved frequency + day
     const freqEl = document.getElementById('update-frequency');
     const dayEl = document.getElementById('update-day');
     if (freqEl && dayEl) {
-        // Read the saved day value from a data attribute set during template render
-        const savedDay = parseInt(freqEl.dataset.savedDay || dayEl.dataset.savedDay || '1', 10);
+        const savedDay = parseInt(dayEl.dataset.savedDay || '1', 10);
         updateDayDropdown(freqEl.value, savedDay);
     }
 
@@ -1164,12 +1163,15 @@ document.addEventListener('DOMContentLoaded', () => {
 function updateDayDropdown(frequency, selectedDay) {
     const dayEl = document.getElementById('update-day');
     const labelEl = document.getElementById('update-day-label');
+    const dayGroup = document.getElementById('update-day-group');
     if (!dayEl) return;
 
-    // If selectedDay not passed, use current selection
     if (selectedDay === undefined) {
         selectedDay = parseInt(dayEl.value, 10);
     }
+
+    // Hide day picker for daily
+    if (dayGroup) dayGroup.style.display = (frequency === 'daily') ? 'none' : '';
 
     dayEl.innerHTML = '';
 
@@ -1185,7 +1187,7 @@ function updateDayDropdown(frequency, selectedDay) {
             if (i === selectedDay) opt.selected = true;
             dayEl.appendChild(opt);
         }
-    } else {
+    } else if (frequency === 'weekly') {
         if (labelEl) labelEl.textContent = 'Day of week';
         const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
         for (let i = 0; i < 7; i++) {
@@ -1196,66 +1198,97 @@ function updateDayDropdown(frequency, selectedDay) {
             dayEl.appendChild(opt);
         }
     }
+    // daily: day picker hidden, nothing to populate
+}
+
+function _setUpdateMsg(text, color) {
+    const el = document.getElementById('update-message');
+    if (el) { el.textContent = text; el.style.color = color || '#9ca3af'; }
 }
 
 async function checkForUpdates() {
     const btn = document.getElementById('btn-check-updates');
     const spinner = document.getElementById('btn-check-updates-spinner');
     const label = document.getElementById('btn-check-updates-label');
-    const msgEl = document.getElementById('update-message');
-    const statusEl = document.getElementById('update-status-text');
-    const lastCheckedEl = document.getElementById('update-last-checked');
+    const applyBtn = document.getElementById('btn-apply-update');
 
     if (btn) btn.disabled = true;
     if (spinner) spinner.style.display = 'inline-block';
     if (label) label.textContent = 'Checking...';
-    if (msgEl) { msgEl.style.display = 'none'; }
+    _setUpdateMsg('Contacting GitHub...', '#9ca3af');
 
     try {
         const resp = await fetch('/api/updates/check', { method: 'POST' });
+        if (!resp.ok) throw new Error('Server error ' + resp.status);
         const data = await resp.json();
 
-        // Update last-checked display
+        // Update version display
+        const localEl = document.getElementById('update-local-commit');
+        const remoteEl = document.getElementById('update-remote-commit');
+        const statusEl = document.getElementById('update-status-text');
+        const lastCheckedEl = document.getElementById('update-last-checked');
+
+        if (localEl && data.local_commit) localEl.textContent = data.local_commit;
         if (lastCheckedEl && data.checked_at) {
             lastCheckedEl.textContent = data.checked_at.replace('T', ' ').substring(0, 19);
         }
 
         if (data.error) {
-            if (msgEl) {
-                msgEl.className = 'status-message error';
-                msgEl.textContent = 'Check failed: ' + data.error;
-                msgEl.style.display = 'block';
-            }
-            if (statusEl) statusEl.innerHTML = '<span style="color: #f87171;">Check failed</span>';
+            _setUpdateMsg('Check failed: ' + data.error, '#f87171');
+            if (statusEl) statusEl.innerHTML = '<span style="color:#f87171;">Check failed</span>';
+            if (remoteEl) remoteEl.textContent = '—';
         } else if (data.up_to_date === true) {
-            if (msgEl) {
-                msgEl.className = 'status-message success';
-                msgEl.textContent = 'Up to date! (version: ' + (data.local_commit || 'unknown') + ')';
-                msgEl.style.display = 'block';
-                setTimeout(() => { msgEl.style.display = 'none'; }, 8000);
-            }
-            if (statusEl) statusEl.textContent = 'Up to date';
+            if (remoteEl) remoteEl.textContent = data.local_commit || 'same';
+            if (statusEl) statusEl.innerHTML = '<span style="color:#34d399;">Up to date</span>';
+            if (applyBtn) applyBtn.style.opacity = '0.5';
+            _setUpdateMsg('', '');
         } else if (data.up_to_date === false) {
-            if (msgEl) {
-                msgEl.className = 'status-message';
-                msgEl.style.background = 'rgba(245, 158, 11, 0.15)';
-                msgEl.style.borderColor = '#f59e0b';
-                msgEl.style.color = '#fcd34d';
-                msgEl.textContent = 'Update available! Remote: ' + data.remote_commit + '. Run update_app.sh on the Pi to install.';
-                msgEl.style.display = 'block';
-            }
-            if (statusEl) statusEl.innerHTML = '<span style="color: #f59e0b;">Update available (' + escapeHtml(data.remote_commit || '') + ')</span>';
+            if (remoteEl) remoteEl.textContent = data.remote_commit || '—';
+            if (statusEl) statusEl.innerHTML = '<span style="color:#f59e0b;">Update available</span>';
+            if (applyBtn) applyBtn.style.opacity = '1';
+            _setUpdateMsg('Update available — click Apply Now to install.', '#f59e0b');
+        } else {
+            _setUpdateMsg('Could not determine update status.', '#f87171');
         }
     } catch (err) {
-        if (msgEl) {
-            msgEl.className = 'status-message error';
-            msgEl.textContent = 'Error: ' + err.message;
-            msgEl.style.display = 'block';
-        }
+        _setUpdateMsg('Error: ' + err.message, '#f87171');
     } finally {
         if (btn) btn.disabled = false;
         if (spinner) spinner.style.display = 'none';
         if (label) label.textContent = 'Check Now';
+    }
+}
+
+async function applyUpdate() {
+    const btn = document.getElementById('btn-apply-update');
+    const spinner = document.getElementById('btn-apply-update-spinner');
+    const label = document.getElementById('btn-apply-update-label');
+
+    if (!confirm('Apply update now? This runs git pull on the Pi. The API will need to be restarted to pick up changes.')) return;
+
+    if (btn) btn.disabled = true;
+    if (spinner) spinner.style.display = 'inline-block';
+    if (label) label.textContent = 'Applying...';
+    _setUpdateMsg('Running git pull...', '#9ca3af');
+
+    try {
+        const resp = await fetch('/api/updates/apply', { method: 'POST' });
+        if (!resp.ok) throw new Error('Server error ' + resp.status);
+        const data = await resp.json();
+
+        if (data.ok) {
+            _setUpdateMsg('Update applied! Restart API to activate.', '#34d399');
+            const statusEl = document.getElementById('update-status-text');
+            if (statusEl) statusEl.innerHTML = '<span style="color:#34d399;">Applied — restart required</span>';
+        } else {
+            _setUpdateMsg('Apply failed: ' + (data.error || 'unknown error'), '#f87171');
+        }
+    } catch (err) {
+        _setUpdateMsg('Error: ' + err.message, '#f87171');
+    } finally {
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.style.display = 'none';
+        if (label) label.textContent = 'Apply Now';
     }
 }
 
@@ -1264,15 +1297,15 @@ async function saveUpdateSchedule() {
     const btn = document.querySelector('#update-schedule-form button[type="submit"]');
 
     const autoCheck = document.getElementById('update-auto-check')?.checked ?? true;
+    const autoApply = document.getElementById('update-auto-apply')?.checked ?? false;
     const frequency = document.getElementById('update-frequency')?.value || 'monthly';
     const day = parseInt(document.getElementById('update-day')?.value || '1', 10);
     const checkTime = document.getElementById('update-check-time')?.value || '02:00';
 
-    // Basic time validation
-    if (!/^\d{2}:\d{2}$/.test(checkTime)) {
+    if (!checkTime || !/^\d{2}:\d{2}$/.test(checkTime)) {
         if (msgEl) {
             msgEl.className = 'status-message error';
-            msgEl.textContent = 'Time must be in HH:MM format';
+            msgEl.textContent = 'Please enter a valid time';
             msgEl.style.display = 'block';
         }
         return;
@@ -1284,21 +1317,21 @@ async function saveUpdateSchedule() {
         const resp = await fetch('/api/updates/schedule', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ auto_check: autoCheck, frequency, day, check_time: checkTime })
+            body: JSON.stringify({ auto_check: autoCheck, auto_apply: autoApply, frequency, day, check_time: checkTime })
         });
         const data = await resp.json();
 
         if (data.ok) {
             if (msgEl) {
                 msgEl.className = 'status-message success';
-                msgEl.textContent = 'Schedule saved successfully!';
+                msgEl.textContent = 'Schedule saved!';
                 msgEl.style.display = 'block';
-                setTimeout(() => { msgEl.style.display = 'none'; }, 5000);
+                setTimeout(() => { msgEl.style.display = 'none'; }, 4000);
             }
         } else {
             if (msgEl) {
                 msgEl.className = 'status-message error';
-                msgEl.textContent = 'Failed to save: ' + (data.error || 'Unknown error');
+                msgEl.textContent = 'Failed: ' + (data.error || 'unknown error');
                 msgEl.style.display = 'block';
             }
         }

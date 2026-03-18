@@ -34,9 +34,11 @@ logging:
 updates:
   # Enable automatic update checks
   auto_check: true
-  # Check frequency: "monthly" or "weekly"
+  # Automatically apply updates during scheduled run
+  auto_apply: false
+  # Check frequency: "daily", "weekly", or "monthly"
   frequency: "monthly"
-  # Day of month (1-28) for monthly; day of week (0-6, Mon=0) for weekly
+  # Day of month (1-28) for monthly; day of week (0-6, Mon=0) for weekly; ignored for daily
   day: 1
   # Time to run automatic check (HH:MM, 24-hour)
   check_time: "02:00"

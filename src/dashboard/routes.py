@@ -24,7 +24,7 @@ from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
 from src.services.systemd_service import systemd_service
 from src.services.display_service import display_service
-from src.services.update_service import check_for_updates, save_check_result, get_local_commit
+from src.services.update_service import check_for_updates, save_check_result, get_local_commit, apply_update
 from src.services.status_service import (
     get_current_source,
     get_photo_counts,
@@ -137,6 +137,7 @@ async def dashboard_home(request: Request):
         "api_port": 8000,
         # Update check card context
         "update_auto_check": settings.updates.auto_check,
+        "update_auto_apply": settings.updates.auto_apply,
         "update_frequency": settings.updates.frequency,
         "update_day": settings.updates.day,
         "update_check_time": settings.updates.check_time,
@@ -764,6 +765,7 @@ class SaveSettingsRequest(BaseModel):
 class SaveUpdateScheduleRequest(BaseModel):
     """Request to save update schedule settings."""
     auto_check: bool
+    auto_apply: bool
     frequency: str
     day: int
     check_time: str
@@ -852,10 +854,10 @@ async def save_update_schedule(request: SaveUpdateScheduleRequest):
     LAN-only endpoint, no JWT auth required.
     """
     # Validate frequency
-    if request.frequency not in ("monthly", "weekly"):
-        return {"ok": False, "error": "frequency must be 'monthly' or 'weekly'"}
+    if request.frequency not in ("daily", "weekly", "monthly"):
+        return {"ok": False, "error": "frequency must be 'daily', 'weekly', or 'monthly'"}
 
-    # Validate day
+    # Validate day (only relevant for non-daily)
     if request.frequency == "monthly" and not (1 <= request.day <= 28):
         return {"ok": False, "error": "day must be 1-28 for monthly frequency"}
     if request.frequency == "weekly" and not (0 <= request.day <= 6):
@@ -870,16 +872,38 @@ async def save_update_schedule(request: SaveUpdateScheduleRequest):
 
     try:
         config_manager.set("updates.auto_check", request.auto_check)
+        config_manager.set("updates.auto_apply", request.auto_apply)
         config_manager.set("updates.frequency", request.frequency)
         config_manager.set("updates.day", request.day)
         config_manager.set("updates.check_time", request.check_time)
         reload_settings()
 
         logger.info(
-            f"Update schedule saved: auto_check={request.auto_check}, "
+            f"Update schedule saved: auto_check={request.auto_check}, auto_apply={request.auto_apply}, "
             f"frequency={request.frequency}, day={request.day}, time={request.check_time}"
         )
         return {"ok": True}
     except Exception as e:
         logger.error(f"Failed to save update schedule: {e}")
         return {"ok": False, "error": str(e)}
+
+
+@router.post("/api/updates/apply")
+async def apply_update_api():
+    """
+    Apply available updates by running git pull.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    result = await apply_update()
+
+    if result["success"]:
+        logger.info("Update applied via dashboard")
+    else:
+        logger.error(f"Update apply failed via dashboard: {result['error']}")
+
+    return {
+        "ok": result["success"],
+        "output": result.get("output"),
+        "error": result.get("error"),
+    }

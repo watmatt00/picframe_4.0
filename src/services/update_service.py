@@ -147,13 +147,51 @@ def save_check_result(result: dict) -> None:
     reload_settings()
 
 
+async def apply_update(repo_path: Optional[Path] = None) -> dict:
+    """
+    Apply available updates by running git pull.
+
+    Args:
+        repo_path: Path to the git repo. Defaults to ~/picframe_4.0.
+
+    Returns:
+        dict with keys: success, output, error
+    """
+    if repo_path is None:
+        repo_path = get_repo_path()
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "-C", str(repo_path), "pull",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+
+        if proc.returncode == 0:
+            output = stdout.decode().strip()
+            logger.info(f"git pull succeeded: {output}")
+            return {"success": True, "output": output, "error": None}
+        else:
+            error = stderr.decode().strip() or "git pull failed"
+            logger.error(f"git pull failed: {error}")
+            return {"success": False, "output": None, "error": error}
+
+    except asyncio.TimeoutError:
+        logger.error("git pull timed out")
+        return {"success": False, "output": None, "error": "git pull timed out"}
+    except Exception as e:
+        logger.error(f"apply_update failed: {e}")
+        return {"success": False, "output": None, "error": str(e)}
+
+
 def calculate_next_check(frequency: str, day: int, check_time: str) -> datetime:
     """
     Calculate the next scheduled check datetime.
 
     Args:
-        frequency: "monthly" or "weekly"
-        day: 1-28 for monthly; 0-6 (Mon=0) for weekly
+        frequency: "daily", "weekly", or "monthly"
+        day: 1-28 for monthly; 0-6 (Mon=0) for weekly; ignored for daily
         check_time: "HH:MM" string
 
     Returns:
@@ -166,6 +204,12 @@ def calculate_next_check(frequency: str, day: int, check_time: str) -> datetime:
         hour, minute = [int(x) for x in check_time.split(":")]
     except (ValueError, AttributeError):
         hour, minute = 2, 0
+
+    if frequency == "daily":
+        candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if candidate <= now:
+            candidate += timedelta(days=1)
+        return candidate
 
     if frequency == "monthly":
         # Find next occurrence of day-of-month at check_time
@@ -243,6 +287,14 @@ async def start_update_scheduler() -> None:
                 logger.warning(f"Scheduled update check failed: {result['error']}")
             elif result.get("up_to_date") is False:
                 logger.info(f"Update available: remote commit {result.get('remote_commit')}")
+                # Auto-apply if configured
+                if updates.auto_apply:
+                    logger.info("Auto-apply enabled — running git pull")
+                    apply_result = await apply_update()
+                    if apply_result["success"]:
+                        logger.info("Auto-apply succeeded")
+                    else:
+                        logger.error(f"Auto-apply failed: {apply_result['error']}")
             else:
                 logger.info("System is up to date")
 
