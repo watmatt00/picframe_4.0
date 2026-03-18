@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from src.api.dependencies import require_admin
 from src.services.source_manager import source_manager
-from src.utils.rclone import rclone_deletefile, _validate_filename, IMAGE_EXTENSIONS
+from src.utils.rclone import rclone_deletefile, rclone_movefile, _validate_filename, IMAGE_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sources", tags=["photos"])
@@ -40,6 +40,16 @@ class PhotoListResponse(BaseModel):
 
 class DeletePhotoResponse(BaseModel):
     deleted: str
+    message: str
+
+
+class RenamePhotoRequest(BaseModel):
+    new_filename: str
+
+
+class RenamePhotoResponse(BaseModel):
+    old_filename: str
+    new_filename: str
     message: str
 
 
@@ -151,4 +161,56 @@ async def delete_photo(source_id: str, filename: str, admin=Depends(require_admi
     return DeletePhotoResponse(
         deleted=filename,
         message=f"Deleted '{filename}' from cloud and local storage",
+    )
+
+
+@router.patch("/{source_id}/photos/{filename}", response_model=RenamePhotoResponse)
+async def rename_photo(source_id: str, filename: str, body: RenamePhotoRequest, admin=Depends(require_admin)):
+    """
+    Rename a photo on cloud storage first, then locally.
+
+    Cloud rename MUST succeed before local rename to prevent sync divergence.
+    """
+    if not _validate_filename(filename):
+        raise HTTPException(400, "Invalid filename")
+    new_filename = body.new_filename.strip()
+    if not _validate_filename(new_filename):
+        raise HTTPException(400, "Invalid new filename")
+    if new_filename == filename:
+        raise HTTPException(400, "New filename must differ from current filename")
+    source = source_manager.get_source(source_id)
+    if not source:
+        raise HTTPException(404, f"Source '{source_id}' not found")
+    local_file = Path(source.local_path) / filename
+    if not local_file.is_file():
+        raise HTTPException(404, "Photo not found locally")
+    try:
+        local_file.resolve().relative_to(Path(source.local_path).resolve())
+    except ValueError:
+        raise HTTPException(400, "Invalid filename")
+    new_local_file = Path(source.local_path) / new_filename
+    if new_local_file.exists():
+        raise HTTPException(409, f"A file named '{new_filename}' already exists")
+
+    # STEP 1: rename on cloud (must succeed first)
+    if source.rclone_remote:
+        result = await rclone_movefile(source.rclone_remote, filename, new_filename)
+        if not result.success:
+            raise HTTPException(
+                502,
+                f"Cloud rename failed: {result.error}. Local NOT renamed.",
+            )
+
+    # STEP 2: rename local (atomic)
+    local_file.rename(new_local_file)
+    logger.info(f"Renamed photo '{filename}' -> '{new_filename}' in source '{source_id}'")
+
+    # Evict old thumbnail cache entries
+    for stale in THUMB_CACHE_DIR.glob(f"{source_id}_{filename}_*.jpg"):
+        stale.unlink(missing_ok=True)
+
+    return RenamePhotoResponse(
+        old_filename=filename,
+        new_filename=new_filename,
+        message=f"Renamed '{filename}' to '{new_filename}'",
     )
