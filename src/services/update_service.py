@@ -20,6 +20,32 @@ logger = logging.getLogger(__name__)
 # Path to the git repo on the Pi
 REPO_PATH = Path.home() / "picframe_4.0"
 
+# Base version prefix
+BASE_VERSION = "4.0"
+
+
+async def _get_commit_count(repo_path: Path, ref: str = "HEAD") -> Optional[int]:
+    """Get the number of commits reachable from ref."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "-C", str(repo_path), "rev-list", "--count", ref,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+        if proc.returncode == 0:
+            return int(stdout.decode().strip())
+    except Exception:
+        pass
+    return None
+
+
+def _format_version(count: Optional[int]) -> str:
+    """Format a commit count as a user-friendly version string."""
+    if count is None:
+        return f"{BASE_VERSION}.?"
+    return f"{BASE_VERSION}.{count}"
+
 # Background scheduler task reference
 _scheduler_task: Optional[asyncio.Task] = None
 
@@ -58,10 +84,13 @@ async def check_for_updates(repo_path: Optional[Path] = None) -> dict:
         if fetch_proc.returncode != 0:
             error = fetch_stderr.decode().strip() or "git fetch failed"
             logger.warning(f"git fetch failed: {error}")
+            local_count = await _get_commit_count(repo_path, "HEAD")
             return {
                 "up_to_date": None,
                 "local_commit": None,
                 "remote_commit": None,
+                "local_version": _format_version(local_count),
+                "remote_version": None,
                 "checked_at": checked_at,
                 "error": f"git fetch failed: {error}",
             }
@@ -86,10 +115,13 @@ async def check_for_updates(repo_path: Optional[Path] = None) -> dict:
         if remote_proc.returncode != 0:
             error = remote_stderr.decode().strip() or "No upstream configured"
             logger.warning(f"Could not get remote commit: {error}")
+            local_count = await _get_commit_count(repo_path, "HEAD")
             return {
                 "up_to_date": None,
                 "local_commit": local_commit,
                 "remote_commit": None,
+                "local_version": _format_version(local_count),
+                "remote_version": None,
                 "checked_at": checked_at,
                 "error": f"Could not get remote: {error}",
             }
@@ -97,10 +129,16 @@ async def check_for_updates(repo_path: Optional[Path] = None) -> dict:
         remote_commit = remote_stdout.decode().strip()
         up_to_date = local_commit == remote_commit
 
+        # Get friendly version strings
+        local_count = await _get_commit_count(repo_path, "HEAD")
+        remote_count = await _get_commit_count(repo_path, "@{u}")
+
         return {
             "up_to_date": up_to_date,
             "local_commit": local_commit,
             "remote_commit": remote_commit,
+            "local_version": _format_version(local_count),
+            "remote_version": _format_version(remote_count),
             "checked_at": checked_at,
             "error": None,
         }
@@ -310,9 +348,6 @@ async def get_local_commit(repo_path: Optional[Path] = None) -> Optional[str]:
     """
     Get the current local HEAD short hash without fetching.
 
-    Args:
-        repo_path: Path to the git repo. Defaults to ~/picframe_4.0.
-
     Returns:
         Short commit hash string or None on error
     """
@@ -332,3 +367,16 @@ async def get_local_commit(repo_path: Optional[Path] = None) -> Optional[str]:
         logger.warning(f"Failed to get local commit: {e}")
 
     return None
+
+
+async def get_local_version(repo_path: Optional[Path] = None) -> str:
+    """
+    Get the current installed version as a friendly string (e.g. '4.0.47').
+
+    Returns:
+        Version string like '4.0.47', or '4.0.?' on error
+    """
+    if repo_path is None:
+        repo_path = get_repo_path()
+    count = await _get_commit_count(repo_path, "HEAD")
+    return _format_version(count)

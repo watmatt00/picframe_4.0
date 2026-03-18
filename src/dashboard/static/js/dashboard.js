@@ -1223,12 +1223,15 @@ async function checkForUpdates() {
         const data = await resp.json();
 
         // Update version display
-        const localEl = document.getElementById('update-local-commit');
-        const remoteEl = document.getElementById('update-remote-commit');
+        const localVersionEl = document.getElementById('update-local-version');
+        const localHashEl = document.getElementById('update-local-commit');
+        const remoteVersionEl = document.getElementById('update-remote-version');
+        const remoteHashEl = document.getElementById('update-remote-commit');
         const statusEl = document.getElementById('update-status-text');
         const lastCheckedEl = document.getElementById('update-last-checked');
 
-        if (localEl && data.local_commit) localEl.textContent = data.local_commit;
+        if (localVersionEl && data.local_version) localVersionEl.textContent = data.local_version;
+        if (localHashEl && data.local_commit) localHashEl.textContent = '(' + data.local_commit + ')';
         if (lastCheckedEl && data.checked_at) {
             lastCheckedEl.textContent = data.checked_at.replace('T', ' ').substring(0, 19);
         }
@@ -1236,14 +1239,17 @@ async function checkForUpdates() {
         if (data.error) {
             _setUpdateMsg('Check failed: ' + data.error, '#f87171');
             if (statusEl) statusEl.innerHTML = '<span style="color:#f87171;">Check failed</span>';
-            if (remoteEl) remoteEl.textContent = '—';
+            if (remoteVersionEl) remoteVersionEl.textContent = '—';
+            if (remoteHashEl) remoteHashEl.textContent = '';
         } else if (data.up_to_date === true) {
-            if (remoteEl) remoteEl.textContent = data.local_commit || 'same';
+            if (remoteVersionEl) remoteVersionEl.textContent = data.local_version || 'same';
+            if (remoteHashEl) remoteHashEl.textContent = data.remote_commit ? '(' + data.remote_commit + ')' : '';
             if (statusEl) statusEl.innerHTML = '<span style="color:#34d399;">Up to date</span>';
             if (applyBtn) applyBtn.style.opacity = '0.5';
             _setUpdateMsg('', '');
         } else if (data.up_to_date === false) {
-            if (remoteEl) remoteEl.textContent = data.remote_commit || '—';
+            if (remoteVersionEl) remoteVersionEl.textContent = data.remote_version || '—';
+            if (remoteHashEl) remoteHashEl.textContent = data.remote_commit ? '(' + data.remote_commit + ')' : '';
             if (statusEl) statusEl.innerHTML = '<span style="color:#f59e0b;">Update available</span>';
             if (applyBtn) applyBtn.style.opacity = '1';
             _setUpdateMsg('Update available — click Apply Now to install.', '#f59e0b');

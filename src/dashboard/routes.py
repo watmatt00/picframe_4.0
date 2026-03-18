@@ -24,7 +24,7 @@ from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
 from src.services.systemd_service import systemd_service
 from src.services.display_service import display_service
-from src.services.update_service import check_for_updates, save_check_result, get_local_commit, apply_update
+from src.services.update_service import check_for_updates, save_check_result, get_local_commit, get_local_version, apply_update
 from src.services.status_service import (
     get_current_source,
     get_photo_counts,
@@ -113,6 +113,7 @@ async def dashboard_home(request: Request):
 
     # Get update status for Settings tab card
     local_commit = await get_local_commit()
+    local_version = await get_local_version()
 
     context = {
         "request": request,
@@ -145,6 +146,7 @@ async def dashboard_home(request: Request):
         "update_last_result": settings.updates.last_result,
         "update_available_commit": settings.updates.available_commit,
         "update_local_commit": local_commit,
+        "update_local_version": local_version,
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
 
@@ -841,6 +843,8 @@ async def check_for_updates_api():
         "up_to_date": result.get("up_to_date"),
         "local_commit": result.get("local_commit"),
         "remote_commit": result.get("remote_commit"),
+        "local_version": result.get("local_version"),
+        "remote_version": result.get("remote_version"),
         "checked_at": result.get("checked_at"),
         "error": result.get("error"),
     }

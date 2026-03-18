@@ -402,18 +402,24 @@
                     <!-- Version comparison table -->
                     <div class="service-grid" style="margin-bottom: 1.25rem;">
                         <div class="service-label">Installed</div>
-                        <div class="service-value"><code id="update-local-commit">{{ update_local_commit or 'unknown' }}</code></div>
+                        <div class="service-value">
+                            <code id="update-local-version">{{ update_local_version or '4.0.?' }}</code>
+                            <span style="color:#6b7280; font-size:0.8rem; margin-left:0.4rem;" id="update-local-commit">({{ update_local_commit or '?' }})</span>
+                        </div>
 
                         <div class="service-label">Available</div>
-                        <div class="service-value"><code id="update-remote-commit">
-                            {%- if update_last_result == 'update_available' -%}
-                                {{ update_available_commit }}
-                            {%- elif update_last_result == 'up_to_date' -%}
-                                {{ update_local_commit or 'same' }}
-                            {%- else -%}
-                                &mdash;
-                            {%- endif -%}
-                        </code></div>
+                        <div class="service-value">
+                            <code id="update-remote-version">
+                                {%- if update_last_result == 'update_available' -%}
+                                    &mdash;
+                                {%- elif update_last_result == 'up_to_date' -%}
+                                    {{ update_local_version or '4.0.?' }}
+                                {%- else -%}
+                                    &mdash;
+                                {%- endif -%}
+                            </code>
+                            <span style="color:#6b7280; font-size:0.8rem; margin-left:0.4rem;" id="update-remote-commit"></span>
+                        </div>
 
                         <div class="service-label">Status</div>
                         <div class="service-value" id="update-status-text">
