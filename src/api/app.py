@@ -9,6 +9,8 @@ This is the main FastAPI application that provides:
 See docs/SPECIFICATION.md for full API documentation.
 """
 
+import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -23,10 +25,22 @@ from src.dashboard import routes as dashboard_routes
 # Middleware
 from src.api.middleware import LANOnlyDashboardMiddleware
 
+# Update service
+from src.services.update_service import start_update_scheduler
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: start background tasks on startup."""
+    asyncio.create_task(start_update_scheduler())
+    yield
+
+
 app = FastAPI(
     title="PicFrame 4.0 API",
     description="Secure mobile management for Raspberry Pi picture frames",
     version="4.0.0",
+    lifespan=lifespan,
 )
 
 # Add LAN-only middleware for dashboard routes

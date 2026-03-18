@@ -48,6 +48,17 @@ class LoggingConfig(BaseModel):
     security_retention_days: int = Field(default=90, description="Days to keep security logs")
 
 
+class UpdatesConfig(BaseModel):
+    """Update check settings."""
+    auto_check: bool = Field(default=True, description="Enable automatic update checks")
+    frequency: str = Field(default="monthly", description="Check frequency: 'monthly' or 'weekly'")
+    day: int = Field(default=1, description="Day of month (1-28) or day of week (0-6, Mon=0)")
+    check_time: str = Field(default="02:00", description="Time to run check (HH:MM)")
+    last_checked: Optional[str] = Field(default=None, description="ISO datetime of last check")
+    last_result: Optional[str] = Field(default=None, description="Result: 'up_to_date' | 'update_available' | 'error'")
+    available_commit: Optional[str] = Field(default=None, description="Short hash if update available")
+
+
 class Source(BaseModel):
     """Photo source configuration."""
     id: str = Field(description="Unique source identifier")
@@ -113,6 +124,7 @@ class Settings(BaseSettings):
     tailscale: TailscaleConfig = Field(default_factory=TailscaleConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     sources: SourcesConfig = Field(default_factory=SourcesConfig)
+    updates: UpdatesConfig = Field(default_factory=UpdatesConfig)
 
     @classmethod
     def from_yaml(cls, path: Path = CONFIG_FILE) -> "Settings":

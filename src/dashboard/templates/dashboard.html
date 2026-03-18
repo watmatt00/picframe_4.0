@@ -388,6 +388,101 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Check for Updates Card -->
+            <section class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">🔄 Check for Updates</div>
+                        <div class="card-subtitle">Compare installed version with GitHub</div>
+                    </div>
+                </div>
+
+                <div style="padding: 0 1.5rem 1.5rem;">
+                    <div class="service-grid" style="margin-bottom: 1rem;">
+                        <div class="service-label">Current version</div>
+                        <div class="service-value"><code id="update-local-commit">{{ update_local_commit or 'unknown' }}</code></div>
+
+                        <div class="service-label">Last checked</div>
+                        <div class="service-value" id="update-last-checked">
+                            {% if update_last_checked %}
+                                {{ update_last_checked }}
+                            {% else %}
+                                Never
+                            {% endif %}
+                        </div>
+
+                        <div class="service-label">Status</div>
+                        <div class="service-value" id="update-status-text">
+                            {% if update_last_result == 'up_to_date' %}
+                                Up to date
+                            {% elif update_last_result == 'update_available' %}
+                                <span style="color: #f59e0b;">Update available ({{ update_available_commit }})</span>
+                            {% elif update_last_result == 'error' %}
+                                <span style="color: #f87171;">Check failed</span>
+                            {% else %}
+                                &mdash;
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="button-row" style="margin-bottom: 0.75rem;">
+                        <button class="btn" id="btn-check-updates" onclick="checkForUpdates()">
+                            <div class="btn-spinner" id="btn-check-updates-spinner" style="display:none;"></div>
+                            <span id="btn-check-updates-label">Check Now</span>
+                        </button>
+                    </div>
+
+                    <div id="update-message" class="status-message" style="display: none;"></div>
+
+                    {% if update_last_result == 'update_available' %}
+                    <div class="status-message" style="display: block; margin-top: 0.75rem;">
+                        An update is available. To install, run <code>update_app.sh</code> on the Pi.
+                    </div>
+                    {% endif %}
+
+                    <!-- Automatic Check Schedule -->
+                    <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 1.25rem 0;">
+
+                    <div style="font-weight: 600; margin-bottom: 1rem; color: #d1d5db;">Automatic Checks</div>
+
+                    <form id="update-schedule-form">
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="update-auto-check" {% if update_auto_check %}checked{% endif %}>
+                                <span>Enable automatic update checks</span>
+                            </label>
+                        </div>
+
+                        <div class="form-row" style="margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Frequency</label>
+                                <select id="update-frequency" class="form-select" onchange="updateDayDropdown(this.value)">
+                                    <option value="monthly" {% if update_frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+                                    <option value="weekly" {% if update_frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" id="update-day-label">Day</label>
+                                <select id="update-day" class="form-select" data-saved-day="{{ update_day }}">
+                                    <!-- Populated by updateDayDropdown() on load -->
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Time</label>
+                                <input type="text" id="update-check-time" class="form-input"
+                                       value="{{ update_check_time }}" placeholder="HH:MM" pattern="\d{2}:\d{2}">
+                            </div>
+                        </div>
+
+                        <div id="update-schedule-message" class="status-message" style="display: none;"></div>
+
+                        <div class="button-row" style="margin-top: 1rem;">
+                            <button type="submit" class="btn btn-primary">Save Schedule</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
         </main>
     </div>
 

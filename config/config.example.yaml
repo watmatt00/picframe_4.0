@@ -31,6 +31,20 @@ logging:
   # Days to keep security logs
   security_retention_days: 90
 
+updates:
+  # Enable automatic update checks
+  auto_check: true
+  # Check frequency: "monthly" or "weekly"
+  frequency: "monthly"
+  # Day of month (1-28) for monthly; day of week (0-6, Mon=0) for weekly
+  day: 1
+  # Time to run automatic check (HH:MM, 24-hour)
+  check_time: "02:00"
+  # These are written automatically — do not edit manually
+  last_checked: null
+  last_result: null
+  available_commit: null
+
 # Photo sources - where pictures come from
 sources:
   sources:

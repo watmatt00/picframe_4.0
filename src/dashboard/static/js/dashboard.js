@@ -1137,3 +1137,178 @@ function initSettingsLogViewer() {
         });
     }
 }
+
+// =============================================================================
+// CHECK FOR UPDATES
+// =============================================================================
+
+// Initialize day dropdown and schedule form on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+    const freqEl = document.getElementById('update-frequency');
+    const dayEl = document.getElementById('update-day');
+    if (freqEl && dayEl) {
+        // Read the saved day value from a data attribute set during template render
+        const savedDay = parseInt(freqEl.dataset.savedDay || dayEl.dataset.savedDay || '1', 10);
+        updateDayDropdown(freqEl.value, savedDay);
+    }
+
+    const scheduleForm = document.getElementById('update-schedule-form');
+    if (scheduleForm) {
+        scheduleForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            saveUpdateSchedule();
+        });
+    }
+});
+
+function updateDayDropdown(frequency, selectedDay) {
+    const dayEl = document.getElementById('update-day');
+    const labelEl = document.getElementById('update-day-label');
+    if (!dayEl) return;
+
+    // If selectedDay not passed, use current selection
+    if (selectedDay === undefined) {
+        selectedDay = parseInt(dayEl.value, 10);
+    }
+
+    dayEl.innerHTML = '';
+
+    if (frequency === 'monthly') {
+        if (labelEl) labelEl.textContent = 'Day of month';
+        const ordinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th',
+                          '11th','12th','13th','14th','15th','16th','17th','18th','19th','20th',
+                          '21st','22nd','23rd','24th','25th','26th','27th','28th'];
+        for (let i = 1; i <= 28; i++) {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = ordinals[i - 1];
+            if (i === selectedDay) opt.selected = true;
+            dayEl.appendChild(opt);
+        }
+    } else {
+        if (labelEl) labelEl.textContent = 'Day of week';
+        const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+        for (let i = 0; i < 7; i++) {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = days[i];
+            if (i === selectedDay) opt.selected = true;
+            dayEl.appendChild(opt);
+        }
+    }
+}
+
+async function checkForUpdates() {
+    const btn = document.getElementById('btn-check-updates');
+    const spinner = document.getElementById('btn-check-updates-spinner');
+    const label = document.getElementById('btn-check-updates-label');
+    const msgEl = document.getElementById('update-message');
+    const statusEl = document.getElementById('update-status-text');
+    const lastCheckedEl = document.getElementById('update-last-checked');
+
+    if (btn) btn.disabled = true;
+    if (spinner) spinner.style.display = 'inline-block';
+    if (label) label.textContent = 'Checking...';
+    if (msgEl) { msgEl.style.display = 'none'; }
+
+    try {
+        const resp = await fetch('/api/updates/check', { method: 'POST' });
+        const data = await resp.json();
+
+        // Update last-checked display
+        if (lastCheckedEl && data.checked_at) {
+            lastCheckedEl.textContent = data.checked_at.replace('T', ' ').substring(0, 19);
+        }
+
+        if (data.error) {
+            if (msgEl) {
+                msgEl.className = 'status-message error';
+                msgEl.textContent = 'Check failed: ' + data.error;
+                msgEl.style.display = 'block';
+            }
+            if (statusEl) statusEl.innerHTML = '<span style="color: #f87171;">Check failed</span>';
+        } else if (data.up_to_date === true) {
+            if (msgEl) {
+                msgEl.className = 'status-message success';
+                msgEl.textContent = 'Up to date! (version: ' + (data.local_commit || 'unknown') + ')';
+                msgEl.style.display = 'block';
+                setTimeout(() => { msgEl.style.display = 'none'; }, 8000);
+            }
+            if (statusEl) statusEl.textContent = 'Up to date';
+        } else if (data.up_to_date === false) {
+            if (msgEl) {
+                msgEl.className = 'status-message';
+                msgEl.style.background = 'rgba(245, 158, 11, 0.15)';
+                msgEl.style.borderColor = '#f59e0b';
+                msgEl.style.color = '#fcd34d';
+                msgEl.textContent = 'Update available! Remote: ' + data.remote_commit + '. Run update_app.sh on the Pi to install.';
+                msgEl.style.display = 'block';
+            }
+            if (statusEl) statusEl.innerHTML = '<span style="color: #f59e0b;">Update available (' + escapeHtml(data.remote_commit || '') + ')</span>';
+        }
+    } catch (err) {
+        if (msgEl) {
+            msgEl.className = 'status-message error';
+            msgEl.textContent = 'Error: ' + err.message;
+            msgEl.style.display = 'block';
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+        if (spinner) spinner.style.display = 'none';
+        if (label) label.textContent = 'Check Now';
+    }
+}
+
+async function saveUpdateSchedule() {
+    const msgEl = document.getElementById('update-schedule-message');
+    const btn = document.querySelector('#update-schedule-form button[type="submit"]');
+
+    const autoCheck = document.getElementById('update-auto-check')?.checked ?? true;
+    const frequency = document.getElementById('update-frequency')?.value || 'monthly';
+    const day = parseInt(document.getElementById('update-day')?.value || '1', 10);
+    const checkTime = document.getElementById('update-check-time')?.value || '02:00';
+
+    // Basic time validation
+    if (!/^\d{2}:\d{2}$/.test(checkTime)) {
+        if (msgEl) {
+            msgEl.className = 'status-message error';
+            msgEl.textContent = 'Time must be in HH:MM format';
+            msgEl.style.display = 'block';
+        }
+        return;
+    }
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
+    try {
+        const resp = await fetch('/api/updates/schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ auto_check: autoCheck, frequency, day, check_time: checkTime })
+        });
+        const data = await resp.json();
+
+        if (data.ok) {
+            if (msgEl) {
+                msgEl.className = 'status-message success';
+                msgEl.textContent = 'Schedule saved successfully!';
+                msgEl.style.display = 'block';
+                setTimeout(() => { msgEl.style.display = 'none'; }, 5000);
+            }
+        } else {
+            if (msgEl) {
+                msgEl.className = 'status-message error';
+                msgEl.textContent = 'Failed to save: ' + (data.error || 'Unknown error');
+                msgEl.style.display = 'block';
+            }
+        }
+    } catch (err) {
+        if (msgEl) {
+            msgEl.className = 'status-message error';
+            msgEl.textContent = 'Error: ' + err.message;
+            msgEl.style.display = 'block';
+        }
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Save Schedule'; }
+    }
+}

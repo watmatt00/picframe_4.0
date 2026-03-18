@@ -24,6 +24,7 @@ from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
 from src.services.systemd_service import systemd_service
 from src.services.display_service import display_service
+from src.services.update_service import check_for_updates, save_check_result, get_local_commit
 from src.services.status_service import (
     get_current_source,
     get_photo_counts,
@@ -110,6 +111,9 @@ async def dashboard_home(request: Request):
     rotation_interval = int(picframe_config.get("model", {}).get("time_delay", 30))
     pf_log_level = picframe_config.get("model", {}).get("log_level", "WARNING")
 
+    # Get update status for Settings tab card
+    local_commit = await get_local_commit()
+
     context = {
         "request": request,
         "frame_name": settings.frame.name,
@@ -131,8 +135,17 @@ async def dashboard_home(request: Request):
         "funnel_url": settings.frame.funnel_url or "",
         "tailscale_ip": _get_tailscale_ip(),
         "api_port": 8000,
+        # Update check card context
+        "update_auto_check": settings.updates.auto_check,
+        "update_frequency": settings.updates.frequency,
+        "update_day": settings.updates.day,
+        "update_check_time": settings.updates.check_time,
+        "update_last_checked": settings.updates.last_checked,
+        "update_last_result": settings.updates.last_result,
+        "update_available_commit": settings.updates.available_commit,
+        "update_local_commit": local_commit,
     }
-    return templates.TemplateResponse("dashboard.html", context)
+    return templates.TemplateResponse(request, "dashboard.html", context)
 
 
 @router.post("/devices/{device_id}/revoke")
@@ -748,6 +761,14 @@ class SaveSettingsRequest(BaseModel):
     log_level: str
 
 
+class SaveUpdateScheduleRequest(BaseModel):
+    """Request to save update schedule settings."""
+    auto_check: bool
+    frequency: str
+    day: int
+    check_time: str
+
+
 @router.post("/api/settings")
 async def save_settings_api(request: SaveSettingsRequest):
     """
@@ -800,4 +821,65 @@ async def save_settings_api(request: SaveSettingsRequest):
         return {"ok": True, "restarted": restarted}
     except Exception as e:
         logger.error(f"Failed to save settings: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+@router.post("/api/updates/check")
+async def check_for_updates_api():
+    """
+    Trigger an immediate update check.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    result = await check_for_updates()
+    save_check_result(result)
+
+    return {
+        "ok": result.get("error") is None,
+        "up_to_date": result.get("up_to_date"),
+        "local_commit": result.get("local_commit"),
+        "remote_commit": result.get("remote_commit"),
+        "checked_at": result.get("checked_at"),
+        "error": result.get("error"),
+    }
+
+
+@router.post("/api/updates/schedule")
+async def save_update_schedule(request: SaveUpdateScheduleRequest):
+    """
+    Save update schedule configuration.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    # Validate frequency
+    if request.frequency not in ("monthly", "weekly"):
+        return {"ok": False, "error": "frequency must be 'monthly' or 'weekly'"}
+
+    # Validate day
+    if request.frequency == "monthly" and not (1 <= request.day <= 28):
+        return {"ok": False, "error": "day must be 1-28 for monthly frequency"}
+    if request.frequency == "weekly" and not (0 <= request.day <= 6):
+        return {"ok": False, "error": "day must be 0-6 for weekly frequency"}
+
+    # Validate check_time
+    if not re.match(r"^\d{2}:\d{2}$", request.check_time):
+        return {"ok": False, "error": "check_time must be HH:MM format"}
+    hour, minute = int(request.check_time[:2]), int(request.check_time[3:])
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return {"ok": False, "error": "check_time has invalid hour or minute"}
+
+    try:
+        config_manager.set("updates.auto_check", request.auto_check)
+        config_manager.set("updates.frequency", request.frequency)
+        config_manager.set("updates.day", request.day)
+        config_manager.set("updates.check_time", request.check_time)
+        reload_settings()
+
+        logger.info(
+            f"Update schedule saved: auto_check={request.auto_check}, "
+            f"frequency={request.frequency}, day={request.day}, time={request.check_time}"
+        )
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Failed to save update schedule: {e}")
         return {"ok": False, "error": str(e)}
