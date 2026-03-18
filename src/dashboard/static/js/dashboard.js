@@ -85,6 +85,18 @@ function initAdvancedToggles() {
         });
     }
 
+    // Updates card toggle
+    const updatesToggle = document.getElementById('updates-toggle');
+    const updatesSection = document.getElementById('updates-section');
+    if (updatesToggle && updatesSection) {
+        updatesToggle.addEventListener('click', () => {
+            updatesSection.classList.toggle('visible');
+            updatesToggle.textContent = updatesSection.classList.contains('visible')
+                ? '▾ Updates'
+                : '▸ Updates';
+        });
+    }
+
     // Sources table advanced toggle
     const sourcesTableToggle = document.getElementById('sources-table-advanced-toggle');
     const sourcesTable = document.getElementById('sources-table');
@@ -1233,7 +1245,13 @@ async function checkForUpdates() {
         if (localVersionEl && data.local_version) localVersionEl.textContent = data.local_version;
         if (localHashEl && data.local_commit) localHashEl.textContent = '(' + data.local_commit + ')';
         if (lastCheckedEl && data.checked_at) {
-            lastCheckedEl.textContent = data.checked_at.replace('T', ' ').substring(0, 19);
+            try {
+                const d = new Date(data.checked_at);
+                lastCheckedEl.textContent = d.toLocaleDateString('en-US', {day:'numeric', month:'short', year:'numeric'}) +
+                    ' at ' + d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+            } catch (e) {
+                lastCheckedEl.textContent = data.checked_at;
+            }
         }
 
         if (data.error) {

@@ -391,14 +391,10 @@
 
             <!-- Updates Card -->
             <section class="card" style="margin-top: 1.5rem;">
-                <div class="card-header">
-                    <div>
-                        <div class="card-title">🔄 Updates</div>
-                        <div class="card-subtitle">Check for and apply updates from GitHub</div>
-                    </div>
-                </div>
-
-                <div style="padding: 0 1.5rem 1.5rem;">
+                <div style="padding: 0 1.5rem 0;">
+                    <button class="advanced-toggle" id="updates-toggle">▸ Updates</button>
+                    <div class="advanced-section" id="updates-section">
+                <div style="padding: 0 0 1.5rem;">
                     <!-- Version comparison table -->
                     <div class="service-grid" style="margin-bottom: 1.25rem;">
                         <div class="service-label">Installed</div>
@@ -503,6 +499,8 @@
                         </div>
                     </form>
                 </div>
+                    </div> <!-- /updates-section -->
+                </div> <!-- /padding wrapper -->
             </section>
         </main>
     </div>

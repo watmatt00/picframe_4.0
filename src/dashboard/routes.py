@@ -52,6 +52,17 @@ LOGS_DIR = Path.home() / ".picframe" / "logs"
 PICFRAME_CONFIG_PATH = Path.home() / "picframe_data" / "config" / "configuration.yaml"
 
 
+def _format_last_checked(iso_str: str | None) -> str:
+    """Format an ISO datetime string as a human-friendly string."""
+    if not iso_str:
+        return "Never"
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        return dt.strftime("%-d %b %Y at %-I:%M %p")
+    except Exception:
+        return iso_str
+
+
 def _get_picframe_config() -> dict:
     """Read picframe configuration.yaml file."""
     if PICFRAME_CONFIG_PATH.exists():
@@ -142,7 +153,7 @@ async def dashboard_home(request: Request):
         "update_frequency": settings.updates.frequency,
         "update_day": settings.updates.day,
         "update_check_time": settings.updates.check_time,
-        "update_last_checked": settings.updates.last_checked,
+        "update_last_checked": _format_last_checked(settings.updates.last_checked),
         "update_last_result": settings.updates.last_result,
         "update_available_commit": settings.updates.available_commit,
         "update_local_commit": local_commit,
