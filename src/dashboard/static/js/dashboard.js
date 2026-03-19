@@ -84,6 +84,18 @@ function initAdvancedToggles() {
         });
     }
 
+    // Mobile App Pairing card toggle
+    const pairingToggle = document.getElementById('pairing-toggle');
+    const pairingSection = document.getElementById('pairing-section');
+    if (pairingToggle && pairingSection) {
+        pairingToggle.addEventListener('click', () => {
+            pairingSection.classList.toggle('visible');
+            pairingToggle.textContent = pairingSection.classList.contains('visible')
+                ? '▾ Hide'
+                : '▸ Show';
+        });
+    }
+
     // Frame Settings card toggle
     const settingsFormToggle = document.getElementById('settings-form-toggle');
     const settingsFormSection = document.getElementById('settings-form-section');
