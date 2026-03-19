@@ -90,9 +90,15 @@ function initAdvancedToggles() {
     if (pairingToggle && pairingSection) {
         pairingToggle.addEventListener('click', () => {
             pairingSection.classList.toggle('visible');
-            pairingToggle.textContent = pairingSection.classList.contains('visible')
-                ? '▾ Hide'
-                : '▸ Show';
+            const isVisible = pairingSection.classList.contains('visible');
+            pairingToggle.textContent = isVisible ? '▾ Hide' : '▸ Show';
+            // Collapse the devices card when pairing section hides
+            if (!isVisible) {
+                const devicesCard = document.getElementById('devices-card');
+                const toggleBtn = document.getElementById('btn-toggle-devices');
+                if (devicesCard) devicesCard.style.display = 'none';
+                if (toggleBtn) toggleBtn.textContent = 'Manage Devices';
+            }
         });
     }
 
