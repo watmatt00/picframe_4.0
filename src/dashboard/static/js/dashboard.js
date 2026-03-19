@@ -57,18 +57,6 @@ function switchTab(tabId) {
 // =============================================================================
 
 function initAdvancedToggles() {
-    // Status advanced toggle
-    const statusAdvancedToggle = document.getElementById('status-advanced-toggle');
-    const statusAdvancedSection = document.getElementById('status-advanced-section');
-    if (statusAdvancedToggle && statusAdvancedSection) {
-        statusAdvancedToggle.addEventListener('click', () => {
-            statusAdvancedSection.classList.toggle('visible');
-            statusAdvancedToggle.textContent = statusAdvancedSection.classList.contains('visible')
-                ? '▾ Hide technical details'
-                : '▸ Show technical details';
-        });
-    }
-
     // Settings logs toggle
     const settingsLogsToggle = document.getElementById('settings-logs-toggle');
     const settingsLogsSection = document.getElementById('settings-logs-section');
