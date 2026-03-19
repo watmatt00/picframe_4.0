@@ -1353,7 +1353,9 @@ async function saveUpdateSchedule() {
     const autoApply = document.getElementById('update-auto-apply')?.checked ?? false;
     const frequency = document.getElementById('update-frequency')?.value || 'monthly';
     const day = parseInt(document.getElementById('update-day')?.value || '1', 10);
-    const checkTime = document.getElementById('update-check-time')?.value || '02:00';
+    // Strip seconds if browser returns HH:MM:SS from <input type="time">
+    const rawTime = document.getElementById('update-check-time')?.value || '02:00';
+    const checkTime = rawTime.length > 5 ? rawTime.substring(0, 5) : rawTime;
 
     if (!checkTime || !/^\d{2}:\d{2}$/.test(checkTime)) {
         if (msgEl) {
@@ -1372,6 +1374,9 @@ async function saveUpdateSchedule() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ auto_check: autoCheck, auto_apply: autoApply, frequency, day, check_time: checkTime })
         });
+        if (!resp.ok) {
+            throw new Error(`Server error ${resp.status} — the API may be restarting, try again`);
+        }
         const data = await resp.json();
 
         if (data.ok) {
@@ -1391,7 +1396,9 @@ async function saveUpdateSchedule() {
     } catch (err) {
         if (msgEl) {
             msgEl.className = 'status-message error';
-            msgEl.textContent = 'Error: ' + err.message;
+            msgEl.textContent = err.message.includes('Failed to fetch')
+                ? 'Could not reach the API — it may be restarting. Refresh the page and try again.'
+                : 'Error: ' + err.message;
             msgEl.style.display = 'block';
         }
     } finally {
