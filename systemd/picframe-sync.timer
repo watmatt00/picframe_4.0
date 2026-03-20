@@ -5,10 +5,9 @@ After=picframe-api.service
 [Timer]
 # Run 15 minutes after boot
 OnBootSec=15min
-# Then every 15 minutes
-OnUnitActiveSec=15min
-# Add randomized delay to avoid thundering herd
-RandomizedDelaySec=60
+# Fire at clock-aligned 15-minute marks (:00, :15, :30, :45)
+# Updated dynamically by /api/settings when sync interval changes
+OnCalendar=*:0/15
 Persistent=true
 
 [Install]

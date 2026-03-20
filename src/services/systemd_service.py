@@ -6,6 +6,7 @@ Wrapper for controlling systemd user services.
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Optional
 
 from pydantic import BaseModel
@@ -14,6 +15,108 @@ logger = logging.getLogger(__name__)
 
 # Whitelist of services that can be controlled
 ALLOWED_SERVICES = frozenset({"picframe", "picframe-api"})
+
+# Allowed sync intervals in seconds (0 = disabled)
+VALID_SYNC_INTERVALS = frozenset({0, 300, 600, 900, 1800, 2700, 3600, 7200, 21600, 43200, 86400})
+
+# OnCalendar expressions for clock-aligned firing (multiples of interval from midnight)
+_SYNC_CALENDAR = {
+    300:   "*:0/5",
+    600:   "*:0/10",
+    900:   "*:0/15",
+    1800:  "*:0/30",
+    2700:  (
+        "*-*-* "
+        "00:00,00:45,01:30,02:15,03:00,03:45,04:30,05:15,"
+        "06:00,06:45,07:30,08:15,09:00,09:45,10:30,11:15,"
+        "12:00,12:45,13:30,14:15,15:00,15:45,16:30,17:15,"
+        "18:00,18:45,19:30,20:15,21:00,21:45,22:30,23:15"
+    ),
+    3600:  "*:00",
+    7200:  "*-*-* 00,02,04,06,08,10,12,14,16,18,20,22:00",
+    21600: "*-*-* 00,06,12,18:00",
+    43200: "*-*-* 00,12:00",
+    86400: "*-*-* 00:00",
+}
+
+_SYNC_TIMER_PATH = Path.home() / ".config" / "systemd" / "user" / "picframe-sync.timer"
+
+_TIMER_TEMPLATE = """\
+[Unit]
+Description=PicFrame 4.0 Photo Sync Timer
+After=picframe-api.service
+
+[Timer]
+# Run 15 minutes after boot
+OnBootSec=15min
+# Fire at clock-aligned intervals
+OnCalendar={calendar}
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+"""
+
+
+async def update_sync_timer(interval_seconds: int) -> bool:
+    """
+    Write a new picframe-sync.timer unit with the given interval and reload systemd.
+
+    If interval_seconds is 0, stop the timer instead.
+    interval_seconds must be a value from VALID_SYNC_INTERVALS.
+    Returns True on success.
+    """
+    if interval_seconds not in VALID_SYNC_INTERVALS:
+        logger.error(f"Invalid sync interval: {interval_seconds}")
+        return False
+
+    try:
+        if interval_seconds == 0:
+            proc = await asyncio.create_subprocess_exec(
+                "systemctl", "--user", "stop", "picframe-sync.timer",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await proc.communicate()
+            logger.info("Sync timer stopped (disabled)")
+            return True
+
+        calendar = _SYNC_CALENDAR[interval_seconds]
+        content = _TIMER_TEMPLATE.format(calendar=calendar)
+
+        # Atomic write: temp file then rename
+        tmp_path = _SYNC_TIMER_PATH.with_suffix(".timer.tmp")
+        tmp_path.write_text(content)
+        tmp_path.rename(_SYNC_TIMER_PATH)
+
+        # Reload systemd unit files
+        proc = await asyncio.create_subprocess_exec(
+            "systemctl", "--user", "daemon-reload",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            logger.error(f"daemon-reload failed: {stderr.decode()}")
+            return False
+
+        # Restart the timer so the new OnCalendar takes effect immediately
+        proc = await asyncio.create_subprocess_exec(
+            "systemctl", "--user", "restart", "picframe-sync.timer",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            logger.error(f"timer restart failed: {stderr.decode()}")
+            return False
+
+        logger.info(f"Sync timer updated: OnCalendar={calendar}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to update sync timer: {e}")
+        return False
 
 
 class ServiceStatus(BaseModel):

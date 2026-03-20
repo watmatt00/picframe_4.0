@@ -16,13 +16,13 @@ import yaml
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
 from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
-from src.services.systemd_service import systemd_service
+from src.services.systemd_service import systemd_service, update_sync_timer, VALID_SYNC_INTERVALS
 from src.services.display_service import display_service
 from src.services.update_service import check_for_updates, save_check_result, get_local_commit, get_local_version, apply_update
 from src.services.status_service import (
@@ -774,6 +774,13 @@ class SaveSettingsRequest(BaseModel):
     sync_interval: int
     log_level: str
 
+    @field_validator("sync_interval")
+    @classmethod
+    def must_be_valid_interval(cls, v: int) -> int:
+        if v not in VALID_SYNC_INTERVALS:
+            raise ValueError(f"sync_interval must be one of {sorted(VALID_SYNC_INTERVALS)}")
+        return v
+
 
 class SaveUpdateScheduleRequest(BaseModel):
     """Request to save update schedule settings."""
@@ -818,10 +825,13 @@ async def save_settings_api(request: SaveSettingsRequest):
         logger.info(f"Picframe config saved: time_delay={request.rotation_interval}")
 
         # Also save to v4 dashboard config
+        settings = get_settings()
+        current_sync_interval = settings.sync.interval
         config_manager.set("frame.name", request.frame_name)
         config_manager.set("display.rotation_interval", request.rotation_interval)
         config_manager.set("sync.interval", request.sync_interval)
         config_manager.set("logging.level", request.log_level)
+        reload_settings()
 
         # Restart picframe if rotation interval changed
         restarted = False
@@ -832,6 +842,10 @@ async def save_settings_api(request: SaveSettingsRequest):
                 logger.info("Picframe service restarted successfully")
             else:
                 logger.warning("Failed to restart picframe service")
+
+        # Update systemd sync timer if interval changed
+        if request.sync_interval != current_sync_interval:
+            await update_sync_timer(request.sync_interval)
 
         return {"ok": True, "restarted": restarted}
     except Exception as e:

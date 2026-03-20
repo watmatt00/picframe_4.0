@@ -12,12 +12,12 @@ from pathlib import Path
 
 import yaml
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.api.dependencies import require_admin
 from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
-from src.services.systemd_service import systemd_service
+from src.services.systemd_service import systemd_service, update_sync_timer, VALID_SYNC_INTERVALS
 from src.utils.logging import log_auth_event
 
 PICFRAME_CONFIG_PATH = Path.home() / "picframe_data" / "config" / "configuration.yaml"
@@ -27,14 +27,21 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 class FrameSettings(BaseModel):
     """Current frame settings exposed to mobile app."""
-    sync_interval: int = Field(description="Sync interval in seconds")
+    sync_interval: int = Field(description="Sync interval in seconds (0 = disabled)")
     rotation_interval: int = Field(description="Seconds between photo rotations")
     frame_name: str = Field(description="Frame display name")
 
 
 class UpdateSyncIntervalRequest(BaseModel):
     """Request to update sync interval."""
-    interval: int = Field(ge=60, le=86400, description="Sync interval in seconds (1 min to 24 hours)")
+    interval: int = Field(description="Sync interval in seconds (0=off, or 300/600/900/1800/2700/3600/7200/21600/43200/86400)")
+
+    @field_validator("interval")
+    @classmethod
+    def must_be_valid_interval(cls, v: int) -> int:
+        if v not in VALID_SYNC_INTERVALS:
+            raise ValueError(f"interval must be one of {sorted(VALID_SYNC_INTERVALS)}")
+        return v
 
 
 class UpdateFrameNameRequest(BaseModel):
@@ -83,10 +90,12 @@ async def update_sync_interval(
     """
     config_manager.set("sync.interval", request.interval)
     reload_settings()
+    await update_sync_timer(request.interval)
 
+    label = "disabled" if request.interval == 0 else f"{request.interval} seconds"
     return UpdateSettingsResponse(
         success=True,
-        message=f"Sync interval updated to {request.interval} seconds",
+        message=f"Sync interval updated to {label}",
     )
 
 

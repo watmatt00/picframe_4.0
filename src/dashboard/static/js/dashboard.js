@@ -915,7 +915,7 @@ function initSettingsForm() {
         const settings = {
             frame_name: document.getElementById('settings-frame-name').value,
             rotation_interval: parseInt(document.getElementById('settings-rotation-interval').value),
-            sync_interval: parseInt(document.getElementById('settings-sync-interval').value) * 60,  // Convert minutes to seconds
+            sync_interval: parseInt(document.getElementById('settings-sync-interval').value),
             log_level: document.getElementById('settings-log-level').value
         };
 
