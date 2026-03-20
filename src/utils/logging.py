@@ -72,6 +72,10 @@ def setup_logging(
     security_logger.addHandler(security_handler)
     security_logger.propagate = False  # Don't duplicate to ops log
 
+    # Silence noisy third-party loggers
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+
     # Set restrictive permissions on log directory
     os.chmod(LOG_DIR, 0o700)
 
