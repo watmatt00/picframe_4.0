@@ -8,6 +8,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from src.auth.jwt_handler import TokenClaims, verify_token
+from src.storage.devices import device_storage
 
 security = HTTPBearer(auto_error=False)
 
@@ -36,6 +37,7 @@ async def get_current_device(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    device_storage.update_last_seen(claims.device_id)
     return claims
 
 
