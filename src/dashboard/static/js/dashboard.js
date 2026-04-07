@@ -1412,9 +1412,11 @@ function initPhotoTools() {
     // Filename Cleaner
     const btnScanFn = document.getElementById('btn-scan-filenames');
     const btnApplyFn = document.getElementById('btn-apply-filenames');
+    const btnApplyFnTop = document.getElementById('btn-apply-filenames-top');
     const chkAllFn = document.getElementById('filenames-check-all');
     if (btnScanFn) btnScanFn.addEventListener('click', runFilenameScan);
     if (btnApplyFn) btnApplyFn.addEventListener('click', runFilenameApply);
+    if (btnApplyFnTop) btnApplyFnTop.addEventListener('click', runFilenameApply);
     if (chkAllFn) chkAllFn.addEventListener('change', function () {
         // Only toggle checkboxes in currently visible rows
         document.querySelectorAll('#filenames-tbody tr').forEach(tr => {
@@ -1533,10 +1535,17 @@ function renderFilenameResults(src, data) {
         ? `✅ All ${data.total_files_scanned} files look clean — nothing to fix.`
         : `Found ${_fnFixes.length} file(s) with issues (scanned ${data.total_files_scanned} total)${mtimeNote}.`;
 
+    const setActionVisibility = (visible) => {
+        ['btn-apply-filenames', 'btn-apply-filenames-top'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) btn.closest('.button-row').style.display = visible ? '' : 'none';
+        });
+    };
+
     if (_fnFixes.length === 0) {
         document.getElementById('filenames-table-wrap').style.display = 'none';
-        document.getElementById('btn-apply-filenames').style.display = 'none';
         document.getElementById('filenames-filter-bar').innerHTML = '';
+        setActionVisibility(false);
         resultDiv.style.display = 'block';
         return;
     }
@@ -1545,7 +1554,7 @@ function renderFilenameResults(src, data) {
     _renderFilenameRows();
 
     document.getElementById('filenames-table-wrap').style.display = '';
-    document.getElementById('btn-apply-filenames').style.display = '';
+    setActionVisibility(true);
     resultDiv.style.display = 'block';
 }
 
@@ -1667,11 +1676,12 @@ function _renderFilenameRows() {
 }
 
 function updateFilenameApplyBtn() {
-    // Count all checked boxes, not just visible ones — apply acts on all checked rows
     const checked = document.querySelectorAll('.filename-check:checked').length;
-    const btn = document.getElementById('btn-apply-filenames');
-    btn.disabled = checked === 0;
-    btn.textContent = checked > 0 ? `Apply ${checked} Rename(s)` : 'Apply Selected Renames';
+    const label = checked > 0 ? `Apply ${checked} Rename(s)` : 'Apply Selected Renames';
+    ['btn-apply-filenames', 'btn-apply-filenames-top'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.disabled = checked === 0; btn.textContent = label; }
+    });
 }
 
 async function runFilenameApply() {
@@ -1686,10 +1696,17 @@ async function runFilenameApply() {
         reasons: JSON.parse(cb.dataset.reasons),
     }));
 
-    const btn = document.getElementById('btn-apply-filenames');
-    const status = document.getElementById('filenames-apply-status');
-    btn.disabled = true; btn.textContent = 'Applying…';
-    status.textContent = '';
+    const setStatus = (msg) => {
+        ['filenames-apply-status', 'filenames-apply-status-top'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = msg;
+        });
+    };
+    ['btn-apply-filenames', 'btn-apply-filenames-top'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
+    });
+    setStatus('');
 
     try {
         const data = await apiFetch(`/api/tools/${src}/apply/filenames`, {
@@ -1700,16 +1717,13 @@ async function runFilenameApply() {
         if (!data.ok) throw new Error(data.error || 'Apply failed');
         const ok = (data.succeeded || []).length;
         const fail = (data.failed || []).length;
-        status.textContent = `✅ ${ok} renamed${fail ? ` · ⚠️ ${fail} failed` : ''}`;
-        if (fail) {
-            console.warn('Rename failures:', data.failed);
-        }
-        // Re-scan to refresh
+        setStatus(`✅ ${ok} renamed${fail ? ` · ⚠️ ${fail} failed` : ''}`);
+        if (fail) console.warn('Rename failures:', data.failed);
         setTimeout(runFilenameScan, 800);
     } catch (e) {
-        status.textContent = '❌ ' + e.message;
+        setStatus('❌ ' + e.message);
     } finally {
-        btn.disabled = false; btn.textContent = 'Apply Selected Renames';
+        updateFilenameApplyBtn();
     }
 }
 
