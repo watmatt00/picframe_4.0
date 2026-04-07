@@ -1560,6 +1560,16 @@ function _buildFilterBar() {
         if (f.needs_review) mtimeCount++;
     });
 
+    const filterTooltips = {
+        all:            'Show all files with issues',
+        google_id:      'Files with a Google Photos token appended — e.g. IMG_1592 {AByz57...}.HEIC',
+        numbered_suffix:'Files with a duplicate-copy suffix — e.g. photo (1).jpg or 20230101(0).jpg',
+        ext_case:       'Files with an uppercase extension — e.g. .JPG or .HEIC (will be lowercased)',
+        uuid_name:      'iOS Camera Roll exports with a UUID filename — e.g. 0513C8F9-94B7-….JPG',
+        hex_hash:       'Google Photos hex-hash filenames — e.g. ad76e4bf….jpg',
+        needs_review:   'Proposed name uses file modification time (no EXIF date found) — review before applying',
+    };
+
     const filters = [
         { key: 'all', label: `All (${_fnFixes.length})` },
         ...Object.entries(counts).map(([k, n]) => ({ key: k, label: `${reasonLabel(k)} (${n})` })),
@@ -1573,6 +1583,7 @@ function _buildFilterBar() {
         btn.style.cssText = 'padding:0.25rem 0.75rem;font-size:0.8rem;margin:0 0.25rem 0.25rem 0;';
         btn.textContent = label;
         btn.dataset.filter = key;
+        btn.title = filterTooltips[key] || '';
         btn.addEventListener('click', () => _toggleFilter(key));
         bar.appendChild(btn);
     });
