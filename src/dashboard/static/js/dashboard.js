@@ -1463,6 +1463,20 @@ function initPhotoTools() {
         document.getElementById('videos-result').style.display = 'none';
     });
 
+    // Cancel buttons
+    ['btn-cancel-filenames', 'btn-cancel-filenames-top'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.addEventListener('click', () => { if (_fnAbort) _fnAbort.abort(); });
+    });
+    ['btn-cancel-duplicates', 'btn-cancel-duplicates-top'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.addEventListener('click', () => { if (_dupAbort) _dupAbort.abort(); });
+    });
+    ['btn-cancel-videos', 'btn-cancel-videos-top'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.addEventListener('click', () => { if (_vidAbort) _vidAbort.abort(); });
+    });
+
     // Rename File card
     const btnRename = document.getElementById('btn-rename-file');
     if (btnRename) btnRename.addEventListener('click', runManualRename);
@@ -1529,6 +1543,11 @@ async function runFilenameScan() {
 let _fnActiveFilters = new Set();
 let _fnCurrentSrc = '';
 let _fnFixes = [];
+
+// AbortControllers for cancelling in-progress apply jobs
+let _fnAbort = null;
+let _dupAbort = null;
+let _vidAbort = null;
 
 function renderFilenameResults(src, data) {
     _fnCurrentSrc = src;
@@ -1735,33 +1754,66 @@ async function runFilenameApply() {
         return { original: cb.dataset.original, proposed, reasons: JSON.parse(cb.dataset.reasons) };
     });
 
-    const setStatus = (msg) => {
+    const total = fixes.length;
+    let succeeded = 0;
+    const failures = [];
+
+    const setStatus = (msg, color = '#94a3b8') => {
         ['filenames-apply-status', 'filenames-apply-status-top'].forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.textContent = msg;
+            if (el) { el.textContent = msg; el.style.color = color; }
         });
     };
-    ['btn-apply-filenames', 'btn-apply-filenames-top'].forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
-    });
+    const setBtn = (text) => {
+        ['btn-apply-filenames', 'btn-apply-filenames-top'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) { btn.disabled = true; btn.textContent = text; }
+        });
+    };
+    const showCancel = (visible) => {
+        ['btn-cancel-filenames', 'btn-cancel-filenames-top'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) btn.style.display = visible ? '' : 'none';
+        });
+    };
+
+    _fnAbort = new AbortController();
+    setBtn(`Renaming 0 of ${total}…`);
+    showCancel(true);
     setStatus('');
 
     try {
-        const data = await apiFetch(`/api/tools/${src}/apply/filenames`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fixes }),
-        });
-        if (!data.ok) throw new Error(data.error || 'Apply failed');
-        const ok = (data.succeeded || []).length;
-        const fail = (data.failed || []).length;
-        setStatus(`✅ ${ok} renamed${fail ? ` · ⚠️ ${fail} failed` : ''}`);
-        if (fail) console.warn('Rename failures:', data.failed);
-        setTimeout(runFilenameScan, 800);
-    } catch (e) {
-        setStatus('❌ ' + e.message);
+        for (let i = 0; i < fixes.length; i++) {
+            if (_fnAbort.signal.aborted) break;
+            const fix = fixes[i];
+            setBtn(`Renaming ${i + 1} of ${total}…`);
+            setStatus(`${fix.original} → ${fix.proposed}`, '#fbbf24');
+            try {
+                const data = await apiFetch(`/api/tools/${src}/apply/filenames`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fixes: [fix] }),
+                    signal: _fnAbort.signal,
+                });
+                if (data.succeeded?.length) succeeded++;
+                else failures.push(...(data.failed?.length ? data.failed : [{ filename: fix.original, error: data.error || 'Unknown error' }]));
+            } catch (e) {
+                if (e.name === 'AbortError') break;
+                failures.push({ filename: fix.original, error: e.message });
+            }
+        }
+        const cancelled = _fnAbort.signal.aborted;
+        setStatus(
+            cancelled
+                ? `⏹ Stopped after ${succeeded} rename(s)${failures.length ? ` · ⚠️ ${failures.length} failed` : ''}`
+                : `✅ ${succeeded} of ${total} renamed${failures.length ? ` · ⚠️ ${failures.length} failed` : ''}`,
+            cancelled || failures.length ? '#fbbf24' : '#86efac'
+        );
+        if (failures.length) console.warn('Rename failures:', failures);
+        if (!cancelled) setTimeout(runFilenameScan, 800);
     } finally {
+        showCancel(false);
+        _fnAbort = null;
         updateFilenameApplyBtn();
     }
 }
@@ -1863,32 +1915,66 @@ async function runDupApply() {
     if (!toDelete.length) return;
     if (!confirm(`Delete ${toDelete.length} duplicate file(s)? This cannot be undone.`)) return;
 
-    const setStatus = (msg) => {
+    const total = toDelete.length;
+    let succeeded = 0;
+    const failures = [];
+
+    const setStatus = (msg, color = '#94a3b8') => {
         ['duplicates-apply-status', 'duplicates-apply-status-top'].forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.textContent = msg;
+            if (el) { el.textContent = msg; el.style.color = color; }
         });
     };
-    ['btn-apply-duplicates', 'btn-apply-duplicates-top'].forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
-    });
+    const setBtn = (text) => {
+        ['btn-apply-duplicates', 'btn-apply-duplicates-top'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) { btn.disabled = true; btn.textContent = text; }
+        });
+    };
+    const showCancel = (visible) => {
+        ['btn-cancel-duplicates', 'btn-cancel-duplicates-top'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) btn.style.display = visible ? '' : 'none';
+        });
+    };
+
+    _dupAbort = new AbortController();
+    setBtn(`Deleting 0 of ${total}…`);
+    showCancel(true);
     setStatus('');
 
     try {
-        const data = await apiFetch(`/api/tools/${src}/apply/duplicates`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to_delete: toDelete }),
-        });
-        if (!data.ok) throw new Error(data.error || 'Apply failed');
-        const ok = (data.succeeded || []).length;
-        const fail = (data.failed || []).length;
-        setStatus(`✅ ${ok} deleted${fail ? ` · ⚠️ ${fail} failed` : ''}`);
-        setTimeout(runDupScan, 800);
-    } catch (e) {
-        setStatus('❌ ' + e.message);
+        for (let i = 0; i < toDelete.length; i++) {
+            if (_dupAbort.signal.aborted) break;
+            const filename = toDelete[i];
+            setBtn(`Deleting ${i + 1} of ${total}…`);
+            setStatus(filename, '#fbbf24');
+            try {
+                const data = await apiFetch(`/api/tools/${src}/apply/duplicates`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ to_delete: [filename] }),
+                    signal: _dupAbort.signal,
+                });
+                if (data.succeeded?.length) succeeded++;
+                else failures.push(...(data.failed?.length ? data.failed : [{ filename, error: data.error || 'Unknown error' }]));
+            } catch (e) {
+                if (e.name === 'AbortError') break;
+                failures.push({ filename, error: e.message });
+            }
+        }
+        const cancelled = _dupAbort.signal.aborted;
+        setStatus(
+            cancelled
+                ? `⏹ Stopped after ${succeeded} deletion(s)${failures.length ? ` · ⚠️ ${failures.length} failed` : ''}`
+                : `✅ ${succeeded} of ${total} deleted${failures.length ? ` · ⚠️ ${failures.length} failed` : ''}`,
+            cancelled || failures.length ? '#fbbf24' : '#86efac'
+        );
+        if (failures.length) console.warn('Delete failures:', failures);
+        if (!cancelled) setTimeout(runDupScan, 800);
     } finally {
+        showCancel(false);
+        _dupAbort = null;
         updateDupApplyBtn();
     }
 }
@@ -1952,36 +2038,70 @@ function updateVideoApplyBtn() {
 
 async function runVideoApply() {
     const src = toolsSourceId();
-    const checked = [...document.querySelectorAll('.video-check:checked')].map(cb => cb.value);
-    if (!checked.length) return;
-    if (!confirm(`Delete ${checked.length} video file(s)? This cannot be undone.`)) return;
+    const toDelete = [...document.querySelectorAll('.video-check:checked')].map(cb => cb.value);
+    if (!toDelete.length) return;
+    if (!confirm(`Delete ${toDelete.length} video file(s)? This cannot be undone.`)) return;
 
-    const setStatus = (msg) => {
+    const total = toDelete.length;
+    let succeeded = 0;
+    const failures = [];
+
+    const setStatus = (msg, color = '#94a3b8') => {
         ['videos-apply-status', 'videos-apply-status-top'].forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.textContent = msg;
+            if (el) { el.textContent = msg; el.style.color = color; }
         });
     };
-    ['btn-apply-videos', 'btn-apply-videos-top'].forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
-    });
+    const setBtn = (text) => {
+        ['btn-apply-videos', 'btn-apply-videos-top'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) { btn.disabled = true; btn.textContent = text; }
+        });
+    };
+    const showCancel = (visible) => {
+        ['btn-cancel-videos', 'btn-cancel-videos-top'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) btn.style.display = visible ? '' : 'none';
+        });
+    };
+
+    _vidAbort = new AbortController();
+    setBtn(`Deleting 0 of ${total}…`);
+    showCancel(true);
     setStatus('');
 
     try {
-        const data = await apiFetch(`/api/tools/${src}/apply/videos`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to_delete: checked }),
-        });
-        if (!data.ok) throw new Error(data.error || 'Apply failed');
-        const ok = (data.succeeded || []).length;
-        const fail = (data.failed || []).length;
-        setStatus(`✅ ${ok} deleted${fail ? ` · ⚠️ ${fail} failed` : ''}`);
-        setTimeout(runVideoScan, 800);
-    } catch (e) {
-        setStatus('❌ ' + e.message);
+        for (let i = 0; i < toDelete.length; i++) {
+            if (_vidAbort.signal.aborted) break;
+            const filename = toDelete[i];
+            setBtn(`Deleting ${i + 1} of ${total}…`);
+            setStatus(filename, '#fbbf24');
+            try {
+                const data = await apiFetch(`/api/tools/${src}/apply/videos`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ to_delete: [filename] }),
+                    signal: _vidAbort.signal,
+                });
+                if (data.succeeded?.length) succeeded++;
+                else failures.push(...(data.failed?.length ? data.failed : [{ filename, error: data.error || 'Unknown error' }]));
+            } catch (e) {
+                if (e.name === 'AbortError') break;
+                failures.push({ filename, error: e.message });
+            }
+        }
+        const cancelled = _vidAbort.signal.aborted;
+        setStatus(
+            cancelled
+                ? `⏹ Stopped after ${succeeded} deletion(s)${failures.length ? ` · ⚠️ ${failures.length} failed` : ''}`
+                : `✅ ${succeeded} of ${total} deleted${failures.length ? ` · ⚠️ ${failures.length} failed` : ''}`,
+            cancelled || failures.length ? '#fbbf24' : '#86efac'
+        );
+        if (failures.length) console.warn('Video delete failures:', failures);
+        if (!cancelled) setTimeout(runVideoScan, 800);
     } finally {
+        showCancel(false);
+        _vidAbort = null;
         updateVideoApplyBtn();
     }
 }
