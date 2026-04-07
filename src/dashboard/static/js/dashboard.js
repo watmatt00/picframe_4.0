@@ -122,6 +122,20 @@ function initAdvancedToggles() {
         });
     }
 
+    // Photo Backups card toggle
+    const backupToggle = document.getElementById('backup-toggle');
+    const backupSection = document.getElementById('backup-section');
+    if (backupToggle && backupSection) {
+        backupToggle.addEventListener('click', () => {
+            backupSection.classList.toggle('visible');
+            const isVisible = backupSection.classList.contains('visible');
+            backupToggle.textContent = isVisible ? '▾ Hide' : '▸ Show';
+            if (isVisible) {
+                loadBackupList();
+            }
+        });
+    }
+
     // Sources table advanced toggle
     const sourcesTableToggle = document.getElementById('sources-table-advanced-toggle');
     const sourcesTable = document.getElementById('sources-table');
@@ -1480,6 +1494,10 @@ function initPhotoTools() {
     // Rename File card
     const btnRename = document.getElementById('btn-rename-file');
     if (btnRename) btnRename.addEventListener('click', runManualRename);
+
+    // Photo Backups card
+    const btnCreateBackup = document.getElementById('btn-create-backup');
+    if (btnCreateBackup) btnCreateBackup.addEventListener('click', runCreateBackup);
 }
 
 async function loadToolsSources() {
@@ -1503,6 +1521,105 @@ function toolsSourceId() {
     return document.getElementById('tools-source-select').value;
 }
 
+// =============================================================================
+// PHOTO BACKUPS
+// =============================================================================
+
+async function loadBackupList() {
+    const sourceId = toolsSourceId();
+    const tbody = document.getElementById('backup-tbody');
+    const table = document.getElementById('backup-table');
+    const empty = document.getElementById('backup-list-empty');
+    if (!sourceId || !tbody) return;
+    tbody.innerHTML = '<tr><td colspan="4" style="color:#94a3b8;">Loading…</td></tr>';
+    if (table) table.style.display = 'table';
+    if (empty) empty.style.display = 'none';
+    try {
+        const data = await apiFetch(`/api/tools/backup/${sourceId}/list`);
+        if (!data.ok) {
+            tbody.innerHTML = `<tr><td colspan="4" style="color:#f87171;">${data.error || 'Error loading backups'}</td></tr>`;
+            return;
+        }
+        const backups = data.backups || [];
+        if (backups.length === 0) {
+            if (table) table.style.display = 'none';
+            if (empty) empty.style.display = 'block';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+        if (table) table.style.display = 'table';
+        tbody.innerHTML = backups.map(b => {
+            const created = new Date(b.created_at).toLocaleString();
+            return `<tr>
+                <td style="font-family:monospace;font-size:0.85rem;">${b.filename}</td>
+                <td>${fmtBytes(b.size_bytes)}</td>
+                <td>${created}</td>
+                <td><button class="btn secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;"
+                    onclick="runDeleteBackup('${b.filename.replace(/'/g, "\\'")}')">Delete</button></td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="4" style="color:#f87171;">Error: ${e.message}</td></tr>`;
+    }
+}
+
+async function runCreateBackup() {
+    const sourceId = toolsSourceId();
+    if (!sourceId) { alert('Select a photo source first.'); return; }
+    const btn = document.getElementById('btn-create-backup');
+    const status = document.getElementById('backup-create-status');
+    btn.disabled = true;
+    btn.textContent = 'Creating…';
+    status.textContent = 'This may take a minute for large libraries…';
+    status.style.color = '#94a3b8';
+    try {
+        const data = await apiFetch(`/api/tools/backup/${sourceId}/create`, { method: 'POST' });
+        if (data.ok) {
+            status.textContent = `Backup created: ${data.filename} (${fmtBytes(data.size_bytes)})`;
+            status.style.color = '#4ade80';
+            await loadBackupList();
+            // Auto-collapse after 2 seconds
+            setTimeout(() => {
+                const section = document.getElementById('backup-section');
+                const toggle = document.getElementById('backup-toggle');
+                if (section && section.classList.contains('visible')) {
+                    section.classList.remove('visible');
+                    if (toggle) toggle.textContent = '▸ Show';
+                }
+                status.textContent = '';
+            }, 2000);
+        } else {
+            status.textContent = data.error || 'Backup failed';
+            status.style.color = '#f87171';
+        }
+    } catch (e) {
+        status.textContent = `Error: ${e.message}`;
+        status.style.color = '#f87171';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Backup';
+    }
+}
+
+async function runDeleteBackup(filename) {
+    if (!confirm(`Delete backup "${filename}"? This cannot be undone.`)) return;
+    const sourceId = toolsSourceId();
+    try {
+        const data = await apiFetch(`/api/tools/backup/${sourceId}/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename }),
+        });
+        if (data.ok) {
+            await loadBackupList();
+        } else {
+            alert(data.error || 'Delete failed');
+        }
+    } catch (e) {
+        alert(`Error: ${e.message}`);
+    }
+}
+
 function fmtEta(count, secPerItem = 3) {
     const secs = count * secPerItem;
     if (secs < 60) return `~${secs} sec`;
@@ -1513,7 +1630,8 @@ function fmtEta(count, secPerItem = 3) {
 function fmtBytes(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / 1048576).toFixed(1) + ' MB';
+    if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+    return (bytes / 1073741824).toFixed(2) + ' GB';
 }
 
 function reasonLabel(r) {

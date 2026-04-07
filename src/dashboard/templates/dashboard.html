@@ -678,6 +678,37 @@
                 </div>
             </section>
 
+            <!-- Photo Backups -->
+            <section class="card" style="margin-bottom:1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">💾 Photo Backups</div>
+                        <div class="card-subtitle">Create and manage local tar.gz backups — saved to ~/Pictures/backups/</div>
+                    </div>
+                    <button class="advanced-toggle" id="backup-toggle">▸ Show</button>
+                </div>
+                <div class="advanced-section" id="backup-section">
+                    <div style="padding:0 1.5rem 1.5rem;">
+                        <div class="button-row" style="margin-bottom:1rem;">
+                            <button class="btn" id="btn-create-backup">Create Backup</button>
+                            <span id="backup-create-status" style="font-size:0.85rem;color:#94a3b8;align-self:center;"></span>
+                        </div>
+                        <div id="backup-list-empty" style="color:#94a3b8;font-size:0.9rem;display:none;">No backups for this source.</div>
+                        <table class="sources-table" id="backup-table" style="display:none;">
+                            <thead>
+                                <tr>
+                                    <th>Filename</th>
+                                    <th>Size</th>
+                                    <th>Created</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="backup-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
         </main>
     </div>
 

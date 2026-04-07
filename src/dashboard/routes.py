@@ -38,6 +38,7 @@ from src.auth.pairing import generate_pairing_code
 from src.utils.qr_generator import generate_qr_data_url
 from src.utils.rclone import count_local_files, rclone_list_remotes, _validate_filename_raw
 from src.services import photo_tools_service as photo_tools
+from src.services import backup_service
 
 logger = logging.getLogger(__name__)
 
@@ -1114,6 +1115,55 @@ async def tools_rename_file(source_id: str, request: dict):
         return {"ok": False, "error": str(exc)}
     except Exception as exc:
         logger.error(f"tools rename_file error: {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
+class DeleteBackupRequest(BaseModel):
+    """Request body for deleting a backup archive."""
+    filename: str
+
+
+@router.get("/api/tools/backup/{source_id}/list")
+async def list_source_backups(source_id: str):
+    """List existing tar.gz backups for a source. LAN-only, no JWT."""
+    source = source_manager.get_source(source_id)
+    if not source:
+        return {"ok": False, "error": "Source not found"}
+    try:
+        backups = backup_service.list_backups(source_id)
+        return {"ok": True, "backups": backups}
+    except Exception as exc:
+        logger.error("backup list error: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/api/tools/backup/{source_id}/create")
+async def create_source_backup(source_id: str):
+    """Create a tar.gz backup of the source's local photos. LAN-only, no JWT."""
+    source = source_manager.get_source(source_id)
+    if not source:
+        return {"ok": False, "error": "Source not found"}
+    try:
+        result = await backup_service.create_backup(source_id, source.local_path)
+        return {"ok": True, **result}
+    except Exception as exc:
+        logger.error("backup create error: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/api/tools/backup/{source_id}/delete")
+async def delete_source_backup(source_id: str, body: DeleteBackupRequest):
+    """Delete a backup archive. LAN-only, no JWT."""
+    source = source_manager.get_source(source_id)
+    if not source:
+        return {"ok": False, "error": "Source not found"}
+    try:
+        backup_service.delete_backup(source_id, body.filename)
+        return {"ok": True}
+    except (ValueError, FileNotFoundError) as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error("backup delete error: %s", exc)
         return {"ok": False, "error": str(exc)}
 
 
