@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 # API route imports
-from src.api.routes import pairing, status, devices, services, display, folders, contributors, cloud, settings, logs, photos
+from src.api.routes import pairing, status, devices, services, display, folders, contributors, cloud, settings, logs, photos, contributor, tools
 
 # Dashboard routes
 from src.dashboard import routes as dashboard_routes
@@ -89,6 +89,8 @@ app.include_router(cloud.router, prefix="/api/v1")
 app.include_router(settings.router, prefix="/api/v1")
 app.include_router(logs.router, prefix="/api/v1")
 app.include_router(photos.router, prefix="/api/v1")
+app.include_router(tools.router, prefix="/api/v1")
+app.include_router(contributor.router, prefix="/api/v1")
 
 # Mount static files for dashboard
 static_dir = Path(__file__).parent.parent / "dashboard" / "static"

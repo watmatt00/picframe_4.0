@@ -50,9 +50,18 @@ class TestRcloneValidation:
         assert _is_safe_flag("--delete-before") is False
 
     def test_parse_transferred(self):
-        """Should parse transferred count from rclone output."""
-        output = "Transferred: 5 / 5, 100%, 1.2 MBytes/s"
-        assert _parse_transferred(output) == 5
+        """Should parse transferred count from rclone --stats-one-line -v output.
+
+        Each transferred file appears as '<name>: Copied (new)' or
+        '<name>: Copied (replaced existing)' — count those lines.
+        """
+        output = (
+            "2024/01/01 12:00:00 INFO  : photo1.jpg: Copied (new)\n"
+            "2024/01/01 12:00:01 INFO  : photo2.jpg: Copied (replaced existing)\n"
+            "2024/01/01 12:00:02 INFO  : photo3.jpg: Copied (new)\n"
+            "Transferred: 3 / 3, 100%, 1.2 MBytes/s\n"
+        )
+        assert _parse_transferred(output) == 3
 
         output_none = "Some other output"
         assert _parse_transferred(output_none) == 0

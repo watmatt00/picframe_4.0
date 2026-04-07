@@ -26,6 +26,7 @@
         <button class="tab-button active" data-tab="status">Photo Status</button>
         <button class="tab-button" data-tab="sources">Switch Photos</button>
         <button class="tab-button" data-tab="settings">Settings</button>
+        <button class="tab-button" data-tab="tools">Tools</button>
     </div>
 
     <!-- STATUS TAB CONTENT -->
@@ -520,6 +521,109 @@
                 </div> <!-- /padding -->
                 </div> <!-- /updates-section -->
             </section>
+        </main>
+    </div>
+
+    <!-- TOOLS TAB CONTENT -->
+    <div id="tab-tools" class="tab-content">
+        <main>
+
+            <!-- Source Selector -->
+            <section class="card" style="margin-bottom:1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">🛠️ Photo Library Tools</div>
+                        <div class="card-subtitle">Scan first — review results — then apply</div>
+                    </div>
+                </div>
+                <div style="padding:0 1.5rem 1.5rem;">
+                    <label class="form-label" for="tools-source-select">Photo Source</label>
+                    <select id="tools-source-select" class="form-input" style="max-width:320px;">
+                        <option value="">Loading sources…</option>
+                    </select>
+                </div>
+            </section>
+
+            <!-- Filename Cleaner -->
+            <section class="card" style="margin-bottom:1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">✏️ Filename Cleaner</div>
+                        <div class="card-subtitle">Remove Google Photos ID tokens, numbered suffixes, fix extension case</div>
+                    </div>
+                    <button class="btn secondary" id="btn-scan-filenames" style="flex-shrink:0;">Scan</button>
+                </div>
+                <div id="filenames-result" style="padding:0 1.5rem 1.5rem; display:none;">
+                    <div id="filenames-summary" style="margin-bottom:1rem; color:#94a3b8; font-size:0.9rem;"></div>
+                    <div id="filenames-table-wrap" style="overflow-x:auto;">
+                        <table class="sources-table" id="filenames-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="filenames-check-all" title="Select all"> All</th>
+                                    <th>Original Filename</th>
+                                    <th>Proposed Name</th>
+                                    <th>Issues</th>
+                                </tr>
+                            </thead>
+                            <tbody id="filenames-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="button-row" style="margin-top:1rem;">
+                        <button class="btn" id="btn-apply-filenames" disabled>Apply Selected Renames</button>
+                        <span id="filenames-apply-status" style="font-size:0.85rem; color:#94a3b8; align-self:center;"></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Duplicate Finder -->
+            <section class="card" style="margin-bottom:1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">🔁 Duplicate Finder</div>
+                        <div class="card-subtitle">Finds byte-for-byte identical files. One copy is kept; duplicates are deleted.</div>
+                    </div>
+                    <button class="btn secondary" id="btn-scan-duplicates" style="flex-shrink:0;">Scan</button>
+                </div>
+                <div id="duplicates-result" style="padding:0 1.5rem 1.5rem; display:none;">
+                    <div id="duplicates-summary" style="margin-bottom:1rem; color:#94a3b8; font-size:0.9rem;"></div>
+                    <div id="duplicates-groups"></div>
+                    <div class="button-row" style="margin-top:1rem;">
+                        <button class="btn btn-danger" id="btn-apply-duplicates" disabled>Delete Duplicates</button>
+                        <span id="duplicates-apply-status" style="font-size:0.85rem; color:#94a3b8; align-self:center;"></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Video File Manager -->
+            <section class="card" style="margin-bottom:1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">🎬 Video File Manager</div>
+                        <div class="card-subtitle">Pi3D cannot display video files — find and remove them from your library</div>
+                    </div>
+                    <button class="btn secondary" id="btn-scan-videos" style="flex-shrink:0;">Scan</button>
+                </div>
+                <div id="videos-result" style="padding:0 1.5rem 1.5rem; display:none;">
+                    <div id="videos-summary" style="margin-bottom:1rem; color:#94a3b8; font-size:0.9rem;"></div>
+                    <div id="videos-table-wrap" style="overflow-x:auto;">
+                        <table class="sources-table" id="videos-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="videos-check-all" title="Select all"> All</th>
+                                    <th>Filename</th>
+                                    <th>Size</th>
+                                </tr>
+                            </thead>
+                            <tbody id="videos-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="button-row" style="margin-top:1rem;">
+                        <button class="btn btn-danger" id="btn-apply-videos" disabled>Delete Selected Videos</button>
+                        <span id="videos-apply-status" style="font-size:0.85rem; color:#94a3b8; align-self:center;"></span>
+                    </div>
+                </div>
+            </section>
+
         </main>
     </div>
 

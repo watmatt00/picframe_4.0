@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initSettingsForm();
     initDeviceManagement();
     initSettingsLogViewer();
+    initPhotoTools();
 });
 
 // =============================================================================
@@ -1392,4 +1393,390 @@ async function saveUpdateSchedule() {
     } finally {
         if (btn) { btn.disabled = false; btn.textContent = 'Save Schedule'; }
     }
+}
+
+// =============================================================================
+// PHOTO TOOLS TAB
+// =============================================================================
+
+function initPhotoTools() {
+    // Populate source selector when Tools tab is first opened
+    const tabBtn = document.querySelector('[data-tab="tools"]');
+    if (tabBtn) {
+        tabBtn.addEventListener('click', () => {
+            if (!document.getElementById('tools-source-select')._loaded) {
+                loadToolsSources();
+            }
+        });
+    }
+
+    // Filename Cleaner
+    document.getElementById('btn-scan-filenames').addEventListener('click', runFilenameScan);
+    document.getElementById('btn-apply-filenames').addEventListener('click', runFilenameApply);
+    document.getElementById('filenames-check-all').addEventListener('change', function () {
+        document.querySelectorAll('.filename-check').forEach(cb => cb.checked = this.checked);
+        updateFilenameApplyBtn();
+    });
+
+    // Duplicate Finder
+    document.getElementById('btn-scan-duplicates').addEventListener('click', runDupScan);
+    document.getElementById('btn-apply-duplicates').addEventListener('click', runDupApply);
+
+    // Video Manager
+    document.getElementById('btn-scan-videos').addEventListener('click', runVideoScan);
+    document.getElementById('btn-apply-videos').addEventListener('click', runVideoApply);
+    document.getElementById('videos-check-all').addEventListener('change', function () {
+        document.querySelectorAll('.video-check').forEach(cb => cb.checked = this.checked);
+        updateVideoApplyBtn();
+    });
+}
+
+async function loadToolsSources() {
+    const sel = document.getElementById('tools-source-select');
+    sel._loaded = true;
+    try {
+        const data = await apiFetch('/api/sources');
+        sel.innerHTML = '';
+        (data.sources || []).forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.label + (s.active ? ' (active)' : '');
+            if (s.active) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    } catch (e) {
+        sel.innerHTML = '<option value="">Error loading sources</option>';
+    }
+}
+
+function toolsSourceId() {
+    return document.getElementById('tools-source-select').value;
+}
+
+function fmtBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function reasonLabel(r) {
+    return { google_id: 'Google ID', numbered_suffix: 'Numbered dup', ext_case: 'Ext case' }[r] || r;
+}
+
+// ----- Filename Cleaner -----
+
+async function runFilenameScan() {
+    const src = toolsSourceId();
+    if (!src) { alert('Select a source first'); return; }
+    const btn = document.getElementById('btn-scan-filenames');
+    btn.disabled = true; btn.textContent = 'Scanning…';
+    document.getElementById('filenames-result').style.display = 'none';
+    try {
+        const data = await apiFetch(`/api/tools/${src}/scan/filenames`);
+        if (!data.ok) throw new Error(data.error || 'Scan failed');
+        renderFilenameResults(src, data);
+    } catch (e) {
+        alert('Filename scan failed: ' + e.message);
+    } finally {
+        btn.disabled = false; btn.textContent = 'Scan';
+    }
+}
+
+function renderFilenameResults(src, data) {
+    const fixes = data.fixes || [];
+    const summary = document.getElementById('filenames-summary');
+    const tbody = document.getElementById('filenames-tbody');
+    const resultDiv = document.getElementById('filenames-result');
+
+    summary.textContent = fixes.length === 0
+        ? `✅ All ${data.total_files_scanned} files look clean — nothing to fix.`
+        : `Found ${fixes.length} file(s) with issues (scanned ${data.total_files_scanned} total).`;
+
+    tbody.innerHTML = '';
+    fixes.forEach(fix => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="checkbox" class="filename-check" data-original="${escHtml(fix.original)}"
+                data-proposed="${escHtml(fix.proposed)}" data-reasons='${JSON.stringify(fix.reasons)}' checked></td>
+            <td style="font-family:monospace;font-size:0.8rem;">${escHtml(fix.original)}</td>
+            <td style="font-family:monospace;font-size:0.8rem;color:#86efac;">${escHtml(fix.proposed)}</td>
+            <td>${fix.reasons.map(r => `<span class="status-chip">${reasonLabel(r)}</span>`).join(' ')}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    document.querySelectorAll('.filename-check').forEach(cb =>
+        cb.addEventListener('change', updateFilenameApplyBtn)
+    );
+    document.getElementById('filenames-check-all').checked = fixes.length > 0;
+    updateFilenameApplyBtn();
+    resultDiv.style.display = fixes.length > 0 ? '' : 'block';
+    if (fixes.length === 0) {
+        document.getElementById('filenames-table-wrap').style.display = 'none';
+        document.querySelector('.button-row #btn-apply-filenames') && (document.getElementById('btn-apply-filenames').style.display = 'none');
+    } else {
+        document.getElementById('filenames-table-wrap').style.display = '';
+        document.getElementById('btn-apply-filenames').style.display = '';
+    }
+    resultDiv.style.display = 'block';
+}
+
+function updateFilenameApplyBtn() {
+    const checked = document.querySelectorAll('.filename-check:checked').length;
+    const btn = document.getElementById('btn-apply-filenames');
+    btn.disabled = checked === 0;
+    btn.textContent = checked > 0 ? `Apply ${checked} Rename(s)` : 'Apply Selected Renames';
+}
+
+async function runFilenameApply() {
+    const src = toolsSourceId();
+    const checked = [...document.querySelectorAll('.filename-check:checked')];
+    if (!checked.length) return;
+    if (!confirm(`Rename ${checked.length} file(s)? Cloud files will be renamed first.`)) return;
+
+    const fixes = checked.map(cb => ({
+        original: cb.dataset.original,
+        proposed: cb.dataset.proposed,
+        reasons: JSON.parse(cb.dataset.reasons),
+    }));
+
+    const btn = document.getElementById('btn-apply-filenames');
+    const status = document.getElementById('filenames-apply-status');
+    btn.disabled = true; btn.textContent = 'Applying…';
+    status.textContent = '';
+
+    try {
+        const data = await apiFetch(`/api/tools/${src}/apply/filenames`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fixes }),
+        });
+        if (!data.ok) throw new Error(data.error || 'Apply failed');
+        const ok = (data.succeeded || []).length;
+        const fail = (data.failed || []).length;
+        status.textContent = `✅ ${ok} renamed${fail ? ` · ⚠️ ${fail} failed` : ''}`;
+        if (fail) {
+            console.warn('Rename failures:', data.failed);
+        }
+        // Re-scan to refresh
+        setTimeout(runFilenameScan, 800);
+    } catch (e) {
+        status.textContent = '❌ ' + e.message;
+    } finally {
+        btn.disabled = false; btn.textContent = 'Apply Selected Renames';
+    }
+}
+
+// ----- Duplicate Finder -----
+
+async function runDupScan() {
+    const src = toolsSourceId();
+    if (!src) { alert('Select a source first'); return; }
+    const btn = document.getElementById('btn-scan-duplicates');
+    btn.disabled = true; btn.textContent = 'Scanning…';
+    document.getElementById('duplicates-result').style.display = 'none';
+    try {
+        const data = await apiFetch(`/api/tools/${src}/scan/duplicates`);
+        if (!data.ok) throw new Error(data.error || 'Scan failed');
+        renderDupResults(src, data);
+    } catch (e) {
+        alert('Duplicate scan failed: ' + e.message);
+    } finally {
+        btn.disabled = false; btn.textContent = 'Scan';
+    }
+}
+
+function renderDupResults(src, data) {
+    const groups = data.groups || [];
+    const summary = document.getElementById('duplicates-summary');
+    const container = document.getElementById('duplicates-groups');
+    const resultDiv = document.getElementById('duplicates-result');
+
+    summary.textContent = groups.length === 0
+        ? `✅ No exact duplicates found in ${data.total_files_scanned} files.`
+        : `Found ${groups.length} duplicate group(s) — ${data.duplicate_count} file(s) can be removed.`;
+
+    container.innerHTML = '';
+    groups.forEach((group, idx) => {
+        const div = document.createElement('div');
+        div.style.cssText = 'border:1px solid #334155;border-radius:6px;padding:1rem;margin-bottom:1rem;';
+        const rows = group.files.map(f => `
+            <tr>
+                <td>
+                    <label style="display:flex;align-items:center;gap:0.5rem;">
+                        <input type="radio" name="dup_keep_${idx}" class="dup-keep"
+                            data-group="${idx}" value="${escHtml(f.filename)}"
+                            ${f.filename === group.keep_suggestion ? 'checked' : ''}>
+                        <span style="font-size:0.75rem;color:#22c55e;font-weight:600;">KEEP</span>
+                    </label>
+                </td>
+                <td style="font-family:monospace;font-size:0.8rem;">${escHtml(f.filename)}</td>
+                <td style="color:#94a3b8;">${fmtBytes(f.size_bytes)}</td>
+            </tr>
+        `).join('');
+        div.innerHTML = `
+            <div style="color:#94a3b8;font-size:0.8rem;margin-bottom:0.5rem;">
+                Group ${idx + 1} · ${group.files.length} identical files · ${fmtBytes(group.files[0].size_bytes)} each
+            </div>
+            <table class="sources-table" style="margin:0;">
+                <thead><tr><th>Keep?</th><th>Filename</th><th>Size</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        `;
+        container.appendChild(div);
+    });
+
+    document.querySelectorAll('.dup-keep').forEach(r =>
+        r.addEventListener('change', updateDupApplyBtn)
+    );
+    updateDupApplyBtn();
+    resultDiv.style.display = 'block';
+}
+
+function updateDupApplyBtn() {
+    const groups = document.querySelectorAll('[name^="dup_keep_"]');
+    // Count total files minus kept ones = files to delete
+    const groupNames = new Set([...groups].map(r => r.name));
+    let toDelete = 0;
+    groupNames.forEach(name => {
+        const radios = document.querySelectorAll(`[name="${name}"]`);
+        toDelete += radios.length - 1; // all but the kept one
+    });
+    const btn = document.getElementById('btn-apply-duplicates');
+    btn.disabled = groupNames.size === 0;
+    btn.textContent = toDelete > 0 ? `Delete ${toDelete} Duplicate(s)` : 'Delete Duplicates';
+}
+
+async function runDupApply() {
+    const src = toolsSourceId();
+    const groupNames = new Set(
+        [...document.querySelectorAll('[name^="dup_keep_"]')].map(r => r.name)
+    );
+
+    const toDelete = [];
+    groupNames.forEach(name => {
+        const radios = [...document.querySelectorAll(`[name="${name}"]`)];
+        const kept = radios.find(r => r.checked)?.value;
+        radios.forEach(r => { if (r.value !== kept) toDelete.push(r.value); });
+    });
+
+    if (!toDelete.length) return;
+    if (!confirm(`Delete ${toDelete.length} duplicate file(s)? This cannot be undone.`)) return;
+
+    const btn = document.getElementById('btn-apply-duplicates');
+    const status = document.getElementById('duplicates-apply-status');
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    status.textContent = '';
+
+    try {
+        const data = await apiFetch(`/api/tools/${src}/apply/duplicates`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to_delete: toDelete }),
+        });
+        if (!data.ok) throw new Error(data.error || 'Apply failed');
+        const ok = (data.succeeded || []).length;
+        const fail = (data.failed || []).length;
+        status.textContent = `✅ ${ok} deleted${fail ? ` · ⚠️ ${fail} failed` : ''}`;
+        setTimeout(runDupScan, 800);
+    } catch (e) {
+        status.textContent = '❌ ' + e.message;
+    } finally {
+        btn.disabled = false; btn.textContent = 'Delete Duplicates';
+    }
+}
+
+// ----- Video Manager -----
+
+async function runVideoScan() {
+    const src = toolsSourceId();
+    if (!src) { alert('Select a source first'); return; }
+    const btn = document.getElementById('btn-scan-videos');
+    btn.disabled = true; btn.textContent = 'Scanning…';
+    document.getElementById('videos-result').style.display = 'none';
+    try {
+        const data = await apiFetch(`/api/tools/${src}/scan/videos`);
+        if (!data.ok) throw new Error(data.error || 'Scan failed');
+        renderVideoResults(src, data);
+    } catch (e) {
+        alert('Video scan failed: ' + e.message);
+    } finally {
+        btn.disabled = false; btn.textContent = 'Scan';
+    }
+}
+
+function renderVideoResults(src, data) {
+    const videos = data.videos || [];
+    const summary = document.getElementById('videos-summary');
+    const tbody = document.getElementById('videos-tbody');
+    const resultDiv = document.getElementById('videos-result');
+
+    summary.textContent = videos.length === 0
+        ? '✅ No video files found in this source.'
+        : `Found ${videos.length} video file(s) · ${fmtBytes(data.total_size_bytes)} total.`;
+
+    tbody.innerHTML = '';
+    videos.forEach(v => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="checkbox" class="video-check" value="${escHtml(v.filename)}" checked></td>
+            <td style="font-family:monospace;font-size:0.8rem;">${escHtml(v.filename)}</td>
+            <td style="color:#94a3b8;">${fmtBytes(v.size_bytes)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    document.querySelectorAll('.video-check').forEach(cb =>
+        cb.addEventListener('change', updateVideoApplyBtn)
+    );
+    document.getElementById('videos-check-all').checked = videos.length > 0;
+    updateVideoApplyBtn();
+    resultDiv.style.display = 'block';
+}
+
+function updateVideoApplyBtn() {
+    const checked = document.querySelectorAll('.video-check:checked').length;
+    const btn = document.getElementById('btn-apply-videos');
+    btn.disabled = checked === 0;
+    btn.textContent = checked > 0 ? `Delete ${checked} Video(s)` : 'Delete Selected Videos';
+}
+
+async function runVideoApply() {
+    const src = toolsSourceId();
+    const checked = [...document.querySelectorAll('.video-check:checked')].map(cb => cb.value);
+    if (!checked.length) return;
+    if (!confirm(`Delete ${checked.length} video file(s)? This cannot be undone.`)) return;
+
+    const btn = document.getElementById('btn-apply-videos');
+    const status = document.getElementById('videos-apply-status');
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    status.textContent = '';
+
+    try {
+        const data = await apiFetch(`/api/tools/${src}/apply/videos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to_delete: checked }),
+        });
+        if (!data.ok) throw new Error(data.error || 'Apply failed');
+        const ok = (data.succeeded || []).length;
+        const fail = (data.failed || []).length;
+        status.textContent = `✅ ${ok} deleted${fail ? ` · ⚠️ ${fail} failed` : ''}`;
+        setTimeout(runVideoScan, 800);
+    } catch (e) {
+        status.textContent = '❌ ' + e.message;
+    } finally {
+        btn.disabled = false; btn.textContent = 'Delete Selected Videos';
+    }
+}
+
+// Helper used throughout tools JS
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function apiFetch(url, opts = {}) {
+    const resp = await fetch(url, opts);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
 }

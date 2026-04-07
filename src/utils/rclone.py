@@ -108,6 +108,7 @@ async def rclone_sync(
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".m4v", ".wmv"}
 
 
 def _validate_filename(filename: str) -> bool:
@@ -159,6 +160,74 @@ async def rclone_movefile(rclone_remote: str, old_filename: str, new_filename: s
     if proc.returncode == 0:
         return RcloneResult(success=True, output=output)
     return RcloneResult(success=False, error=f"rclone movefile exited {proc.returncode}", output=output)
+
+
+def _validate_filename_raw(filename: str) -> bool:
+    """Path-traversal-only check for filenames discovered on the local filesystem.
+
+    Used by photo tools where filenames may legitimately contain spaces, curly
+    braces, or other special characters that _validate_filename() rejects.
+    Never use this for user-supplied filenames.
+    """
+    if not filename:
+        return False
+    return "/" not in filename and "\\" not in filename and ".." not in filename
+
+
+async def rclone_deletefile_raw(rclone_remote: str, filename: str) -> RcloneResult:
+    """Delete a single file from an rclone remote. Accepts filenames with special chars.
+
+    Only safe for filenames discovered from the local filesystem — NOT user input.
+    """
+    if not _validate_remote(rclone_remote):
+        return RcloneResult(success=False, error=f"Invalid remote: {rclone_remote}")
+    if not _validate_filename_raw(filename):
+        return RcloneResult(success=False, error=f"Unsafe filename: {filename}")
+    cmd = ["rclone", "deletefile", f"{rclone_remote}/{filename}"]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    stdout, _ = await proc.communicate()
+    output = stdout.decode()
+    if proc.returncode == 0:
+        return RcloneResult(success=True, files_deleted=1, output=output)
+    return RcloneResult(
+        success=False,
+        error=f"rclone deletefile exited {proc.returncode}",
+        output=output,
+    )
+
+
+async def rclone_movefile_raw(rclone_remote: str, old_filename: str, new_filename: str) -> RcloneResult:
+    """Rename a file on an rclone remote. Source accepts special chars; dest is strictly validated.
+
+    Only safe for source filenames discovered from the local filesystem — NOT user input.
+    """
+    if not _validate_remote(rclone_remote):
+        return RcloneResult(success=False, error=f"Invalid remote: {rclone_remote}")
+    if not _validate_filename_raw(old_filename):
+        return RcloneResult(success=False, error=f"Unsafe source filename: {old_filename}")
+    if not _validate_filename(new_filename):
+        return RcloneResult(success=False, error=f"Invalid destination filename: {new_filename}")
+    cmd = ["rclone", "moveto",
+           f"{rclone_remote}/{old_filename}",
+           f"{rclone_remote}/{new_filename}"]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    stdout, _ = await proc.communicate()
+    output = stdout.decode()
+    if proc.returncode == 0:
+        return RcloneResult(success=True, output=output)
+    return RcloneResult(
+        success=False,
+        error=f"rclone movefile exited {proc.returncode}",
+        output=output,
+    )
 
 
 async def rclone_count(remote: str) -> int:
@@ -261,12 +330,14 @@ def _is_safe_flag(flag: str) -> bool:
 
 
 def _parse_transferred(output: str) -> int:
-    """Parse the number of transferred files from rclone output."""
-    # Look for patterns like "Transferred: 5 / 5"
-    match = re.search(r"Transferred:\s*(\d+)", output)
-    if match:
-        return int(match.group(1))
-    return 0
+    """Parse the number of transferred files from rclone output.
+
+    With --stats-one-line -v, rclone logs each transferred file as
+    'filename: Copied (new)' or 'filename: Copied (replaced existing)'.
+    Count those lines rather than looking for a summary 'Transferred: N' line,
+    which is not emitted in that stats mode.
+    """
+    return len(re.findall(r": Copied ", output))
 
 
 async def rclone_list_remotes() -> list[str]:

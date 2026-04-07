@@ -36,6 +36,7 @@ from src.storage.devices import device_storage
 from src.auth.pairing import generate_pairing_code
 from src.utils.qr_generator import generate_qr_data_url
 from src.utils.rclone import count_local_files, rclone_list_remotes
+from src.services import photo_tools_service as photo_tools
 
 logger = logging.getLogger(__name__)
 
@@ -938,6 +939,98 @@ async def save_update_schedule(request: SaveUpdateScheduleRequest):
     except Exception as e:
         logger.error(f"Failed to save update schedule: {e}")
         return {"ok": False, "error": str(e)}
+
+
+# =============================================================================
+# LAN-only Photo Tools API (no JWT auth - protected by LAN middleware)
+# Same service layer as /api/v1/sources/{id}/tools/* — no duplication.
+# =============================================================================
+
+
+@router.get("/api/tools/{source_id}/scan/filenames")
+async def tools_scan_filenames(source_id: str):
+    """Scan for filename issues. LAN-only, no JWT."""
+    try:
+        result = photo_tools.scan_filenames(source_id)
+        return {"ok": True, **result.model_dump()}
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error(f"tools scan_filenames error: {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/api/tools/{source_id}/apply/filenames")
+async def tools_apply_filenames(source_id: str, request: dict):
+    """Apply filename fixes. LAN-only, no JWT."""
+    fixes_raw = request.get("fixes", [])
+    try:
+        fixes = [photo_tools.FilenameFix(**f) for f in fixes_raw]
+        result = await photo_tools.apply_filenames(source_id, fixes)
+        return {"ok": True, **result.model_dump()}
+    except (ValueError, TypeError) as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error(f"tools apply_filenames error: {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
+@router.get("/api/tools/{source_id}/scan/duplicates")
+async def tools_scan_duplicates(source_id: str):
+    """Scan for exact duplicates. LAN-only, no JWT."""
+    try:
+        result = photo_tools.scan_duplicates(source_id)
+        return {"ok": True, **result.model_dump()}
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error(f"tools scan_duplicates error: {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/api/tools/{source_id}/apply/duplicates")
+async def tools_apply_duplicates(source_id: str, request: dict):
+    """Delete selected duplicates. LAN-only, no JWT."""
+    to_delete = request.get("to_delete", [])
+    if not to_delete:
+        return {"ok": False, "error": "to_delete list is empty"}
+    try:
+        result = await photo_tools.apply_duplicates(source_id, to_delete)
+        return {"ok": True, **result.model_dump()}
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error(f"tools apply_duplicates error: {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
+@router.get("/api/tools/{source_id}/scan/videos")
+async def tools_scan_videos(source_id: str):
+    """Scan for video files. LAN-only, no JWT."""
+    try:
+        result = photo_tools.scan_videos(source_id)
+        return {"ok": True, **result.model_dump()}
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error(f"tools scan_videos error: {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/api/tools/{source_id}/apply/videos")
+async def tools_apply_videos(source_id: str, request: dict):
+    """Delete selected video files. LAN-only, no JWT."""
+    to_delete = request.get("to_delete", [])
+    if not to_delete:
+        return {"ok": False, "error": "to_delete list is empty"}
+    try:
+        result = await photo_tools.apply_videos(source_id, to_delete)
+        return {"ok": True, **result.model_dump()}
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error(f"tools apply_videos error: {exc}")
+        return {"ok": False, "error": str(exc)}
 
 
 @router.post("/api/updates/apply")
