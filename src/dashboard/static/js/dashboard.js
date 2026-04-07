@@ -1416,7 +1416,13 @@ function initPhotoTools() {
     if (btnScanFn) btnScanFn.addEventListener('click', runFilenameScan);
     if (btnApplyFn) btnApplyFn.addEventListener('click', runFilenameApply);
     if (chkAllFn) chkAllFn.addEventListener('change', function () {
-        document.querySelectorAll('.filename-check').forEach(cb => cb.checked = this.checked);
+        // Only toggle checkboxes in currently visible rows
+        document.querySelectorAll('#filenames-tbody tr').forEach(tr => {
+            if (tr.style.display !== 'none') {
+                const cb = tr.querySelector('.filename-check');
+                if (cb) cb.checked = this.checked;
+            }
+        });
         updateFilenameApplyBtn();
     });
 
@@ -1494,30 +1500,130 @@ async function runFilenameScan() {
     }
 }
 
+// Active filter set — keys are reason codes or "needs_review"
+let _fnActiveFilters = new Set();
+let _fnCurrentSrc = '';
+let _fnFixes = [];
+
 function renderFilenameResults(src, data) {
-    const fixes = data.fixes || [];
+    _fnCurrentSrc = src;
+    _fnFixes = data.fixes || [];
+    _fnActiveFilters = new Set();  // reset to "All" on new scan
+
     const summary = document.getElementById('filenames-summary');
-    const tbody = document.getElementById('filenames-tbody');
     const resultDiv = document.getElementById('filenames-result');
 
-    const mtimeCount = (fixes || []).filter(f => f.needs_review).length;
-    const mtimeNote = mtimeCount ? ` · ${mtimeCount} flagged ⚠️ mtime (no EXIF date — review before applying)` : '';
-    summary.textContent = fixes.length === 0
+    const mtimeCount = _fnFixes.filter(f => f.needs_review).length;
+    const mtimeNote = mtimeCount ? ` · ${mtimeCount} without EXIF date` : '';
+    summary.textContent = _fnFixes.length === 0
         ? `✅ All ${data.total_files_scanned} files look clean — nothing to fix.`
-        : `Found ${fixes.length} file(s) with issues (scanned ${data.total_files_scanned} total)${mtimeNote}.`;
+        : `Found ${_fnFixes.length} file(s) with issues (scanned ${data.total_files_scanned} total)${mtimeNote}.`;
 
-    tbody.innerHTML = '';
-    fixes.forEach(fix => {
-        const tr = document.createElement('tr');
-        if (fix.needs_review) {
-            tr.style.background = 'rgba(120,53,15,0.15)';  // amber tint
+    if (_fnFixes.length === 0) {
+        document.getElementById('filenames-table-wrap').style.display = 'none';
+        document.getElementById('btn-apply-filenames').style.display = 'none';
+        document.getElementById('filenames-filter-bar').innerHTML = '';
+        resultDiv.style.display = 'block';
+        return;
+    }
+
+    _buildFilterBar();
+    _renderFilenameRows();
+
+    document.getElementById('filenames-table-wrap').style.display = '';
+    document.getElementById('btn-apply-filenames').style.display = '';
+    resultDiv.style.display = 'block';
+}
+
+function _buildFilterBar() {
+    const bar = document.getElementById('filenames-filter-bar');
+
+    // Count per issue type
+    const counts = {};
+    let mtimeCount = 0;
+    _fnFixes.forEach(f => {
+        f.reasons.forEach(r => { counts[r] = (counts[r] || 0) + 1; });
+        if (f.needs_review) mtimeCount++;
+    });
+
+    const filters = [
+        { key: 'all', label: `All (${_fnFixes.length})` },
+        ...Object.entries(counts).map(([k, n]) => ({ key: k, label: `${reasonLabel(k)} (${n})` })),
+        ...(mtimeCount ? [{ key: 'needs_review', label: `⚠️ mtime (${mtimeCount})` }] : []),
+    ];
+
+    bar.innerHTML = '';
+    filters.forEach(({ key, label }) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn secondary' + (key === 'all' ? ' active' : '');
+        btn.style.cssText = 'padding:0.25rem 0.75rem;font-size:0.8rem;margin:0 0.25rem 0.25rem 0;';
+        btn.textContent = label;
+        btn.dataset.filter = key;
+        btn.addEventListener('click', () => _toggleFilter(key));
+        bar.appendChild(btn);
+    });
+}
+
+function _toggleFilter(key) {
+    if (key === 'all') {
+        _fnActiveFilters.clear();
+    } else {
+        _fnActiveFilters.has(key) ? _fnActiveFilters.delete(key) : _fnActiveFilters.add(key);
+    }
+    // Update button states
+    document.querySelectorAll('#filenames-filter-bar button').forEach(btn => {
+        const k = btn.dataset.filter;
+        if (k === 'all') {
+            btn.classList.toggle('active', _fnActiveFilters.size === 0);
+        } else {
+            btn.classList.toggle('active', _fnActiveFilters.has(k));
         }
+    });
+    _applyFilenameFilter();
+    updateFilenameApplyBtn();
+}
+
+function _applyFilenameFilter() {
+    document.querySelectorAll('#filenames-tbody tr').forEach(tr => {
+        if (_fnActiveFilters.size === 0) {
+            tr.style.display = '';
+            return;
+        }
+        const reasons = JSON.parse(tr.dataset.reasons || '[]');
+        const needsReview = tr.dataset.needsReview === 'true';
+        const match = [..._fnActiveFilters].some(f =>
+            f === 'needs_review' ? needsReview : reasons.includes(f)
+        );
+        tr.style.display = match ? '' : 'none';
+    });
+}
+
+function _renderFilenameRows() {
+    const tbody = document.getElementById('filenames-tbody');
+    tbody.innerHTML = '';
+
+    _fnFixes.forEach(fix => {
+        const tr = document.createElement('tr');
+        tr.dataset.reasons = JSON.stringify(fix.reasons);
+        tr.dataset.needsReview = fix.needs_review ? 'true' : 'false';
+        if (fix.needs_review) tr.style.background = 'rgba(120,53,15,0.15)';
+
         const reviewBadge = fix.needs_review
             ? ' <span class="status-chip" style="background:#78350f;color:#fde68a;">⚠️ mtime</span>'
             : '';
+
+        const thumbUrl = `/api/thumbnail/${encodeURIComponent(_fnCurrentSrc)}?filename=${encodeURIComponent(fix.original)}`;
+
         tr.innerHTML = `
-            <td><input type="checkbox" class="filename-check" data-original="${escHtml(fix.original)}"
-                data-proposed="${escHtml(fix.proposed)}" data-reasons='${JSON.stringify(fix.reasons)}'
+            <td style="width:72px;padding:4px;">
+                <img src="${thumbUrl}" loading="lazy"
+                     style="width:64px;height:64px;object-fit:cover;border-radius:4px;display:block;"
+                     onerror="this.style.opacity='0.2';">
+            </td>
+            <td><input type="checkbox" class="filename-check"
+                data-original="${escHtml(fix.original)}"
+                data-proposed="${escHtml(fix.proposed)}"
+                data-reasons='${JSON.stringify(fix.reasons)}'
                 ${fix.needs_review ? '' : 'checked'}></td>
             <td style="font-family:monospace;font-size:0.8rem;">${escHtml(fix.original)}</td>
             <td style="font-family:monospace;font-size:0.8rem;color:#86efac;">${escHtml(fix.proposed)}</td>
@@ -1529,20 +1635,12 @@ function renderFilenameResults(src, data) {
     document.querySelectorAll('.filename-check').forEach(cb =>
         cb.addEventListener('change', updateFilenameApplyBtn)
     );
-    document.getElementById('filenames-check-all').checked = fixes.length > 0;
+    document.getElementById('filenames-check-all').checked = true;
     updateFilenameApplyBtn();
-    resultDiv.style.display = fixes.length > 0 ? '' : 'block';
-    if (fixes.length === 0) {
-        document.getElementById('filenames-table-wrap').style.display = 'none';
-        document.querySelector('.button-row #btn-apply-filenames') && (document.getElementById('btn-apply-filenames').style.display = 'none');
-    } else {
-        document.getElementById('filenames-table-wrap').style.display = '';
-        document.getElementById('btn-apply-filenames').style.display = '';
-    }
-    resultDiv.style.display = 'block';
 }
 
 function updateFilenameApplyBtn() {
+    // Count all checked boxes, not just visible ones — apply acts on all checked rows
     const checked = document.querySelectorAll('.filename-check:checked').length;
     const btn = document.getElementById('btn-apply-filenames');
     btn.disabled = checked === 0;

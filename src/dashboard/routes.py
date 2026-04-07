@@ -6,6 +6,7 @@ Uses Jinja2 templates.
 """
 
 import asyncio
+import io
 import logging
 import re
 from datetime import datetime
@@ -13,7 +14,7 @@ from pathlib import Path
 
 import httpx
 import yaml
-from fastapi import APIRouter, Request, Form
+from fastapi import APIRouter, Query, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, field_validator
@@ -35,7 +36,7 @@ from src.services.status_service import (
 from src.storage.devices import device_storage
 from src.auth.pairing import generate_pairing_code
 from src.utils.qr_generator import generate_qr_data_url
-from src.utils.rclone import count_local_files, rclone_list_remotes
+from src.utils.rclone import count_local_files, rclone_list_remotes, _validate_filename_raw
 from src.services import photo_tools_service as photo_tools
 
 logger = logging.getLogger(__name__)
@@ -939,6 +940,65 @@ async def save_update_schedule(request: SaveUpdateScheduleRequest):
     except Exception as e:
         logger.error(f"Failed to save update schedule: {e}")
         return {"ok": False, "error": str(e)}
+
+
+# =============================================================================
+# LAN-only Thumbnail API (no JWT auth - protected by LAN middleware)
+# Serves thumbnails for the Tools tab. Accepts filenames with special chars
+# (Google Photos IDs, spaces) that the JWT thumbnail endpoint rejects.
+# =============================================================================
+
+THUMB_CACHE_DIR = Path("/tmp/pfthumb")
+THUMB_SIZE = (128, 128)
+
+
+@router.get("/api/thumbnail/{source_id}")
+async def dashboard_thumbnail(source_id: str, filename: str = Query(...)):
+    """Return a JPEG thumbnail for any photo in a source. LAN-only, no JWT."""
+    if not _validate_filename_raw(filename):
+        return Response(status_code=400)
+    source = source_manager.get_source(source_id)
+    if not source:
+        return Response(status_code=404)
+    local_file = Path(source.local_path).expanduser() / filename
+    if not local_file.is_file():
+        return Response(status_code=404)
+    try:
+        local_file.resolve().relative_to(Path(source.local_path).expanduser().resolve())
+    except ValueError:
+        return Response(status_code=400)
+
+    mtime = int(local_file.stat().st_mtime)
+    cache_path = THUMB_CACHE_DIR / f"dash_{source_id}_{filename}_{mtime}.jpg"
+    if cache_path.exists():
+        return Response(content=cache_path.read_bytes(), media_type="image/jpeg")
+
+    try:
+        from PIL import Image  # noqa: PLC0415
+
+        # Register HEIC opener if available
+        try:
+            import pillow_heif  # noqa: PLC0415
+            pillow_heif.register_heif_opener()
+        except ImportError:
+            pass
+
+        THUMB_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        with Image.open(local_file) as img:
+            img = img.convert("RGB")
+            img.thumbnail(THUMB_SIZE, Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=70, optimize=True)
+            jpeg_bytes = buf.getvalue()
+
+        tmp = cache_path.with_suffix(".tmp")
+        tmp.write_bytes(jpeg_bytes)
+        tmp.rename(cache_path)
+        return Response(content=jpeg_bytes, media_type="image/jpeg")
+
+    except Exception as exc:
+        logger.warning(f"Thumbnail failed for {filename}: {exc}")
+        return Response(status_code=500)
 
 
 # =============================================================================
