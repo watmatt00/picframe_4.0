@@ -1442,6 +1442,20 @@ function initPhotoTools() {
         document.querySelectorAll('.video-check').forEach(cb => cb.checked = this.checked);
         updateVideoApplyBtn();
     });
+
+    // Close buttons
+    const closeFn = document.getElementById('btn-close-filenames');
+    const closeDup = document.getElementById('btn-close-duplicates');
+    const closeVid = document.getElementById('btn-close-videos');
+    if (closeFn) closeFn.addEventListener('click', () => {
+        document.getElementById('filenames-result').style.display = 'none';
+    });
+    if (closeDup) closeDup.addEventListener('click', () => {
+        document.getElementById('duplicates-result').style.display = 'none';
+    });
+    if (closeVid) closeVid.addEventListener('click', () => {
+        document.getElementById('videos-result').style.display = 'none';
+    });
 }
 
 async function loadToolsSources() {
