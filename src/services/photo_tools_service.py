@@ -53,6 +53,12 @@ _RE_HEX_HASH = re.compile(r"^[0-9a-fA-F]{32,}$")
 _EXIF_TAG_DATETIME_ORIGINAL = 36867
 _EXIF_DATE_FMT = "%Y:%m:%d %H:%M:%S"
 
+# Magic bytes for wrong-extension detection (read only first 12 bytes per file)
+_JPEG_MAGIC = b"\xff\xd8\xff"
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+_GIF_MAGIC = b"GIF8"
+_HEIC_BRANDS = {b"heic", b"heix", b"mif1", b"msf1"}
+
 
 # ---------------------------------------------------------------------------
 # Shared models
@@ -203,6 +209,35 @@ def _parse_ifd(tiff: bytes, ifd_offset: int, endian: str) -> Optional[str]:
     return None
 
 
+def _detect_actual_ext(path: Path) -> Optional[str]:
+    """Return the correct lowercase extension based on magic bytes, or None if already correct.
+
+    Reads only the first 12 bytes. Returns None for unrecognized types (no false flags).
+    """
+    try:
+        header = path.read_bytes()[:12]
+    except OSError:
+        return None
+
+    if header[:3] == _JPEG_MAGIC:
+        correct = ".jpg"
+    elif header[:8] == _PNG_MAGIC:
+        correct = ".png"
+    elif header[:4] == _GIF_MAGIC:
+        correct = ".gif"
+    elif header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        correct = ".webp"
+    elif header[4:8] == b"ftyp" and header[8:12] in _HEIC_BRANDS:
+        correct = ".heic"
+    else:
+        return None  # unrecognized — don't flag
+
+    declared = path.suffix.lower()
+    if declared == ".jpeg":
+        declared = ".jpg"
+    return correct if correct != declared else None
+
+
 def _clean_stem(stem: str) -> tuple[str, list[str]]:
     """Strip known junk patterns from a filename stem.
 
@@ -236,7 +271,12 @@ def _proposed_filename(original: str, local_path: Path) -> Optional[FilenameFix]
     if _RE_UUID.match(stem) or _RE_HEX_HASH.match(stem):
         reason = "uuid_name" if _RE_UUID.match(stem) else "hex_hash"
         reasons.append(reason)
-        if new_ext != ext:
+        # Also check magic bytes — UUID file might have a mislabeled extension too
+        actual_ext = _detect_actual_ext(local_path / original)
+        if actual_ext is not None:
+            reasons.append("wrong_ext")
+            new_ext = actual_ext
+        elif new_ext != ext:
             reasons.append("ext_case")
 
         date_stem, needs_review = _date_stem_from_file(local_path / original)
@@ -249,7 +289,12 @@ def _proposed_filename(original: str, local_path: Path) -> Optional[FilenameFix]
         )
 
     # --- Standard stem cleaning (Google ID, numbered suffix, ext case) ---
-    if new_ext != ext:
+    # Check for wrong extension via magic bytes (overrides ext_case if also wrong type)
+    actual_ext = _detect_actual_ext(local_path / original)
+    if actual_ext is not None:
+        reasons.append("wrong_ext")
+        new_ext = actual_ext  # use the correct extension in proposed name
+    elif new_ext != ext:
         reasons.append("ext_case")
 
     cleaned_stem, stem_reasons = _clean_stem(stem)

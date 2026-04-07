@@ -1498,6 +1498,7 @@ function reasonLabel(r) {
         ext_case: 'Ext case',
         uuid_name: 'UUID name',
         hex_hash: 'Hex hash',
+        wrong_ext: 'Wrong ext',
     }[r] || r;
 }
 
@@ -1580,6 +1581,7 @@ function _buildFilterBar() {
         ext_case:       'Files with an uppercase extension — e.g. .JPG or .HEIC (will be lowercased)',
         uuid_name:      'iOS Camera Roll exports with a UUID filename — e.g. 0513C8F9-94B7-….JPG',
         hex_hash:       'Google Photos hex-hash filenames — e.g. ad76e4bf….jpg',
+        wrong_ext:      'File bytes don\'t match declared extension — e.g. a JPEG file saved as .heic',
         needs_review:   'Proposed name uses file modification time (no EXIF date found) — review before applying',
     };
 
