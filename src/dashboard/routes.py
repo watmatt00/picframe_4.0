@@ -1093,6 +1093,30 @@ async def tools_apply_videos(source_id: str, request: dict):
         return {"ok": False, "error": str(exc)}
 
 
+@router.post("/api/tools/{source_id}/rename")
+async def tools_rename_file(source_id: str, request: dict):
+    """Rename a single file by name (cloud-first). LAN-only, no JWT."""
+    original = (request.get("original") or "").strip()
+    proposed = (request.get("proposed") or "").strip()
+    if not original or not proposed:
+        return {"ok": False, "error": "original and proposed are required"}
+    if not _validate_filename_raw(original) or not _validate_filename_raw(proposed):
+        return {"ok": False, "error": "Invalid filename"}
+    if original == proposed:
+        return {"ok": False, "error": "Original and new name are the same"}
+    try:
+        result = await photo_tools.rename_file(source_id, original, proposed)
+        if result.succeeded:
+            return {"ok": True}
+        err = result.failed[0]["error"] if result.failed else "Rename failed"
+        return {"ok": False, "error": err}
+    except (ValueError, TypeError) as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error(f"tools rename_file error: {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
 @router.post("/api/updates/apply")
 async def apply_update_api():
     """

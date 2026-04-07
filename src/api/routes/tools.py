@@ -142,3 +142,32 @@ async def apply_videos(
     except Exception as exc:
         logger.error(f"Video apply failed for '{source_id}': {exc}")
         raise HTTPException(500, str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Manual rename
+# ---------------------------------------------------------------------------
+
+class RenameFileRequest(BaseModel):
+    original: str
+    proposed: str
+
+
+@router.post("/{source_id}/tools/rename", response_model=svc.BatchResult)
+async def rename_file(
+    source_id: str,
+    body: RenameFileRequest,
+    admin=Depends(require_admin),
+):
+    """Rename a single file (cloud-first). Useful for one-off corrections."""
+    if not body.original.strip() or not body.proposed.strip():
+        raise HTTPException(400, "original and proposed are required")
+    if body.original == body.proposed:
+        raise HTTPException(400, "original and proposed are the same")
+    try:
+        return await svc.rename_file(source_id, body.original.strip(), body.proposed.strip())
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+    except Exception as exc:
+        logger.error(f"Rename failed for '{source_id}': {exc}")
+        raise HTTPException(500, str(exc))

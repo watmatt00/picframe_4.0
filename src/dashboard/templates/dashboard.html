@@ -571,6 +571,7 @@
                                     <th><input type="checkbox" id="filenames-check-all" title="Select all"> All</th>
                                     <th>Original Filename</th>
                                     <th>Proposed Name</th>
+                                    <th>EXIF Date</th>
                                     <th>Issues</th>
                                 </tr>
                             </thead>
@@ -644,6 +645,30 @@
                         <button class="btn btn-danger" id="btn-apply-videos" disabled>Delete Selected Videos</button>
                         <span id="videos-apply-status" style="font-size:0.85rem; color:#94a3b8; align-self:center;"></span>
                     </div>
+                </div>
+            </section>
+
+            <!-- Rename File -->
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">✏️ Rename File</div>
+                        <div class="card-subtitle">Rename any single file — cloud + local</div>
+                    </div>
+                </div>
+                <div style="padding:0 1.5rem 1.5rem;">
+                    <div style="display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap;margin-bottom:0.75rem;">
+                        <div style="flex:1;min-width:200px;">
+                            <label style="display:block;font-size:0.8rem;color:#94a3b8;margin-bottom:0.25rem;">Current filename</label>
+                            <input type="text" id="rename-original" class="form-input" placeholder="e.g. IMG_6907.HEIC" style="width:100%;">
+                        </div>
+                        <div style="flex:1;min-width:200px;">
+                            <label style="display:block;font-size:0.8rem;color:#94a3b8;margin-bottom:0.25rem;">New filename</label>
+                            <input type="text" id="rename-proposed" class="form-input" placeholder="e.g. IMG_6907.jpg" style="width:100%;">
+                        </div>
+                        <button class="btn" id="btn-rename-file" style="flex-shrink:0;">Rename</button>
+                    </div>
+                    <div id="rename-status" style="font-size:0.85rem;color:#94a3b8;min-height:1.2em;"></div>
                 </div>
             </section>
 

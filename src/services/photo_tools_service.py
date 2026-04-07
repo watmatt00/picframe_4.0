@@ -49,8 +49,9 @@ _RE_UUID = re.compile(
 # Hex hash: 32+ contiguous hex chars with no other word chars (Google Photos)
 _RE_HEX_HASH = re.compile(r"^[0-9a-fA-F]{32,}$")
 
-# EXIF tag for DateTimeOriginal
+# EXIF tags
 _EXIF_TAG_DATETIME_ORIGINAL = 36867
+_EXIF_TAG_ORIENTATION = 274
 _EXIF_DATE_FMT = "%Y:%m:%d %H:%M:%S"
 
 # Magic bytes for wrong-extension detection (read only first 12 bytes per file)
@@ -85,6 +86,8 @@ class FilenameFix(BaseModel):
     proposed: str
     reasons: list[str]      # e.g. ["google_id", "numbered_suffix", "ext_case", "uuid_name"]
     needs_review: bool = False  # True when proposed name came from mtime, not EXIF
+    exif_date: Optional[str] = None        # "YYYY-MM-DD HH:MM" for display, None if unavailable
+    exif_orientation: Optional[int] = None  # EXIF tag 274 value; 1 = normal
 
 
 class FilenameScanResult(BaseModel):
@@ -238,6 +241,78 @@ def _detect_actual_ext(path: Path) -> Optional[str]:
     return correct if correct != declared else None
 
 
+def _parse_exif_bytes_for_orientation(raw: bytes) -> Optional[int]:
+    """Extract Orientation (tag 274) from raw EXIF bytes. Returns int or None."""
+    if not raw or len(raw) < 8:
+        return None
+    try:
+        offset = 6 if raw[:6] == b"Exif\x00\x00" else 0
+        tiff = raw[offset:]
+        if len(tiff) < 8:
+            return None
+        byte_order = tiff[:2]
+        if byte_order == b"II":
+            endian = "<"
+        elif byte_order == b"MM":
+            endian = ">"
+        else:
+            return None
+        ifd_offset = struct.unpack(endian + "I", tiff[4:8])[0]
+        if ifd_offset + 2 > len(tiff):
+            return None
+        num_entries = struct.unpack(endian + "H", tiff[ifd_offset:ifd_offset + 2])[0]
+        pos = ifd_offset + 2
+        for _ in range(num_entries):
+            if pos + 12 > len(tiff):
+                break
+            tag = struct.unpack(endian + "H", tiff[pos:pos + 2])[0]
+            if tag == _EXIF_TAG_ORIENTATION:
+                # Type SHORT (3), count 1 — value is inline in first 2 bytes of value field
+                return struct.unpack(endian + "H", tiff[pos + 8:pos + 10])[0]
+            pos += 12
+    except Exception:
+        pass
+    return None
+
+
+def _read_exif_display(path: Path) -> tuple[Optional[str], Optional[int]]:
+    """Return (date_str, orientation) for display in the Filename Cleaner table.
+
+    date_str is formatted as 'YYYY-MM-DD HH:MM' (seconds omitted for space).
+    orientation is the raw EXIF tag 274 value (1=normal, 6=90°CW, etc.).
+    Returns (None, None) on failure or unsupported format.
+    """
+    date_str: Optional[str] = None
+    orientation: Optional[int] = None
+    suffix = path.suffix.lower()
+
+    try:
+        if suffix in {".jpg", ".jpeg", ".png"}:
+            from PIL import Image  # noqa: PLC0415
+            with Image.open(path) as img:
+                exif = img._getexif() or {}
+            raw_date = exif.get(_EXIF_TAG_DATETIME_ORIGINAL)
+            if raw_date:
+                dt = datetime.strptime(raw_date, _EXIF_DATE_FMT)
+                date_str = dt.strftime("%Y-%m-%d %H:%M")
+            orientation = exif.get(_EXIF_TAG_ORIENTATION)
+
+        elif suffix in {".heic", ".heif"}:
+            import pillow_heif  # noqa: PLC0415
+            heif = pillow_heif.open_heif(path)
+            raw_exif = heif.info.get("exif", b"")
+            raw_date = _parse_exif_bytes_for_datetime(raw_exif)
+            if raw_date:
+                dt = datetime.strptime(raw_date, _EXIF_DATE_FMT)
+                date_str = dt.strftime("%Y-%m-%d %H:%M")
+            orientation = _parse_exif_bytes_for_orientation(raw_exif)
+
+    except Exception as exc:
+        logger.debug(f"EXIF display read failed for {path.name}: {exc}")
+
+    return date_str, orientation
+
+
 def _clean_stem(stem: str) -> tuple[str, list[str]]:
     """Strip known junk patterns from a filename stem.
 
@@ -281,11 +356,14 @@ def _proposed_filename(original: str, local_path: Path) -> Optional[FilenameFix]
 
         date_stem, needs_review = _date_stem_from_file(local_path / original)
         proposed = _unique_name(date_stem, new_ext, original, local_path)
+        exif_date, exif_orientation = _read_exif_display(local_path / original)
         return FilenameFix(
             original=original,
             proposed=proposed,
             reasons=reasons,
             needs_review=needs_review,
+            exif_date=exif_date,
+            exif_orientation=exif_orientation,
         )
 
     # --- Standard stem cleaning (Google ID, numbered suffix, ext case) ---
@@ -304,7 +382,14 @@ def _proposed_filename(original: str, local_path: Path) -> Optional[FilenameFix]
         return None  # nothing to fix
 
     proposed = _unique_name(cleaned_stem, new_ext, original, local_path)
-    return FilenameFix(original=original, proposed=proposed, reasons=reasons)
+    exif_date, exif_orientation = _read_exif_display(local_path / original)
+    return FilenameFix(
+        original=original,
+        proposed=proposed,
+        reasons=reasons,
+        exif_date=exif_date,
+        exif_orientation=exif_orientation,
+    )
 
 
 def _unique_name(stem: str, ext: str, original: str, local_path: Path) -> str:
@@ -396,6 +481,12 @@ async def apply_filenames(source_id: str, fixes: list[FilenameFix]) -> BatchResu
         result.succeeded.append(fix.original)
 
     return result
+
+
+async def rename_file(source_id: str, original: str, proposed: str) -> BatchResult:
+    """Rename a single file by name. Cloud-first. Intended for the manual rename card."""
+    fix = FilenameFix(original=original, proposed=proposed, reasons=["manual"])
+    return await apply_filenames(source_id, [fix])
 
 
 # ---------------------------------------------------------------------------

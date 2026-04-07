@@ -1462,6 +1462,10 @@ function initPhotoTools() {
     if (closeVid) closeVid.addEventListener('click', () => {
         document.getElementById('videos-result').style.display = 'none';
     });
+
+    // Rename File card
+    const btnRename = document.getElementById('btn-rename-file');
+    if (btnRename) btnRename.addEventListener('click', runManualRename);
 }
 
 async function loadToolsSources() {
@@ -1655,6 +1659,14 @@ function _renderFilenameRows() {
             ? ' <span class="status-chip" style="background:#78350f;color:#fde68a;">⚠️ mtime</span>'
             : '';
 
+        const orientBadge = (fix.exif_orientation && fix.exif_orientation !== 1)
+            ? ` <span class="status-chip" style="background:#4c1d95;color:#ede9fe;" title="EXIF orientation ${fix.exif_orientation} — photo needs rotation">↻ ${fix.exif_orientation}</span>`
+            : '';
+
+        const exifCell = fix.exif_date
+            ? `<span style="font-size:0.75rem;color:#94a3b8;">${escHtml(fix.exif_date)}</span>${orientBadge}`
+            : `<span style="font-size:0.75rem;color:#475569;">—</span>${orientBadge}`;
+
         const thumbUrl = `/api/thumbnail/${encodeURIComponent(_fnCurrentSrc)}?filename=${encodeURIComponent(fix.original)}`;
 
         tr.innerHTML = `
@@ -1665,18 +1677,34 @@ function _renderFilenameRows() {
             </td>
             <td><input type="checkbox" class="filename-check"
                 data-original="${escHtml(fix.original)}"
-                data-proposed="${escHtml(fix.proposed)}"
                 data-reasons='${JSON.stringify(fix.reasons)}'></td>
             <td style="font-family:monospace;font-size:0.8rem;">${escHtml(fix.original)}</td>
-            <td style="font-family:monospace;font-size:0.8rem;color:#86efac;">${escHtml(fix.proposed)}</td>
+            <td style="padding:2px 6px;">
+                <input type="text" class="fn-proposed-input" value="${escHtml(fix.proposed)}" data-default="${escHtml(fix.proposed)}"
+                    disabled style="font-family:monospace;font-size:0.8rem;color:#86efac;background:transparent;border:none;width:100%;outline:none;padding:0;">
+            </td>
+            <td>${exifCell}</td>
             <td>${fix.reasons.map(r => `<span class="status-chip">${reasonLabel(r)}</span>`).join(' ')}${reviewBadge}</td>
         `;
         tbody.appendChild(tr);
     });
 
-    document.querySelectorAll('.filename-check').forEach(cb =>
-        cb.addEventListener('change', updateFilenameApplyBtn)
-    );
+    document.querySelectorAll('.filename-check').forEach(cb => {
+        cb.addEventListener('change', () => {
+            const tr = cb.closest('tr');
+            const input = tr.querySelector('.fn-proposed-input');
+            if (input) {
+                input.disabled = !cb.checked;
+                if (!cb.checked) {
+                    input.value = input.dataset.default;
+                    input.style.cssText = 'font-family:monospace;font-size:0.8rem;color:#86efac;background:transparent;border:none;width:100%;outline:none;padding:0;';
+                } else {
+                    input.style.cssText = 'font-family:monospace;font-size:0.8rem;color:#e2e8f0;background:#1e293b;border:1px solid #475569;border-radius:4px;padding:2px 6px;width:100%;box-sizing:border-box;';
+                }
+            }
+            updateFilenameApplyBtn();
+        });
+    });
     document.getElementById('filenames-check-all').checked = false;
     updateFilenameApplyBtn();
 }
@@ -1696,11 +1724,12 @@ async function runFilenameApply() {
     if (!checked.length) return;
     if (!confirm(`Rename ${checked.length} file(s)? Cloud files will be renamed first.`)) return;
 
-    const fixes = checked.map(cb => ({
-        original: cb.dataset.original,
-        proposed: cb.dataset.proposed,
-        reasons: JSON.parse(cb.dataset.reasons),
-    }));
+    const fixes = checked.map(cb => {
+        const tr = cb.closest('tr');
+        const input = tr.querySelector('.fn-proposed-input');
+        const proposed = (input ? input.value.trim() : '') || input?.dataset.default || '';
+        return { original: cb.dataset.original, proposed, reasons: JSON.parse(cb.dataset.reasons) };
+    });
 
     const setStatus = (msg) => {
         ['filenames-apply-status', 'filenames-apply-status-top'].forEach(id => {
@@ -1950,6 +1979,42 @@ async function runVideoApply() {
         setStatus('❌ ' + e.message);
     } finally {
         updateVideoApplyBtn();
+    }
+}
+
+// ----- Manual Rename -----
+
+async function runManualRename() {
+    const src = toolsSourceId();
+    const statusEl = document.getElementById('rename-status');
+    const original = (document.getElementById('rename-original').value || '').trim();
+    const proposed = (document.getElementById('rename-proposed').value || '').trim();
+
+    statusEl.style.color = '#94a3b8';
+    if (!src) { statusEl.textContent = '❌ Select a source first'; return; }
+    if (!original || !proposed) { statusEl.textContent = '❌ Both fields are required'; return; }
+    if (original === proposed) { statusEl.textContent = '❌ Names are the same'; return; }
+
+    const btn = document.getElementById('btn-rename-file');
+    btn.disabled = true;
+    statusEl.textContent = 'Renaming…';
+
+    try {
+        const data = await apiFetch(`/api/tools/${src}/rename`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ original, proposed }),
+        });
+        if (!data.ok) throw new Error(data.error || 'Rename failed');
+        statusEl.textContent = `✅ Renamed successfully`;
+        statusEl.style.color = '#86efac';
+        document.getElementById('rename-original').value = '';
+        document.getElementById('rename-proposed').value = '';
+    } catch (e) {
+        statusEl.textContent = '❌ ' + e.message;
+        statusEl.style.color = '#f87171';
+    } finally {
+        btn.disabled = false;
     }
 }
 
