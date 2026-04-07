@@ -5,6 +5,7 @@
 
 let sourcesInitialized = false;
 let settingsInitialized = false;
+let toolsInitialized = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initTabSwitching();
@@ -50,6 +51,12 @@ function switchTab(tabId) {
         } else {
             loadSources();
         }
+    }
+
+    // Initialize tools tab on first open
+    if (tabId === 'tools' && !toolsInitialized) {
+        toolsInitialized = true;
+        loadToolsSources();
     }
 }
 
@@ -1400,32 +1407,32 @@ async function saveUpdateSchedule() {
 // =============================================================================
 
 function initPhotoTools() {
-    // Populate source selector when Tools tab is first opened
-    const tabBtn = document.querySelector('[data-tab="tools"]');
-    if (tabBtn) {
-        tabBtn.addEventListener('click', () => {
-            if (!document.getElementById('tools-source-select')._loaded) {
-                loadToolsSources();
-            }
-        });
-    }
+    // Source loading is triggered by switchTab('tools') — see switchTab().
 
     // Filename Cleaner
-    document.getElementById('btn-scan-filenames').addEventListener('click', runFilenameScan);
-    document.getElementById('btn-apply-filenames').addEventListener('click', runFilenameApply);
-    document.getElementById('filenames-check-all').addEventListener('change', function () {
+    const btnScanFn = document.getElementById('btn-scan-filenames');
+    const btnApplyFn = document.getElementById('btn-apply-filenames');
+    const chkAllFn = document.getElementById('filenames-check-all');
+    if (btnScanFn) btnScanFn.addEventListener('click', runFilenameScan);
+    if (btnApplyFn) btnApplyFn.addEventListener('click', runFilenameApply);
+    if (chkAllFn) chkAllFn.addEventListener('change', function () {
         document.querySelectorAll('.filename-check').forEach(cb => cb.checked = this.checked);
         updateFilenameApplyBtn();
     });
 
     // Duplicate Finder
-    document.getElementById('btn-scan-duplicates').addEventListener('click', runDupScan);
-    document.getElementById('btn-apply-duplicates').addEventListener('click', runDupApply);
+    const btnScanDup = document.getElementById('btn-scan-duplicates');
+    const btnApplyDup = document.getElementById('btn-apply-duplicates');
+    if (btnScanDup) btnScanDup.addEventListener('click', runDupScan);
+    if (btnApplyDup) btnApplyDup.addEventListener('click', runDupApply);
 
     // Video Manager
-    document.getElementById('btn-scan-videos').addEventListener('click', runVideoScan);
-    document.getElementById('btn-apply-videos').addEventListener('click', runVideoApply);
-    document.getElementById('videos-check-all').addEventListener('change', function () {
+    const btnScanVid = document.getElementById('btn-scan-videos');
+    const btnApplyVid = document.getElementById('btn-apply-videos');
+    const chkAllVid = document.getElementById('videos-check-all');
+    if (btnScanVid) btnScanVid.addEventListener('click', runVideoScan);
+    if (btnApplyVid) btnApplyVid.addEventListener('click', runVideoApply);
+    if (chkAllVid) chkAllVid.addEventListener('change', function () {
         document.querySelectorAll('.video-check').forEach(cb => cb.checked = this.checked);
         updateVideoApplyBtn();
     });
@@ -1433,7 +1440,6 @@ function initPhotoTools() {
 
 async function loadToolsSources() {
     const sel = document.getElementById('tools-source-select');
-    sel._loaded = true;
     try {
         const data = await apiFetch('/api/sources');
         sel.innerHTML = '';
