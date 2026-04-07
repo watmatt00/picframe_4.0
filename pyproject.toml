@@ -27,6 +27,7 @@ dependencies = [
     "aiofiles>=23.0.0",
     "paho-mqtt>=2.0.0",
     "httpx>=0.26.0",
+    "pillow-heif>=0.13",
 ]
 
 [project.optional-dependencies]

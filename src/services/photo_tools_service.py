@@ -2,7 +2,8 @@
 PicFrame 4.0 - Photo Tools Service.
 
 Scan-then-apply operations for photo library maintenance:
-- Filename cleaning: strip Google Photos ID tokens and numbered-dup suffixes
+- Filename cleaning: strip Google Photos ID tokens, numbered-dup suffixes,
+  and rename UUID/hex-hash filenames to YYYYMMDD_HHMMSS using EXIF date
 - Duplicate detection: hash-based exact deduplication
 - Video management: list and remove video files Pi3D cannot display
 
@@ -17,6 +18,8 @@ so adding these features to the iOS app later requires zero refactoring.
 import hashlib
 import logging
 import re
+import struct
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -37,6 +40,18 @@ THUMB_CACHE_DIR = Path("/tmp/pfthumb")
 # Regex patterns for filename issues
 _RE_GOOGLE_ID = re.compile(r"\s*\{[^}]+\}")      # " {AByz57...}"
 _RE_NUMBERED_SUFFIX = re.compile(r"\s*\(\d+\)$")  # " (0)", " (54)"
+
+# UUID: 8-4-4-4-12 hex groups (iOS Camera Roll exports)
+_RE_UUID = re.compile(
+    r"^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}"
+    r"-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$"
+)
+# Hex hash: 32+ contiguous hex chars with no other word chars (Google Photos)
+_RE_HEX_HASH = re.compile(r"^[0-9a-fA-F]{32,}$")
+
+# EXIF tag for DateTimeOriginal
+_EXIF_TAG_DATETIME_ORIGINAL = 36867
+_EXIF_DATE_FMT = "%Y:%m:%d %H:%M:%S"
 
 
 # ---------------------------------------------------------------------------
@@ -62,13 +77,130 @@ class BatchResult(BaseModel):
 class FilenameFix(BaseModel):
     original: str
     proposed: str
-    reasons: list[str]  # e.g. ["google_id", "numbered_suffix", "ext_case"]
+    reasons: list[str]      # e.g. ["google_id", "numbered_suffix", "ext_case", "uuid_name"]
+    needs_review: bool = False  # True when proposed name came from mtime, not EXIF
 
 
 class FilenameScanResult(BaseModel):
     source_id: str
     fixes: list[FilenameFix]
     total_files_scanned: int
+
+
+def _date_stem_from_file(path: Path) -> tuple[str, bool]:
+    """Return (YYYYMMDD_HHMMSS, needs_review).
+
+    Tries EXIF DateTimeOriginal first (JPEG via Pillow, HEIC via pillow-heif).
+    Falls back to file mtime with needs_review=True so the UI can flag it.
+    """
+    # --- JPEG / PNG via Pillow ---
+    if path.suffix.lower() in {".jpg", ".jpeg", ".png"}:
+        try:
+            from PIL import Image  # noqa: PLC0415
+            with Image.open(path) as img:
+                exif = img._getexif() or {}
+            val = exif.get(_EXIF_TAG_DATETIME_ORIGINAL)
+            if val:
+                dt = datetime.strptime(val, _EXIF_DATE_FMT)
+                return dt.strftime("%Y%m%d_%H%M%S"), False
+        except Exception as exc:
+            logger.debug(f"Pillow EXIF read failed for {path.name}: {exc}")
+
+    # --- HEIC via pillow-heif ---
+    if path.suffix.lower() == ".heic":
+        try:
+            import pillow_heif  # noqa: PLC0415
+            heif = pillow_heif.open_heif(path)
+            raw_exif = heif.info.get("exif", b"")
+            # Parse minimal EXIF: find DateTimeOriginal (tag 36867) in IFD
+            dt_str = _parse_exif_bytes_for_datetime(raw_exif)
+            if dt_str:
+                dt = datetime.strptime(dt_str, _EXIF_DATE_FMT)
+                return dt.strftime("%Y%m%d_%H%M%S"), False
+        except Exception as exc:
+            logger.debug(f"pillow-heif EXIF read failed for {path.name}: {exc}")
+
+    # --- mtime fallback ---
+    dt = datetime.fromtimestamp(path.stat().st_mtime)
+    return dt.strftime("%Y%m%d_%H%M%S"), True
+
+
+def _parse_exif_bytes_for_datetime(raw: bytes) -> Optional[str]:
+    """Extract DateTimeOriginal string from raw EXIF bytes (minimal IFD parser)."""
+    if not raw or len(raw) < 8:
+        return None
+    try:
+        # EXIF header: "Exif\x00\x00" then TIFF header
+        offset = 0
+        if raw[:6] == b"Exif\x00\x00":
+            offset = 6
+        tiff = raw[offset:]
+        if len(tiff) < 8:
+            return None
+        byte_order = tiff[:2]
+        if byte_order == b"II":
+            endian = "<"
+        elif byte_order == b"MM":
+            endian = ">"
+        else:
+            return None
+        ifd_offset = struct.unpack(endian + "I", tiff[4:8])[0]
+        if ifd_offset + 2 > len(tiff):
+            return None
+        num_entries = struct.unpack(endian + "H", tiff[ifd_offset:ifd_offset + 2])[0]
+        pos = ifd_offset + 2
+        for _ in range(num_entries):
+            if pos + 12 > len(tiff):
+                break
+            tag = struct.unpack(endian + "H", tiff[pos:pos + 2])[0]
+            type_ = struct.unpack(endian + "H", tiff[pos + 2:pos + 4])[0]
+            count = struct.unpack(endian + "I", tiff[pos + 4:pos + 8])[0]
+            value_raw = tiff[pos + 8:pos + 12]
+            if tag == _EXIF_TAG_DATETIME_ORIGINAL and type_ == 2:
+                # ASCII string — value is an offset if count > 4
+                if count > 4:
+                    str_offset = struct.unpack(endian + "I", value_raw)[0]
+                    val = tiff[str_offset:str_offset + count - 1].decode("ascii", errors="ignore")
+                else:
+                    val = value_raw[:count - 1].decode("ascii", errors="ignore")
+                return val if len(val) == 19 else None
+            # Also check SubExifIFD (tag 34665) for nested IFD
+            if tag == 34665:
+                sub_offset = struct.unpack(endian + "I", value_raw)[0]
+                result = _parse_ifd(tiff, sub_offset, endian)
+                if result:
+                    return result
+            pos += 12
+    except Exception:
+        pass
+    return None
+
+
+def _parse_ifd(tiff: bytes, ifd_offset: int, endian: str) -> Optional[str]:
+    """Parse a TIFF IFD for DateTimeOriginal."""
+    try:
+        if ifd_offset + 2 > len(tiff):
+            return None
+        num_entries = struct.unpack(endian + "H", tiff[ifd_offset:ifd_offset + 2])[0]
+        pos = ifd_offset + 2
+        for _ in range(num_entries):
+            if pos + 12 > len(tiff):
+                break
+            tag = struct.unpack(endian + "H", tiff[pos:pos + 2])[0]
+            type_ = struct.unpack(endian + "H", tiff[pos + 2:pos + 4])[0]
+            count = struct.unpack(endian + "I", tiff[pos + 4:pos + 8])[0]
+            value_raw = tiff[pos + 8:pos + 12]
+            if tag == _EXIF_TAG_DATETIME_ORIGINAL and type_ == 2:
+                if count > 4:
+                    str_offset = struct.unpack(endian + "I", value_raw)[0]
+                    val = tiff[str_offset:str_offset + count - 1].decode("ascii", errors="ignore")
+                else:
+                    val = value_raw[:count - 1].decode("ascii", errors="ignore")
+                return val if len(val) == 19 else None
+            pos += 12
+    except Exception:
+        pass
+    return None
 
 
 def _clean_stem(stem: str) -> tuple[str, list[str]]:
@@ -95,11 +227,28 @@ def _proposed_filename(original: str, local_path: Path) -> Optional[FilenameFix]
     p = Path(original)
     stem = p.stem
     ext = p.suffix
+    new_ext = ext.lower()
 
     reasons: list[str] = []
+    needs_review = False
 
-    # Extension case normalisation
-    new_ext = ext.lower()
+    # --- UUID or hex-hash stem: rename to YYYYMMDD_HHMMSS ---
+    if _RE_UUID.match(stem) or _RE_HEX_HASH.match(stem):
+        reason = "uuid_name" if _RE_UUID.match(stem) else "hex_hash"
+        reasons.append(reason)
+        if new_ext != ext:
+            reasons.append("ext_case")
+
+        date_stem, needs_review = _date_stem_from_file(local_path / original)
+        proposed = _unique_name(date_stem, new_ext, original, local_path)
+        return FilenameFix(
+            original=original,
+            proposed=proposed,
+            reasons=reasons,
+            needs_review=needs_review,
+        )
+
+    # --- Standard stem cleaning (Google ID, numbered suffix, ext case) ---
     if new_ext != ext:
         reasons.append("ext_case")
 
@@ -109,19 +258,22 @@ def _proposed_filename(original: str, local_path: Path) -> Optional[FilenameFix]
     if not reasons:
         return None  # nothing to fix
 
-    proposed = cleaned_stem + new_ext
-
-    # Collision avoidance: if proposed name already exists (and is different),
-    # append _1, _2, ...
-    if proposed != original:
-        candidate = Path(local_path) / proposed
-        counter = 1
-        while candidate.exists() and candidate.name != original:
-            proposed = f"{cleaned_stem}_{counter}{new_ext}"
-            candidate = Path(local_path) / proposed
-            counter += 1
-
+    proposed = _unique_name(cleaned_stem, new_ext, original, local_path)
     return FilenameFix(original=original, proposed=proposed, reasons=reasons)
+
+
+def _unique_name(stem: str, ext: str, original: str, local_path: Path) -> str:
+    """Return stem+ext, appending _1, _2, ... if that name already exists."""
+    proposed = stem + ext
+    if proposed == original:
+        return proposed
+    candidate = local_path / proposed
+    counter = 1
+    while candidate.exists() and candidate.name != original:
+        proposed = f"{stem}_{counter}{ext}"
+        candidate = local_path / proposed
+        counter += 1
+    return proposed
 
 
 def scan_filenames(source_id: str) -> FilenameScanResult:

@@ -27,9 +27,14 @@ echo "Creating virtual environment..."
 python3 -m venv "$PROJECT_DIR/venv"
 source "$PROJECT_DIR/venv/bin/activate"
 
-# Install dependencies
+# Install system dependencies
 echo ""
-echo "Installing dependencies..."
+echo "Installing system dependencies..."
+sudo apt-get install -y libheif1
+
+# Install Python dependencies
+echo ""
+echo "Installing Python dependencies..."
 pip install --upgrade pip
 pip install -e "$PROJECT_DIR"
 

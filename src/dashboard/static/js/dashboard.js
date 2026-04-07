@@ -1466,7 +1466,13 @@ function fmtBytes(bytes) {
 }
 
 function reasonLabel(r) {
-    return { google_id: 'Google ID', numbered_suffix: 'Numbered dup', ext_case: 'Ext case' }[r] || r;
+    return {
+        google_id: 'Google ID',
+        numbered_suffix: 'Numbered dup',
+        ext_case: 'Ext case',
+        uuid_name: 'UUID name',
+        hex_hash: 'Hex hash',
+    }[r] || r;
 }
 
 // ----- Filename Cleaner -----
@@ -1494,19 +1500,28 @@ function renderFilenameResults(src, data) {
     const tbody = document.getElementById('filenames-tbody');
     const resultDiv = document.getElementById('filenames-result');
 
+    const mtimeCount = (fixes || []).filter(f => f.needs_review).length;
+    const mtimeNote = mtimeCount ? ` · ${mtimeCount} flagged ⚠️ mtime (no EXIF date — review before applying)` : '';
     summary.textContent = fixes.length === 0
         ? `✅ All ${data.total_files_scanned} files look clean — nothing to fix.`
-        : `Found ${fixes.length} file(s) with issues (scanned ${data.total_files_scanned} total).`;
+        : `Found ${fixes.length} file(s) with issues (scanned ${data.total_files_scanned} total)${mtimeNote}.`;
 
     tbody.innerHTML = '';
     fixes.forEach(fix => {
         const tr = document.createElement('tr');
+        if (fix.needs_review) {
+            tr.style.background = 'rgba(120,53,15,0.15)';  // amber tint
+        }
+        const reviewBadge = fix.needs_review
+            ? ' <span class="status-chip" style="background:#78350f;color:#fde68a;">⚠️ mtime</span>'
+            : '';
         tr.innerHTML = `
             <td><input type="checkbox" class="filename-check" data-original="${escHtml(fix.original)}"
-                data-proposed="${escHtml(fix.proposed)}" data-reasons='${JSON.stringify(fix.reasons)}' checked></td>
+                data-proposed="${escHtml(fix.proposed)}" data-reasons='${JSON.stringify(fix.reasons)}'
+                ${fix.needs_review ? '' : 'checked'}></td>
             <td style="font-family:monospace;font-size:0.8rem;">${escHtml(fix.original)}</td>
             <td style="font-family:monospace;font-size:0.8rem;color:#86efac;">${escHtml(fix.proposed)}</td>
-            <td>${fix.reasons.map(r => `<span class="status-chip">${reasonLabel(r)}</span>`).join(' ')}</td>
+            <td>${fix.reasons.map(r => `<span class="status-chip">${reasonLabel(r)}</span>`).join(' ')}${reviewBadge}</td>
         `;
         tbody.appendChild(tr);
     });
