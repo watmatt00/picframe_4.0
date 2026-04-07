@@ -1503,6 +1503,13 @@ function toolsSourceId() {
     return document.getElementById('tools-source-select').value;
 }
 
+function fmtEta(count, secPerItem = 3) {
+    const secs = count * secPerItem;
+    if (secs < 60) return `~${secs} sec`;
+    const mins = Math.round(secs / 60);
+    return `~${mins} min`;
+}
+
 function fmtBytes(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
@@ -1744,7 +1751,7 @@ async function runFilenameApply() {
     const src = toolsSourceId();
     const checked = [...document.querySelectorAll('.filename-check:checked')];
     if (!checked.length) return;
-    if (!confirm(`Rename ${checked.length} file(s)? Cloud files will be renamed first.`)) return;
+    if (!confirm(`Rename ${checked.length} file(s)? Cloud files will be renamed first.\nEstimated time: ${fmtEta(checked.length)}`)) return;
 
     const fixes = checked.map(cb => {
         const tr = cb.closest('tr');
@@ -1913,7 +1920,7 @@ async function runDupApply() {
     });
 
     if (!toDelete.length) return;
-    if (!confirm(`Delete ${toDelete.length} duplicate file(s)? This cannot be undone.`)) return;
+    if (!confirm(`Delete ${toDelete.length} duplicate file(s)? This cannot be undone.\nEstimated time: ${fmtEta(toDelete.length)}`)) return;
 
     const total = toDelete.length;
     let succeeded = 0;
@@ -2040,7 +2047,7 @@ async function runVideoApply() {
     const src = toolsSourceId();
     const toDelete = [...document.querySelectorAll('.video-check:checked')].map(cb => cb.value);
     if (!toDelete.length) return;
-    if (!confirm(`Delete ${toDelete.length} video file(s)? This cannot be undone.`)) return;
+    if (!confirm(`Delete ${toDelete.length} video file(s)? This cannot be undone.\nEstimated time: ${fmtEta(toDelete.length)}`)) return;
 
     const total = toDelete.length;
     let succeeded = 0;
