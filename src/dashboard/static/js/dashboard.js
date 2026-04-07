@@ -1679,9 +1679,9 @@ function _renderFilenameRows() {
                 data-original="${escHtml(fix.original)}"
                 data-reasons='${JSON.stringify(fix.reasons)}'></td>
             <td style="font-family:monospace;font-size:0.8rem;">${escHtml(fix.original)}</td>
-            <td style="padding:2px 6px;">
-                <input type="text" class="fn-proposed-input" value="${escHtml(fix.proposed)}" data-default="${escHtml(fix.proposed)}"
-                    disabled style="font-family:monospace;font-size:0.8rem;color:#86efac;background:transparent;border:none;width:100%;outline:none;padding:0;">
+            <td class="fn-proposed-cell" data-proposed="${escHtml(fix.proposed)}" style="padding:2px 6px;">
+                <span class="fn-proposed-display"
+                      style="font-family:monospace;font-size:0.8rem;color:#86efac;">${escHtml(fix.proposed)}</span>
             </td>
             <td>${exifCell}</td>
             <td>${fix.reasons.map(r => `<span class="status-chip">${reasonLabel(r)}</span>`).join(' ')}${reviewBadge}</td>
@@ -1692,15 +1692,18 @@ function _renderFilenameRows() {
     document.querySelectorAll('.filename-check').forEach(cb => {
         cb.addEventListener('change', () => {
             const tr = cb.closest('tr');
-            const input = tr.querySelector('.fn-proposed-input');
-            if (input) {
-                input.disabled = !cb.checked;
-                if (!cb.checked) {
-                    input.value = input.dataset.default;
-                    input.style.cssText = 'font-family:monospace;font-size:0.8rem;color:#86efac;background:transparent;border:none;width:100%;outline:none;padding:0;';
-                } else {
-                    input.style.cssText = 'font-family:monospace;font-size:0.8rem;color:#e2e8f0;background:#1e293b;border:1px solid #475569;border-radius:4px;padding:2px 6px;width:100%;box-sizing:border-box;';
-                }
+            const cell = tr.querySelector('.fn-proposed-cell');
+            if (cb.checked) {
+                const current = cell.dataset.proposed;
+                cell.innerHTML = `<input type="text" class="fn-proposed-input"
+                    value="${escHtml(current)}"
+                    style="font-family:monospace;font-size:0.8rem;color:#e2e8f0;background:#1e293b;border:1px solid #475569;border-radius:4px;padding:2px 6px;width:100%;box-sizing:border-box;">`;
+            } else {
+                const input = cell.querySelector('.fn-proposed-input');
+                const val = (input ? input.value.trim() : '') || cell.dataset.proposed;
+                cell.dataset.proposed = val;
+                cell.innerHTML = `<span class="fn-proposed-display"
+                    style="font-family:monospace;font-size:0.8rem;color:#86efac;">${escHtml(val)}</span>`;
             }
             updateFilenameApplyBtn();
         });
@@ -1726,8 +1729,9 @@ async function runFilenameApply() {
 
     const fixes = checked.map(cb => {
         const tr = cb.closest('tr');
-        const input = tr.querySelector('.fn-proposed-input');
-        const proposed = (input ? input.value.trim() : '') || input?.dataset.default || '';
+        const cell = tr.querySelector('.fn-proposed-cell');
+        const input = cell?.querySelector('.fn-proposed-input');
+        const proposed = (input ? input.value.trim() : '') || cell?.dataset.proposed || '';
         return { original: cb.dataset.original, proposed, reasons: JSON.parse(cb.dataset.reasons) };
     });
 
