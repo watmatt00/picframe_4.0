@@ -56,3 +56,20 @@ async def require_admin(
             detail="Admin access required",
         )
     return device
+
+
+async def require_contributor(
+    device: TokenClaims = Depends(get_current_device),
+) -> TokenClaims:
+    """
+    Require admin or contributor role for contributor endpoints.
+
+    Raises:
+        HTTPException: If device has an unrecognized role.
+    """
+    if device.role not in ("admin", "contributor"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Contributor or admin access required",
+        )
+    return device
