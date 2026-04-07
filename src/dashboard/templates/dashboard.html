@@ -594,9 +594,13 @@
                     <button class="btn secondary" id="btn-scan-duplicates" style="flex-shrink:0;">Scan</button>
                 </div>
                 <div id="duplicates-result" style="padding:0 1.5rem 1.5rem; display:none;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
                         <div id="duplicates-summary" style="color:#94a3b8; font-size:0.9rem;"></div>
                         <button class="advanced-toggle" id="btn-close-duplicates">✕ Close</button>
+                    </div>
+                    <div class="button-row" style="margin-bottom:0.75rem;">
+                        <button class="btn btn-danger" id="btn-apply-duplicates-top" disabled>Delete Duplicates</button>
+                        <span id="duplicates-apply-status-top" style="font-size:0.85rem; color:#94a3b8; align-self:center;"></span>
                     </div>
                     <div id="duplicates-groups"></div>
                     <div class="button-row" style="margin-top:1rem;">
@@ -616,9 +620,13 @@
                     <button class="btn secondary" id="btn-scan-videos" style="flex-shrink:0;">Scan</button>
                 </div>
                 <div id="videos-result" style="padding:0 1.5rem 1.5rem; display:none;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
                         <div id="videos-summary" style="color:#94a3b8; font-size:0.9rem;"></div>
                         <button class="advanced-toggle" id="btn-close-videos">✕ Close</button>
+                    </div>
+                    <div class="button-row" style="margin-bottom:0.75rem;">
+                        <button class="btn btn-danger" id="btn-apply-videos-top" disabled>Delete Selected Videos</button>
+                        <span id="videos-apply-status-top" style="font-size:0.85rem; color:#94a3b8; align-self:center;"></span>
                     </div>
                     <div id="videos-table-wrap" style="overflow-x:auto;">
                         <table class="sources-table" id="videos-table">

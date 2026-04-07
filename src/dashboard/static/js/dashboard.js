@@ -1431,15 +1431,19 @@ function initPhotoTools() {
     // Duplicate Finder
     const btnScanDup = document.getElementById('btn-scan-duplicates');
     const btnApplyDup = document.getElementById('btn-apply-duplicates');
+    const btnApplyDupTop = document.getElementById('btn-apply-duplicates-top');
     if (btnScanDup) btnScanDup.addEventListener('click', runDupScan);
     if (btnApplyDup) btnApplyDup.addEventListener('click', runDupApply);
+    if (btnApplyDupTop) btnApplyDupTop.addEventListener('click', runDupApply);
 
     // Video Manager
     const btnScanVid = document.getElementById('btn-scan-videos');
     const btnApplyVid = document.getElementById('btn-apply-videos');
+    const btnApplyVidTop = document.getElementById('btn-apply-videos-top');
     const chkAllVid = document.getElementById('videos-check-all');
     if (btnScanVid) btnScanVid.addEventListener('click', runVideoScan);
     if (btnApplyVid) btnApplyVid.addEventListener('click', runVideoApply);
+    if (btnApplyVidTop) btnApplyVidTop.addEventListener('click', runVideoApply);
     if (chkAllVid) chkAllVid.addEventListener('change', function () {
         document.querySelectorAll('.video-check').forEach(cb => cb.checked = this.checked);
         updateVideoApplyBtn();
@@ -1794,17 +1798,18 @@ function renderDupResults(src, data) {
 }
 
 function updateDupApplyBtn() {
-    const groups = document.querySelectorAll('[name^="dup_keep_"]');
-    // Count total files minus kept ones = files to delete
-    const groupNames = new Set([...groups].map(r => r.name));
+    const groupNames = new Set(
+        [...document.querySelectorAll('[name^="dup_keep_"]')].map(r => r.name)
+    );
     let toDelete = 0;
     groupNames.forEach(name => {
-        const radios = document.querySelectorAll(`[name="${name}"]`);
-        toDelete += radios.length - 1; // all but the kept one
+        toDelete += document.querySelectorAll(`[name="${name}"]`).length - 1;
     });
-    const btn = document.getElementById('btn-apply-duplicates');
-    btn.disabled = groupNames.size === 0;
-    btn.textContent = toDelete > 0 ? `Delete ${toDelete} Duplicate(s)` : 'Delete Duplicates';
+    const label = toDelete > 0 ? `Delete ${toDelete} Duplicate(s)` : 'Delete Duplicates';
+    ['btn-apply-duplicates', 'btn-apply-duplicates-top'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.disabled = groupNames.size === 0; btn.textContent = label; }
+    });
 }
 
 async function runDupApply() {
@@ -1823,10 +1828,17 @@ async function runDupApply() {
     if (!toDelete.length) return;
     if (!confirm(`Delete ${toDelete.length} duplicate file(s)? This cannot be undone.`)) return;
 
-    const btn = document.getElementById('btn-apply-duplicates');
-    const status = document.getElementById('duplicates-apply-status');
-    btn.disabled = true; btn.textContent = 'Deleting…';
-    status.textContent = '';
+    const setStatus = (msg) => {
+        ['duplicates-apply-status', 'duplicates-apply-status-top'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = msg;
+        });
+    };
+    ['btn-apply-duplicates', 'btn-apply-duplicates-top'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
+    });
+    setStatus('');
 
     try {
         const data = await apiFetch(`/api/tools/${src}/apply/duplicates`, {
@@ -1837,12 +1849,12 @@ async function runDupApply() {
         if (!data.ok) throw new Error(data.error || 'Apply failed');
         const ok = (data.succeeded || []).length;
         const fail = (data.failed || []).length;
-        status.textContent = `✅ ${ok} deleted${fail ? ` · ⚠️ ${fail} failed` : ''}`;
+        setStatus(`✅ ${ok} deleted${fail ? ` · ⚠️ ${fail} failed` : ''}`);
         setTimeout(runDupScan, 800);
     } catch (e) {
-        status.textContent = '❌ ' + e.message;
+        setStatus('❌ ' + e.message);
     } finally {
-        btn.disabled = false; btn.textContent = 'Delete Duplicates';
+        updateDupApplyBtn();
     }
 }
 
@@ -1896,9 +1908,11 @@ function renderVideoResults(src, data) {
 
 function updateVideoApplyBtn() {
     const checked = document.querySelectorAll('.video-check:checked').length;
-    const btn = document.getElementById('btn-apply-videos');
-    btn.disabled = checked === 0;
-    btn.textContent = checked > 0 ? `Delete ${checked} Video(s)` : 'Delete Selected Videos';
+    const label = checked > 0 ? `Delete ${checked} Video(s)` : 'Delete Selected Videos';
+    ['btn-apply-videos', 'btn-apply-videos-top'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.disabled = checked === 0; btn.textContent = label; }
+    });
 }
 
 async function runVideoApply() {
@@ -1907,10 +1921,17 @@ async function runVideoApply() {
     if (!checked.length) return;
     if (!confirm(`Delete ${checked.length} video file(s)? This cannot be undone.`)) return;
 
-    const btn = document.getElementById('btn-apply-videos');
-    const status = document.getElementById('videos-apply-status');
-    btn.disabled = true; btn.textContent = 'Deleting…';
-    status.textContent = '';
+    const setStatus = (msg) => {
+        ['videos-apply-status', 'videos-apply-status-top'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = msg;
+        });
+    };
+    ['btn-apply-videos', 'btn-apply-videos-top'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.disabled = true; btn.textContent = 'Deleting…'; }
+    });
+    setStatus('');
 
     try {
         const data = await apiFetch(`/api/tools/${src}/apply/videos`, {
@@ -1921,12 +1942,12 @@ async function runVideoApply() {
         if (!data.ok) throw new Error(data.error || 'Apply failed');
         const ok = (data.succeeded || []).length;
         const fail = (data.failed || []).length;
-        status.textContent = `✅ ${ok} deleted${fail ? ` · ⚠️ ${fail} failed` : ''}`;
+        setStatus(`✅ ${ok} deleted${fail ? ` · ⚠️ ${fail} failed` : ''}`);
         setTimeout(runVideoScan, 800);
     } catch (e) {
-        status.textContent = '❌ ' + e.message;
+        setStatus('❌ ' + e.message);
     } finally {
-        btn.disabled = false; btn.textContent = 'Delete Selected Videos';
+        updateVideoApplyBtn();
     }
 }
 
