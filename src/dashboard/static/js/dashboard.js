@@ -1605,6 +1605,9 @@ function _toggleFilter(key) {
         }
     });
     _applyFilenameFilter();
+    // Reset all checkboxes — you can only select what you can see
+    document.querySelectorAll('.filename-check').forEach(cb => cb.checked = false);
+    document.getElementById('filenames-check-all').checked = false;
     updateFilenameApplyBtn();
 }
 
@@ -1648,8 +1651,7 @@ function _renderFilenameRows() {
             <td><input type="checkbox" class="filename-check"
                 data-original="${escHtml(fix.original)}"
                 data-proposed="${escHtml(fix.proposed)}"
-                data-reasons='${JSON.stringify(fix.reasons)}'
-                ${fix.needs_review ? '' : 'checked'}></td>
+                data-reasons='${JSON.stringify(fix.reasons)}'></td>
             <td style="font-family:monospace;font-size:0.8rem;">${escHtml(fix.original)}</td>
             <td style="font-family:monospace;font-size:0.8rem;color:#86efac;">${escHtml(fix.proposed)}</td>
             <td>${fix.reasons.map(r => `<span class="status-chip">${reasonLabel(r)}</span>`).join(' ')}${reviewBadge}</td>
@@ -1660,7 +1662,7 @@ function _renderFilenameRows() {
     document.querySelectorAll('.filename-check').forEach(cb =>
         cb.addEventListener('change', updateFilenameApplyBtn)
     );
-    document.getElementById('filenames-check-all').checked = true;
+    document.getElementById('filenames-check-all').checked = false;
     updateFilenameApplyBtn();
 }
 
