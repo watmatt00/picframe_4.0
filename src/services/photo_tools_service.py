@@ -41,13 +41,8 @@ THUMB_CACHE_DIR = Path("/tmp/pfthumb")
 _RE_GOOGLE_ID = re.compile(r"\s*\{[^}]+\}")      # " {AByz57...}"
 _RE_NUMBERED_SUFFIX = re.compile(r"\s*\(\d+\)$")  # " (0)", " (54)"
 
-# UUID: 8-4-4-4-12 hex groups (iOS Camera Roll exports)
-_RE_UUID = re.compile(
-    r"^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}"
-    r"-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$"
-)
-# Hex hash: 32+ contiguous hex chars with no other word chars (Google Photos)
-_RE_HEX_HASH = re.compile(r"^[0-9a-fA-F]{32,}$")
+# Stems longer than this are considered machine-generated and renamed to YYYYMMDD_HHMMSS
+_LONG_NAME_THRESHOLD = 20
 
 # EXIF tags
 _EXIF_TAG_DATETIME_ORIGINAL = 36867
@@ -84,7 +79,7 @@ class BatchResult(BaseModel):
 class FilenameFix(BaseModel):
     original: str
     proposed: str
-    reasons: list[str]      # e.g. ["google_id", "numbered_suffix", "ext_case", "uuid_name"]
+    reasons: list[str]      # e.g. ["google_id", "numbered_suffix", "ext_case", "long_name", "spaces"]
     needs_review: bool = False  # True when proposed name came from mtime, not EXIF
     exif_date: Optional[str] = None        # "YYYY-MM-DD HH:MM" for display, None if unavailable
     exif_orientation: Optional[int] = None  # EXIF tag 274 value; 1 = normal
@@ -329,6 +324,10 @@ def _clean_stem(stem: str) -> tuple[str, list[str]]:
         cleaned = _RE_NUMBERED_SUFFIX.sub("", cleaned).strip()
         reasons.append("numbered_suffix")
 
+    if ' ' in cleaned:
+        cleaned = re.sub(r' +', '_', cleaned)
+        reasons.append("spaces")
+
     return cleaned, reasons
 
 
@@ -342,10 +341,9 @@ def _proposed_filename(original: str, local_path: Path) -> Optional[FilenameFix]
     reasons: list[str] = []
     needs_review = False
 
-    # --- UUID or hex-hash stem: rename to YYYYMMDD_HHMMSS ---
-    if _RE_UUID.match(stem) or _RE_HEX_HASH.match(stem):
-        reason = "uuid_name" if _RE_UUID.match(stem) else "hex_hash"
-        reasons.append(reason)
+    # --- Long stem: rename to YYYYMMDD_HHMMSS ---
+    if len(stem) > _LONG_NAME_THRESHOLD:
+        reasons.append("long_name")
         # Also check magic bytes — UUID file might have a mislabeled extension too
         actual_ext = _detect_actual_ext(local_path / original)
         if actual_ext is not None:
