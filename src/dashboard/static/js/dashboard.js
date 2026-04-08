@@ -122,6 +122,16 @@ function initAdvancedToggles() {
         });
     }
 
+    // Rename File card toggle
+    const renameToggle = document.getElementById('rename-toggle');
+    const renameSection = document.getElementById('rename-section');
+    if (renameToggle && renameSection) {
+        renameToggle.addEventListener('click', () => {
+            renameSection.classList.toggle('visible');
+            renameToggle.textContent = renameSection.classList.contains('visible') ? '▾ Hide' : '▸ Show';
+        });
+    }
+
     // Photo Backups card toggle
     const backupToggle = document.getElementById('backup-toggle');
     const backupSection = document.getElementById('backup-section');
@@ -1492,8 +1502,16 @@ function initPhotoTools() {
     });
 
     // Rename File card
-    const btnRename = document.getElementById('btn-rename-file');
-    if (btnRename) btnRename.addEventListener('click', runManualRename);
+    const btnScanRename = document.getElementById('btn-scan-rename');
+    const btnApplyRename = document.getElementById('btn-apply-rename');
+    const btnApplyRenameTop = document.getElementById('btn-apply-rename-top');
+    const btnCloseRename = document.getElementById('btn-close-rename');
+    if (btnScanRename) btnScanRename.addEventListener('click', runRenameScan);
+    if (btnApplyRename) btnApplyRename.addEventListener('click', runRenameApply);
+    if (btnApplyRenameTop) btnApplyRenameTop.addEventListener('click', runRenameApply);
+    if (btnCloseRename) btnCloseRename.addEventListener('click', () => {
+        document.getElementById('rename-result').style.display = 'none';
+    });
 
     // Photo Backups card
     const btnCreateBackup = document.getElementById('btn-create-backup');
@@ -2231,39 +2249,110 @@ async function runVideoApply() {
     }
 }
 
-// ----- Manual Rename -----
+// ----- Rename File (browser + batch) -----
 
-async function runManualRename() {
-    const src = toolsSourceId();
-    const statusEl = document.getElementById('rename-status');
-    const original = (document.getElementById('rename-original').value || '').trim();
-    const proposed = (document.getElementById('rename-proposed').value || '').trim();
-
-    statusEl.style.color = '#94a3b8';
-    if (!src) { statusEl.textContent = '❌ Select a source first'; return; }
-    if (!original || !proposed) { statusEl.textContent = '❌ Both fields are required'; return; }
-    if (original === proposed) { statusEl.textContent = '❌ Names are the same'; return; }
-
-    const btn = document.getElementById('btn-rename-file');
+async function runRenameScan() {
+    const srcId = toolsSourceId();
+    if (!srcId) { alert('Select a source first.'); return; }
+    const btn = document.getElementById('btn-scan-rename');
+    const scanStatus = document.getElementById('rename-scan-status');
+    const resultEl = document.getElementById('rename-result');
     btn.disabled = true;
-    statusEl.textContent = 'Renaming…';
-
+    btn.textContent = 'Scanning…';
+    scanStatus.textContent = 'Reading files and EXIF data — may take a moment…';
+    scanStatus.style.color = '#94a3b8';
+    resultEl.style.display = 'none';
     try {
-        const data = await apiFetch(`/api/tools/${src}/rename`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ original, proposed }),
+        const data = await apiFetch(`/api/tools/${srcId}/scan/files`);
+        if (!data.ok) throw new Error(data.error || 'Scan failed');
+        const files = data.files || [];
+        document.getElementById('rename-summary').textContent =
+            `${files.length} file${files.length === 1 ? '' : 's'} — edit the New Filename column, then Apply`;
+        const tbody = document.getElementById('rename-tbody');
+        tbody.innerHTML = '';
+        files.forEach(f => {
+            const tr = document.createElement('tr');
+            const thumbSrc = `/api/thumbnail/${srcId}?filename=${encodeURIComponent(f.filename)}`;
+            const exifCell = f.exif_date
+                ? `<span style="font-size:0.8rem;">${escHtml(f.exif_date)}</span>`
+                : `<span style="color:#64748b;font-size:0.8rem;">—</span>`;
+            tr.innerHTML = `
+                <td><img src="${thumbSrc}" style="width:64px;height:64px;object-fit:cover;border-radius:4px;"
+                    loading="lazy" onerror="this.style.display='none'"></td>
+                <td style="font-family:monospace;font-size:0.85rem;">${escHtml(f.filename)}</td>
+                <td>${exifCell}</td>
+                <td><input type="text" class="form-input rename-new-name"
+                    data-original="${escHtml(f.filename)}"
+                    value="${escHtml(f.filename)}"
+                    style="width:100%;min-width:200px;font-family:monospace;font-size:0.85rem;"
+                    spellcheck="false"></td>`;
+            tbody.appendChild(tr);
         });
-        if (!data.ok) throw new Error(data.error || 'Rename failed');
-        statusEl.textContent = `✅ Renamed successfully`;
-        statusEl.style.color = '#86efac';
-        document.getElementById('rename-original').value = '';
-        document.getElementById('rename-proposed').value = '';
+        tbody.querySelectorAll('.rename-new-name').forEach(inp => {
+            inp.addEventListener('input', updateRenameApplyBtn);
+        });
+        scanStatus.textContent = '';
+        resultEl.style.display = 'block';
+        updateRenameApplyBtn();
     } catch (e) {
-        statusEl.textContent = '❌ ' + e.message;
-        statusEl.style.color = '#f87171';
+        scanStatus.textContent = '❌ ' + e.message;
+        scanStatus.style.color = '#f87171';
     } finally {
         btn.disabled = false;
+        btn.textContent = 'Scan';
+    }
+}
+
+function getRenameChanges() {
+    const changes = [];
+    document.querySelectorAll('#rename-tbody .rename-new-name').forEach(inp => {
+        const original = inp.dataset.original;
+        const proposed = inp.value.trim();
+        if (proposed && proposed !== original) {
+            changes.push({ original, proposed, reasons: [] });
+        }
+    });
+    return changes;
+}
+
+function updateRenameApplyBtn() {
+    const changed = getRenameChanges().length > 0;
+    ['btn-apply-rename', 'btn-apply-rename-top'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.disabled = !changed;
+    });
+}
+
+async function runRenameApply() {
+    const srcId = toolsSourceId();
+    const fixes = getRenameChanges();
+    if (!fixes.length) return;
+    const topBtn = document.getElementById('btn-apply-rename-top');
+    const botBtn = document.getElementById('btn-apply-rename');
+    const topStatus = document.getElementById('rename-apply-status-top');
+    const botStatus = document.getElementById('rename-apply-status');
+    [topBtn, botBtn].forEach(b => { if (b) b.disabled = true; });
+    const msg = `Renaming ${fixes.length} file${fixes.length === 1 ? '' : 's'}…`;
+    topStatus.textContent = botStatus.textContent = msg;
+    topStatus.style.color = botStatus.style.color = '#94a3b8';
+    try {
+        const data = await apiFetch(`/api/tools/${srcId}/apply/filenames`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fixes }),
+        });
+        const succeeded = data.succeeded?.length ?? 0;
+        const failed = data.failed?.length ?? 0;
+        const result = failed
+            ? `✅ ${succeeded} renamed, ❌ ${failed} failed`
+            : `✅ ${succeeded} file${succeeded === 1 ? '' : 's'} renamed`;
+        topStatus.textContent = botStatus.textContent = result;
+        topStatus.style.color = botStatus.style.color = failed ? '#f87171' : '#4ade80';
+        if (succeeded) await runRenameScan();
+    } catch (e) {
+        topStatus.textContent = botStatus.textContent = '❌ ' + e.message;
+        topStatus.style.color = botStatus.style.color = '#f87171';
+        [topBtn, botBtn].forEach(b => { if (b) b.disabled = false; });
     }
 }
 

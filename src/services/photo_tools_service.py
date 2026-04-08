@@ -91,6 +91,18 @@ class FilenameScanResult(BaseModel):
     total_files_scanned: int
 
 
+class FileBrowserEntry(BaseModel):
+    filename: str
+    exif_date: Optional[str] = None
+    exif_orientation: Optional[int] = None
+
+
+class FileBrowserResult(BaseModel):
+    source_id: str
+    files: list[FileBrowserEntry]
+    total: int
+
+
 def _date_stem_from_file(path: Path) -> tuple[str, bool]:
     """Return (YYYYMMDD_HHMMSS, needs_review).
 
@@ -424,6 +436,25 @@ def scan_filenames(source_id: str) -> FilenameScanResult:
             fixes.append(fix)
 
     return FilenameScanResult(source_id=source_id, fixes=fixes, total_files_scanned=total)
+
+
+def scan_files(source_id: str) -> FileBrowserResult:
+    """Return all files in a source with EXIF dates, for manual renaming."""
+    source = source_manager.get_source(source_id)
+    if not source:
+        raise ValueError(f"Source '{source_id}' not found")
+    local_path = Path(source.local_path).expanduser()
+    files: list[FileBrowserEntry] = []
+    for f in sorted(local_path.rglob("*")):
+        if not f.is_file():
+            continue
+        exif_date, exif_orientation = _read_exif_display(f)
+        files.append(FileBrowserEntry(
+            filename=f.name,
+            exif_date=exif_date,
+            exif_orientation=exif_orientation,
+        ))
+    return FileBrowserResult(source_id=source_id, files=files, total=len(files))
 
 
 async def apply_filenames(source_id: str, fixes: list[FilenameFix]) -> BatchResult:

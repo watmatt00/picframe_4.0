@@ -1008,6 +1008,19 @@ async def dashboard_thumbnail(source_id: str, filename: str = Query(...)):
 # =============================================================================
 
 
+@router.get("/api/tools/{source_id}/scan/files")
+async def tools_scan_files(source_id: str):
+    """List all files in a source with EXIF dates. LAN-only, no JWT."""
+    try:
+        result = photo_tools.scan_files(source_id)
+        return {"ok": True, **result.model_dump()}
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error(f"tools scan_files error: {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
 @router.get("/api/tools/{source_id}/scan/filenames")
 async def tools_scan_filenames(source_id: str):
     """Scan for filename issues. LAN-only, no JWT."""
