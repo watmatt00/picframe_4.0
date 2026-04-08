@@ -661,41 +661,33 @@
                         <div class="card-title">✏️ Rename File</div>
                         <div class="card-subtitle">Browse all files and rename individually — cloud + local</div>
                     </div>
-                    <button class="advanced-toggle" id="rename-toggle">▸ Show</button>
+                    <button class="btn secondary" id="btn-scan-rename" style="flex-shrink:0;">Scan</button>
                 </div>
-                <div class="advanced-section" id="rename-section">
-                    <div style="padding:0 1.5rem 1.5rem;">
-                        <div style="margin-bottom:1rem;">
-                            <button class="btn secondary" id="btn-scan-rename">Scan</button>
-                            <span id="rename-scan-status" style="font-size:0.85rem;color:#94a3b8;margin-left:0.75rem;"></span>
-                        </div>
-                        <div id="rename-result" style="display:none;">
-                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
-                                <div id="rename-summary" style="color:#94a3b8;font-size:0.9rem;"></div>
-                                <button class="advanced-toggle" id="btn-close-rename">✕ Close</button>
-                            </div>
-                            <div class="button-row" style="margin-bottom:0.75rem;">
-                                <button class="btn" id="btn-apply-rename-top" disabled>Apply Renames</button>
-                                <span id="rename-apply-status-top" style="font-size:0.85rem;color:#94a3b8;align-self:center;"></span>
-                            </div>
-                            <div style="overflow-x:auto;">
-                                <table class="sources-table" id="rename-table">
-                                    <thead>
-                                        <tr>
-                                            <th style="width:72px;">Preview</th>
-                                            <th>Original Filename</th>
-                                            <th>EXIF Date</th>
-                                            <th>New Filename</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="rename-tbody"></tbody>
-                                </table>
-                            </div>
-                            <div class="button-row" style="margin-top:1rem;">
-                                <button class="btn" id="btn-apply-rename" disabled>Apply Renames</button>
-                                <span id="rename-apply-status" style="font-size:0.85rem;color:#94a3b8;align-self:center;"></span>
-                            </div>
-                        </div>
+                <div id="rename-result" style="padding:0 1.5rem 1.5rem; display:none;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                        <div id="rename-summary" style="color:#94a3b8;font-size:0.9rem;"></div>
+                        <button class="advanced-toggle" id="btn-close-rename">✕ Close</button>
+                    </div>
+                    <div class="button-row" style="margin-bottom:0.75rem;">
+                        <button class="btn" id="btn-apply-rename-top" disabled>Apply Renames</button>
+                        <span id="rename-apply-status-top" style="font-size:0.85rem;color:#94a3b8;align-self:center;"></span>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="sources-table" id="rename-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:72px;">Preview</th>
+                                    <th>Original Filename</th>
+                                    <th>EXIF Date</th>
+                                    <th>New Filename</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rename-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="button-row" style="margin-top:1rem;">
+                        <button class="btn" id="btn-apply-rename" disabled>Apply Renames</button>
+                        <span id="rename-apply-status" style="font-size:0.85rem;color:#94a3b8;align-self:center;"></span>
                     </div>
                 </div>
             </section>
