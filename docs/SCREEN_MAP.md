@@ -8,7 +8,7 @@ Use these stable IDs in test plans, bug reports, and development references:
 - `IOS-xxx` - iOS mobile app screens
 - `DASH-xxx` - Web dashboard screens/tabs
 
-**Last updated:** 2026-02-14
+**Last updated:** 2026-04-09
 
 ---
 
@@ -359,7 +359,7 @@ ContentView
 
 ## Dashboard Screens
 
-### DASH-STATUS - Photo Status (Tab 1)
+### DASH-STATUS - Frame Status (Tab 1)
 
 - **Files:** `dashboard.html` + `dashboard.js`
 - **Presentation:** Default active tab in unified dashboard
@@ -399,6 +399,7 @@ ContentView
 
 ### DASH-SWITCH - Switch Photos (Tab 2)
 
+
 - **Files:** `dashboard.html` + `dashboard.js`
 - **Presentation:** Tab 2, lazy-initializes on first click
 - **UI Elements:**
@@ -428,10 +429,49 @@ ContentView
 
 ---
 
-### DASH-SETTINGS - Settings (Tab 3)
+### DASH-TOOLS - Tools (Tab 3)
 
 - **Files:** `dashboard.html` + `dashboard.js`
-- **Presentation:** Tab 3
+- **Presentation:** Tab 3, lazy-initializes on first click
+- **UI Elements:**
+
+  **Source Selector** (shared by all tool cards):
+  - Dropdown listing all configured photo sources; active source pre-selected
+
+  **Filename Cleaner Card:**
+  - Scan button → results table: Preview | ☐ | Original Filename | Proposed Name | EXIF Date | Issues
+  - Issues detected: Google ID tokens, numbered dup suffixes, spaces→underscores, long name (>20 chars → renamed to YYYYMMDD_HHMMSS), wrong/uppercase extension
+  - Filter bar: All / per-issue type with tooltips
+  - Apply Selected Renames button (top + bottom), Cancel button, ✕ Close
+
+  **Duplicate Finder Card:**
+  - Scan button → grouped duplicate sets with suggested keeper
+  - Delete Duplicates button (top + bottom, destructive red), Cancel, ✕ Close
+
+  **Video File Manager Card:**
+  - Scan button → table of video files with sizes
+  - Delete Selected Videos button (top + bottom, destructive red), Cancel, ✕ Close
+
+  **Rename File Card:**
+  - Scan button (in card header) → table: Preview | Original Filename | EXIF Date | New Filename
+  - New Filename inputs are blank by default (original shown as placeholder)
+  - Apply Renames button enabled only when at least one name is filled in and all are conflict-free
+  - Guardrails: red highlight if proposed name already exists or is used twice in the same batch
+  - Apply sends only changed rows via cloud-first rename; table refreshes after success
+  - ✕ Close hides results
+
+  **Photo Backups Card** (collapsible via ▸ Show):
+  - Create Backup → tar.gz of source's local_path → `~/Pictures/backups/{source_id}_{YYYY-MM-DD_HHMMSS}.tar.gz`
+  - Lists existing backups for the selected source (filename, size, created date)
+  - Delete button per backup (with confirm dialog)
+  - Card auto-collapses 2 seconds after a successful backup
+
+---
+
+### DASH-SETTINGS - Settings (Tab 4)
+
+- **Files:** `dashboard.html` + `dashboard.js`
+- **Presentation:** Tab 4
 - **UI Elements:**
 
   **Frame Settings Card:**
@@ -483,13 +523,21 @@ ContentView
 ```
 Dashboard (single-page, dashboard.html)
   ├── Status Banner (always visible, all tabs)
-  ├── Tab 1: Photo Status (DASH-STATUS) [default]
+  ├── Tab 1: Frame Status (DASH-STATUS) [default]
   ├── Tab 2: Switch Photos (DASH-SWITCH) [lazy init]
-  └── Tab 3: Settings (DASH-SETTINGS)
-        ├── Frame Settings card
-        ├── Mobile App Pairing card
+  ├── Tab 3: Tools (DASH-TOOLS) [lazy init]
+  │     ├── Source Selector
+  │     ├── Filename Cleaner card
+  │     ├── Duplicate Finder card
+  │     ├── Video File Manager card
+  │     ├── Rename File card
+  │     └── Photo Backups card [collapsible]
+  └── Tab 4: Settings (DASH-SETTINGS)
+        ├── Frame Settings card [collapsible]
+        ├── Mobile App Pairing card [collapsible]
         ├── Manage Devices card [toggled via button]
-        └── Log Viewer card [expandable]
+        ├── Log Viewer card [collapsible]
+        └── Updates card [collapsible]
 ```
 
 ---
@@ -510,12 +558,18 @@ Dashboard (single-page, dashboard.html)
 | Delete source | -- | DASH-SWITCH (Delete button) |
 | Source detail/sync status | IOS-SRCDETAIL | -- |
 | Upload photos | IOS-UPLOAD | -- (via Koofr web) |
+| Filename cleaning | -- | DASH-TOOLS (Filename Cleaner) |
+| Duplicate detection + removal | -- | DASH-TOOLS (Duplicate Finder) |
+| Video file management | -- | DASH-TOOLS (Video File Manager) |
+| Manual file rename | -- | DASH-TOOLS (Rename File) |
+| Local photo backups | -- | DASH-TOOLS (Photo Backups) |
 | Frame settings (name, rotation, sync interval, log level) | IOS-SETTINGS (sync interval only) | DASH-SETTINGS |
 | Frame ID / Funnel URL (read-only) | -- | DASH-SETTINGS |
 | Generate pairing code | -- | DASH-SETTINGS (inline QR + instructions) |
 | Enter pairing code | IOS-PAIR | -- |
 | Manage paired devices | IOS-DEVICES | DASH-SETTINGS (inline device table) |
 | Revoke device access | IOS-DEVICES | DASH-SETTINGS (inline revoke) |
+| Software updates | -- | DASH-SETTINGS (Updates card) |
 | Koofr storage quota | IOS-MENU, IOS-SETTINGS | -- |
 | Frame storage capacity | IOS-MENU, IOS-DETAIL | DASH-STATUS |
 | Current image preview | -- | DASH-STATUS (thumbnail) |

@@ -21,7 +21,7 @@ Cloud (Koofr) ──────────────────> rclone syn
 
 | Device | IP (LAN) | IP (VPN) | User | Notes |
 |--------|----------|----------|------|-------|
-| **tkframe** | 192.168.102.210 | 100.83.464.79 | matt | Test frame for 4.0 dev |
+| **tkframe** | 192.168.102.210 | 100.83.164.79 | matt | Test frame for 4.0 dev |
 | **kframe** | 192.168.102.200 | 100.69.17.26 | pi | Home frame (production) |
 | **mnbframe** | none | 100.125.51.92 | pi | Remote only |
 | **fuckms** | 192.168.102.100 | 100.82.140.119 | matt | Main PC (dev) |
@@ -55,11 +55,14 @@ All systemd services are **user services** (`systemctl --user`), not system serv
 
 ## Dashboard Architecture
 
-Single-page three-tab interface (`dashboard.html`). No standalone pages — all features are consolidated into tabs.
+Single-page four-tab interface (`dashboard.html`). No standalone pages — all features are consolidated into tabs.
 
-- **Status Tab**: Traffic light (green/amber/red), photo counts (cloud + local), current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API)
-- **Switch Source Tab**: Source table, add new source form with rclone folder browser, source switching
-- **Settings Tab**: Frame settings (name, rotation interval, sync interval, log level, read-only Frame ID + Funnel URL), device pairing (QR code, manual code, countdown, Tailscale IP, instructions), manage devices (inline table with AJAX revoke via `GET /api/devices`), log viewer (expandable, ops/security toggle, line count, auto-refresh)
+Tab order: **Frame Status | Switch Photos | Tools | Settings**
+
+- **Frame Status Tab**: Traffic light (green/amber/red), photo counts (cloud + local), current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API)
+- **Switch Photos Tab**: Source table, add new source form with rclone folder browser, source switching
+- **Tools Tab**: Source selector (shared by all cards), Filename Cleaner (spaces→underscores, long-name >20 chars renamed to YYYYMMDD_HHMMSS, Google ID tokens, numbered suffixes, ext case/wrong-ext), Duplicate Finder, Video File Manager, Rename File (scan all files → editable table → batch cloud-first rename, blank inputs, dup guardrails), Photo Backups (tar.gz to `~/Pictures/backups/`, list + delete)
+- **Settings Tab**: Frame settings (name, rotation interval, sync interval, log level, read-only Frame ID + Funnel URL), device pairing (QR code, manual code, countdown, Tailscale IP, instructions), manage devices (inline table with AJAX revoke via `GET /api/devices`), log viewer (expandable, ops/security toggle, line count, auto-refresh), software updates (check/apply, auto-check schedule)
 
 ### Key Behaviors
 - Rotation interval changes write to `~/picframe_data/config/configuration.yaml` (model.time_delay) and auto-restart picframe service
