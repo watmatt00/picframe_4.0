@@ -20,7 +20,12 @@ SYSTEMD_SRC="${SETUP_DIR}/systemd"
 SYSTEMD_DEST="/etc/systemd/system"
 HOSTAPD_CONF="/etc/hostapd/picframe-hostapd.conf"
 STATE_FILE="/var/lib/picframe/state.yaml"
-CONFIG_DIR="${HOME}/.picframe"
+INSTALL_CONF="/var/lib/picframe/install.conf"
+
+# Determine the invoking user's home directory (script runs as root via sudo)
+FRAME_USER="${SUDO_USER:-$(logname 2>/dev/null || echo pi)}"
+FRAME_USER_HOME="$(getent passwd "$FRAME_USER" | cut -d: -f6)"
+CONFIG_DIR="${FRAME_USER_HOME}/.picframe"
 
 # ── Preflight checks ──────────────────────────────────────────────────────────
 
@@ -64,6 +69,19 @@ LOG "Creating /var/lib/picframe/ state directory..."
 mkdir -p /var/lib/picframe
 chmod 755 /var/lib/picframe
 
+# ── Write install.conf ────────────────────────────────────────────────────────
+
+LOG "Writing install.conf (frame user: ${FRAME_USER}, home: ${FRAME_USER_HOME})..."
+cat > "${INSTALL_CONF}" <<EOF
+# Written by install_setup.sh — do not edit manually
+PICFRAME_USER=${FRAME_USER}
+PICFRAME_USER_HOME=${FRAME_USER_HOME}
+PICFRAME_PROJECT_DIR=${PROJECT_DIR}
+PICFRAME_SETUP_PYTHON=${SETUP_PYTHON}
+EOF
+chmod 644 "${INSTALL_CONF}"
+LOG "install.conf written"
+
 LOG "Writing hostapd configuration..."
 
 # Read frame name from state.yaml if it exists, else use default
@@ -73,6 +91,22 @@ if [[ -f "$STATE_FILE" ]]; then
 fi
 
 mkdir -p /etc/hostapd
+
+# ── AP password ───────────────────────────────────────────────────────────────
+# TODO (pre-prod): switch from fixed "picframe" to AP_PASSWORD below.
+# The random password is generated here from the Pi serial number for
+# reproducibility, then truncated to 8 chars. It is displayed automatically
+# in /etc/issue by watchdog.py, so the user can always see it on the console.
+#
+# To activate: replace wpa_passphrase=picframe with wpa_passphrase=${AP_PASSWORD}
+#
+PI_SERIAL=$(grep Serial /proc/cpuinfo 2>/dev/null | awk '{print $3}' | tail -c 9 | tr -d '\n' || true)
+if [[ -n "$PI_SERIAL" ]]; then
+    AP_PASSWORD=$(echo "${PI_SERIAL}" | tr '[:upper:]' '[:lower:]' | tr -dc 'a-z0-9' | head -c 8)
+else
+    AP_PASSWORD=$(tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
+fi
+LOG "AP password generated: ${AP_PASSWORD} (not active — using 'picframe' until final test stage)"
 
 cat > "${HOSTAPD_CONF}" <<EOF
 interface=wlan0
@@ -89,6 +123,7 @@ EOF
 
 chmod 600 "${HOSTAPD_CONF}"
 LOG "hostapd config written (SSID: PicFrame-${FRAME_NAME}, password: picframe)"
+WARN "TODO (pre-prod): switch AP password from 'picframe' to random per-frame password"
 
 # ── Systemd service files ─────────────────────────────────────────────────────
 
@@ -99,8 +134,12 @@ for service in picframe-watchdog.service picframe-ble-setup.service picframe-ap-
         ERROR "Service file not found: ${SYSTEMD_SRC}/${service}"
         exit 1
     fi
-    cp "${SYSTEMD_SRC}/${service}" "${SYSTEMD_DEST}/${service}"
-    LOG "  Installed ${service}"
+    # Substitute __PROJECT_DIR__ and __USER_HOME__ placeholders
+    sed \
+        -e "s|__PROJECT_DIR__|${PROJECT_DIR}|g" \
+        -e "s|__USER_HOME__|${FRAME_USER_HOME}|g" \
+        "${SYSTEMD_SRC}/${service}" > "${SYSTEMD_DEST}/${service}"
+    LOG "  Installed ${service} (PROJECT_DIR=${PROJECT_DIR}, USER_HOME=${FRAME_USER_HOME})"
 done
 
 systemctl daemon-reload

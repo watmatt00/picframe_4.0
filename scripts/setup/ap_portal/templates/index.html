@@ -49,10 +49,9 @@
       <div class="field">
         <label for="wifi_password">WiFi password</label>
         <input type="password" id="wifi_password" name="wifi_password"
-               placeholder="WiFi password"
-               minlength="8" maxlength="63"
-               required>
-        <span class="hint">Minimum 8 characters.</span>
+               placeholder="WiFi password (leave blank for open networks)"
+               minlength="8" maxlength="63">
+        <span class="hint">Minimum 8 characters. Leave blank for open/unsecured networks.</span>
       </div>
     </section>
 
@@ -73,11 +72,18 @@
       </div>
     </section>
 
-    <button type="submit" class="btn-submit">Save &amp; Connect</button>
+    <button type="submit" class="btn-submit" id="submit-btn">Save &amp; Connect</button>
 
   </form>
 
   <p class="footer-note">The frame will reboot and connect to your network.</p>
 </div>
+<script>
+  document.querySelector('form').addEventListener('submit', function() {
+    var btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Checking credentials\u2026';
+  });
+</script>
 </body>
 </html>

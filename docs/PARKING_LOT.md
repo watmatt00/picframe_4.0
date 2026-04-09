@@ -58,17 +58,16 @@ Port is now configurable (stored in PairedFrame, defaults to 8000). Backend incl
 
 iOS `FrameStatus` model matches backend response. Backend `ServiceStatus` enriched with `display_name`, `can_restart`, and mobile-friendly status strings.
 
-### Revert Pi Rate Limit
-**Priority:** Medium
-**Status:** Pending (tabled until testing complete)
+### Revert Pairing Code Rate Limit
+**Priority:** Last step before prod
+**Status:** Pending — do this immediately before promoting to production
 
-Pi rate limit was increased from 3 to 50 pairing codes per hour for testing. Revert to 3 when testing is complete.
+The pairing code generation rate limit was increased from 3 to 50 codes per hour to allow rapid testing. Revert to 3 per hour before going to prod to prevent brute-force pairing attempts.
 
-### TestFlight Distribution
-**Priority:** Medium
-**Status:** Not started
+### ~~TestFlight Distribution~~
+**Status:** Done
 
-Set up App Store Connect, configure signing/provisioning, archive and upload to TestFlight for family beta testing.
+App Store Connect configured, signing/provisioning set up, archived and uploaded to TestFlight. Family added as beta testers.
 
 ---
 
@@ -79,17 +78,15 @@ Set up App Store Connect, configure signing/provisioning, archive and upload to 
 
 During setup mode, `/etc/issue` is replaced with WiFi setup instructions (SSID, password, portal URL). Shown above the login prompt so the terminal stays fully usable. Restored automatically on next normal boot via `_restore_issue()` in `watchdog.py`. Only appears when `needs_setup=true`.
 
-### BLE Service UUID / GATT Characteristic Spec
-**Priority:** High (blocks 6.2 implementation)
-**Status:** Open question — finalize before implementing BLE setup service
+### ~~BLE Service UUID / GATT Characteristic Spec~~
+**Status:** Done — UUIDs finalized: Service `4fafc201-1fb5-459e-8fcc-c5c9c331914b`, Characteristic `beb5483e-36e1-4688-b7f5-ea07361b26a8`. Implemented in `ble_setup.py`.
 
 ### AP Password — Random Per-Frame Password
-**Priority:** Medium
-**Status:** Requested — currently hardcoded as `"picframe"`. Generate a random password (e.g. from Pi serial number or random 8-char alphanumeric) during `install_setup.sh` and store in hostapd config. The console setup prompt already reads and displays the password from hostapd config, so the display will automatically show the correct value once this is implemented.
+**Priority:** Last step before prod
+**Status:** Code ready in `install_setup.sh` — generates 8-char password from Pi serial number. Currently hardcoded to `"picframe"` for testing. Switch to random before final production test stage.
 
-### First-Run Sync Failure UX
-**Priority:** Medium
-**Status:** Open question — on bad Koofr creds during first sync: drop back to setup mode or show error screen?
+### ~~First-Run Sync Failure UX~~
+**Status:** Resolved — portal validates Koofr credentials live (via temp rclone config) before accepting the form. Frame never reboots with bad creds.
 
 ### Status Overlay
 **Priority:** Low

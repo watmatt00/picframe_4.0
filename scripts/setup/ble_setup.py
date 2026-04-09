@@ -45,7 +45,7 @@ WPA_SUPPLICANT_PATH = Path("/etc/wpa_supplicant/wpa_supplicant.conf")
 
 # Input validation
 SSID_RE = re.compile(r"^[\w\s\-\.]{1,32}$")
-PASSWORD_RE = re.compile(r"^.{8,63}$")
+PASSWORD_RE = re.compile(r"^(.{8,63})?$")  # empty = open network, or 8–63 chars
 
 # Shutdown event — set when credentials are received and applied
 shutdown_event = asyncio.Event()
@@ -57,41 +57,49 @@ def validate_credentials(ssid: str, password: str) -> tuple[bool, str]:
 
     Args:
         ssid: WiFi network name.
-        password: WiFi password.
+        password: WiFi password, or empty string for open networks.
 
     Returns:
         Tuple of (is_valid, error_message).
     """
     if not SSID_RE.match(ssid):
         return False, f"Invalid SSID: '{ssid}'"
-    if not PASSWORD_RE.match(password):
-        return False, "Password must be 8-63 characters"
+    if password and not PASSWORD_RE.match(password):
+        return False, "Password must be 8-63 characters (or empty for open networks)"
     return True, ""
 
 
 def write_wpa_supplicant(ssid: str, password: str) -> None:
     """
-    Write /etc/wpa_supplicant/wpa_supplicant.conf using wpa_passphrase.
+    Write /etc/wpa_supplicant/wpa_supplicant.conf.
+
+    For secured networks, uses wpa_passphrase to hash the password.
+    For open networks (empty password), writes a key_mgmt=NONE block directly.
 
     Args:
         ssid: WiFi network name.
-        password: WiFi password (plain text — hashed by wpa_passphrase).
+        password: WiFi password (plain text), or empty string for open networks.
 
     Raises:
         subprocess.CalledProcessError: If wpa_passphrase fails.
         OSError: If file write fails.
     """
-    result = subprocess.run(
-        ["wpa_passphrase", ssid, password],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    # Strip plaintext password comment
-    network_block = "\n".join(
-        line for line in result.stdout.splitlines()
-        if not line.strip().startswith("#psk=")
-    )
+    if password:
+        result = subprocess.run(
+            ["wpa_passphrase", ssid, password],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        # Strip plaintext password comment
+        network_block = "\n".join(
+            line for line in result.stdout.splitlines()
+            if not line.strip().startswith("#psk=")
+        )
+    else:
+        # Open network — no encryption
+        escaped = ssid.replace('"', '\\"')
+        network_block = f'network={{\n\tssid="{escaped}"\n\tkey_mgmt=NONE\n}}'
 
     content = (
         "ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n"
@@ -105,7 +113,8 @@ def write_wpa_supplicant(ssid: str, password: str) -> None:
         tmp.write_text(content)
         tmp.chmod(0o600)
         tmp.rename(WPA_SUPPLICANT_PATH)
-        logger.info(f"wpa_supplicant.conf written for SSID '{ssid}'")
+        net_type = "WPA2" if password else "open"
+        logger.info(f"wpa_supplicant.conf written for SSID '{ssid}' ({net_type})")
     except Exception:
         if tmp.exists():
             tmp.unlink()

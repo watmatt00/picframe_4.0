@@ -312,7 +312,10 @@ def main() -> None:
         return
 
     # Normal operation: check WiFi on boot, then monitor
-    if not is_wifi_associated():
+    if is_wifi_associated():
+        state_manager.mark_wifi_connected()
+        logger.info("WiFi associated at boot — last_wifi_connected updated")
+    else:
         logger.warning("WiFi not associated at boot — starting 10-min countdown")
 
     run_monitoring_loop()

@@ -14,9 +14,19 @@
 set -euo pipefail
 
 PICFRAME_STATE="/var/lib/picframe/state.yaml"
-PICFRAME_CONFIG="/home/matt/.picframe/config.yaml"
-# Hardcoded venv path — HOME resolves to /root when run as sudo
-SETUP_PYTHON="/home/matt/picframe_4.0/scripts/setup/venv/bin/python3"
+
+# Load install-time paths written by install_setup.sh.
+# Falls back to defaults so the tool still works if install.conf is missing.
+INSTALL_CONF="/var/lib/picframe/install.conf"
+if [[ -f "$INSTALL_CONF" ]]; then
+    # shellcheck source=/dev/null
+    source "$INSTALL_CONF"
+else
+    PICFRAME_USER_HOME="/home/pi"
+    PICFRAME_PROJECT_DIR="/home/pi/picframe_4.0"
+fi
+PICFRAME_CONFIG="${PICFRAME_USER_HOME}/.picframe/config.yaml"
+SETUP_PYTHON="${PICFRAME_PROJECT_DIR}/scripts/setup/venv/bin/python3"
 TIMESTAMP() { date +'%Y-%m-%d %H:%M:%S'; }
 LOG() { echo "[$(TIMESTAMP)] $*"; }
 ERROR() { echo "[$(TIMESTAMP)] ERROR: $*" >&2; }
@@ -147,8 +157,9 @@ cmd_koofr() {
 
     LOG "Updating Koofr credentials..."
 
-    # Write via Python to avoid any shell interpolation of special characters
-    "${SETUP_PYTHON}" - <<PYEOF
+    # Write via Python to avoid any shell interpolation of special characters.
+    # Pass credentials as positional args so they never touch the heredoc text.
+    "${SETUP_PYTHON}" - "$koofr_user" "$koofr_pass" <<PYEOF
 import os, sys, yaml, pathlib
 koofr_user = sys.argv[1]
 koofr_pass = sys.argv[2]

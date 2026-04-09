@@ -5,7 +5,8 @@ Wants=network.target
 
 [Service]
 Type=simple
-ExecStart=/home/matt/picframe_4.0/scripts/setup/venv/bin/python3 /home/matt/picframe_4.0/scripts/setup/watchdog.py
+# __PROJECT_DIR__ is substituted with the actual project path by install_setup.sh
+ExecStart=__PROJECT_DIR__/scripts/setup/venv/bin/python3 __PROJECT_DIR__/scripts/setup/watchdog.py
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
