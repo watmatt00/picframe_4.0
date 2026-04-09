@@ -9,7 +9,7 @@ Type=simple
 Environment=PICFRAME_USER_HOME=__USER_HOME__
 
 # ── Cleanup: kill any leftover processes from a previous failed run ──────────
-ExecStartPre=/bin/sh -c 'pkill -f picframe-hostapd.conf 2>/dev/null || true'
+ExecStartPre=/bin/sh -c 'pkill -x hostapd 2>/dev/null || true'
 ExecStartPre=/bin/sh -c 'kill $(cat /tmp/picframe-dnsmasq.pid 2>/dev/null) 2>/dev/null || true'
 ExecStartPre=/bin/sh -c 'ip addr del 192.168.4.1/24 dev wlan0 2>/dev/null || true'
 ExecStartPre=/bin/sh -c 'nmcli device set wlan0 managed yes 2>/dev/null || true'
@@ -27,7 +27,7 @@ ExecStartPre=/usr/sbin/dnsmasq -C /tmp/picframe-dnsmasq.conf --pid-file=/tmp/pic
 ExecStart=__PROJECT_DIR__/scripts/setup/venv/bin/python3 __PROJECT_DIR__/scripts/setup/ap_portal/portal.py
 # ── Teardown: return wlan0 to NetworkManager ─────────────────────────────────
 ExecStopPost=/bin/sh -c 'kill $(cat /tmp/picframe-dnsmasq.pid 2>/dev/null) 2>/dev/null || true'
-ExecStopPost=/bin/sh -c 'pkill -f picframe-hostapd.conf 2>/dev/null || true'
+ExecStopPost=/bin/sh -c 'pkill -x hostapd 2>/dev/null || true'
 ExecStopPost=/bin/sh -c 'ip addr del 192.168.4.1/24 dev wlan0 2>/dev/null || true'
 ExecStopPost=/usr/bin/nmcli device set wlan0 managed yes
 Restart=on-failure
