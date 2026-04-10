@@ -115,9 +115,10 @@ def generate_setup_image(frame_name: str) -> None:
         shutil.copy2(str(NO_PICTURES_PATH), str(NO_PICTURES_BACKUP))
         logger.info(f"Backed up original no_pictures.jpg to {NO_PICTURES_BACKUP.name}")
 
-    # Get LAN IP for URL — fall back to mDNS hostname
+    # Primary URL is always mDNS — IP shown as fallback footnote (matches success.html)
+    primary_url = f"http://{frame_name}.local:8000"
     lan_ip = _get_lan_ip()
-    dashboard_url = f"http://{lan_ip}:8000" if lan_ip else f"http://{frame_name}.local:8000"
+    fallback_note = f"If that doesn't work, try:  http://{lan_ip}:8000" if lan_ip else ""
 
     # Build image: 1920x1080 dark background
     W, H = 1920, 1080
@@ -132,45 +133,50 @@ def generate_setup_image(frame_name: str) -> None:
     font_title = _load_font(72)
     font_body = _load_font(48)
     font_url = _load_font(56)
-    font_small = _load_font(34)
+    font_small = _load_font(32)
 
     cx = W // 2
-    y = 160
+    y = 150
 
-    draw.text((cx, y), "PicFrame — Setup Step 2 of 2", font=font_title, fill=yellow, anchor="mm")
+    draw.text((cx, y), "Step 2 of 2 — Finish Setup", font=font_title, fill=yellow, anchor="mm")
     y += 90
     draw.line([(cx - 500, y), (cx + 500, y)], fill=(60, 60, 80), width=2)
-    y += 50
+    y += 55
 
-    draw.text((cx, y), "WiFi connected! Now finish setup on your phone or computer:", font=font_body, fill=white, anchor="mm")
-    y += 90
+    draw.text((cx, y), "WiFi connected!  Now finish setup from your phone or computer:", font=font_body, fill=white, anchor="mm")
+    y += 85
 
     draw.text((cx, y), "1.  Rejoin your home WiFi network", font=font_body, fill=white, anchor="mm")
-    y += 75
+    y += 70
     draw.text((cx, y), "2.  Open a browser and go to:", font=font_body, fill=white, anchor="mm")
-    y += 80
+    y += 75
 
-    # URL box
+    # URL box — primary mDNS address
     pad = 28
-    url_bbox = draw.textbbox((cx, y), dashboard_url, font=font_url, anchor="mm")
+    url_bbox = draw.textbbox((cx, y), primary_url, font=font_url, anchor="mm")
     draw.rounded_rectangle(
         [url_bbox[0] - pad, url_bbox[1] - pad // 2, url_bbox[2] + pad, url_bbox[3] + pad // 2],
         radius=12, fill=(10, 30, 10), outline=green, width=2,
     )
-    draw.text((cx, y), dashboard_url, font=font_url, fill=green, anchor="mm")
-    y += 90
+    draw.text((cx, y), primary_url, font=font_url, fill=green, anchor="mm")
+    y += 85
 
     draw.text((cx, y), "3.  Enter your Koofr email and password in the banner", font=font_body, fill=white, anchor="mm")
-    y += 100
+    y += 80
 
     draw.line([(cx - 500, y), (cx + 500, y)], fill=(60, 60, 80), width=2)
-    y += 40
+    y += 38
+
+    # Footnote: IP fallback + frame name
+    if fallback_note:
+        draw.text((cx, y), fallback_note, font=font_small, fill=gray, anchor="mm")
+        y += 44
     draw.text((cx, y), f"Frame: {frame_name}", font=font_small, fill=gray, anchor="mm")
 
     try:
         img.save(str(NO_PICTURES_PATH), "JPEG", quality=92)
         subprocess.run(["chown", f"{FRAME_USER}:{FRAME_USER}", str(NO_PICTURES_PATH)], check=False)
-        logger.info(f"Setup instruction image written to {NO_PICTURES_PATH} (URL: {dashboard_url})")
+        logger.info(f"Setup instruction image written to {NO_PICTURES_PATH} (primary: {primary_url})")
     except Exception as e:
         logger.error(f"Failed to write setup image: {e}")
 
