@@ -2402,6 +2402,18 @@ async function apiFetch(url, opts = {}) {
     return resp.json();
 }
 
+function toggleKoofrPassword() {
+    const input = document.getElementById('koofr-pass-input');
+    const btn = input.nextElementSibling;
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = 'Hide';
+    } else {
+        input.type = 'password';
+        btn.textContent = 'Show';
+    }
+}
+
 async function saveKoofrSetup() {
     const user = document.getElementById('koofr-user-input').value.trim();
     const pass = document.getElementById('koofr-pass-input').value.trim();
