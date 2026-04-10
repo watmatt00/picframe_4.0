@@ -29,6 +29,36 @@
         <button class="tab-button" data-tab="settings">Settings</button>
     </div>
 
+    <!-- KOOFR SETUP BANNER (first-run step 2) -->
+    {% if not koofr_configured %}
+    <div id="koofr-setup-banner" style="background:#fff3cd;border-bottom:1px solid #ffc107;padding:1rem 1.25rem;">
+        <strong>Setup required:</strong> Connect your Koofr cloud storage to start syncing photos.
+        <button onclick="document.getElementById('koofr-setup-form').style.display='block';this.style.display='none';"
+                style="margin-left:1rem;padding:0.25rem 0.75rem;background:#0d6efd;color:#fff;border:none;border-radius:4px;cursor:pointer;">
+            Connect Koofr
+        </button>
+        <div id="koofr-setup-form" style="display:none;margin-top:1rem;">
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-end;">
+                <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:2px;">Koofr email</label>
+                    <input type="email" id="koofr-user-input" placeholder="you@example.com"
+                           style="padding:0.35rem 0.5rem;border:1px solid #ccc;border-radius:4px;width:220px;">
+                </div>
+                <div>
+                    <label style="display:block;font-size:0.85rem;margin-bottom:2px;">Koofr password</label>
+                    <input type="password" id="koofr-pass-input" placeholder="Koofr password"
+                           style="padding:0.35rem 0.5rem;border:1px solid #ccc;border-radius:4px;width:200px;">
+                </div>
+                <button id="koofr-save-btn" onclick="saveKoofrSetup()"
+                        style="padding:0.35rem 1rem;background:#198754;color:#fff;border:none;border-radius:4px;cursor:pointer;">
+                    Save &amp; Verify
+                </button>
+            </div>
+            <div id="koofr-setup-msg" style="margin-top:0.5rem;font-size:0.9rem;"></div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- STATUS TAB CONTENT -->
     <div id="tab-status" class="tab-content active">
         <main>

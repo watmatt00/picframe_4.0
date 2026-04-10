@@ -2,8 +2,8 @@
 PicFrame Setup - AP Captive Portal.
 
 Flask web app running on port 80 during setup mode.
-Collects WiFi credentials (and Koofr creds on first run),
-writes wpa_supplicant.conf atomically, then reboots.
+Step 1 of 2: collects frame name + WiFi credentials only.
+Step 2 (Koofr setup) happens via the dashboard after WiFi is connected.
 
 Runs alongside hostapd (hotspot) and dnsmasq (DNS hijack).
 """
@@ -13,7 +13,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 from flask import Flask, redirect, render_template, request, url_for
@@ -39,7 +38,6 @@ PICFRAME_CONFIG_PATH = PICFRAME_USER_HOME / ".picframe" / "config.yaml"
 SSID_RE = re.compile(r"^[\w\s\-\.]{1,32}$")
 PASSWORD_RE = re.compile(r"^(.{8,63})?$")  # empty = open network, or 8–63 chars
 FRAME_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
@@ -114,22 +112,13 @@ def save():
     if wifi_password and not PASSWORD_RE.match(wifi_password):
         errors.append("WiFi password must be 8–63 characters (or leave blank for an open network).")
 
-    # ── First-run extra fields ───────────────────────────────────────────────
+    # ── First-run: frame name only (Koofr configured in Step 2 via dashboard) ──
     frame_name = ""
-    koofr_user = ""
-    koofr_pass = ""
 
     if is_first_run:
         frame_name = request.form.get("frame_name", "").strip()
-        koofr_user = request.form.get("koofr_user", "").strip()
-        koofr_pass = request.form.get("koofr_pass", "").strip()
-
         if not FRAME_NAME_RE.match(frame_name):
             errors.append("Frame name must be 1–32 characters (letters, numbers, hyphens, underscores).")
-        if not EMAIL_RE.match(koofr_user):
-            errors.append("Koofr email address is invalid.")
-        if not koofr_pass:
-            errors.append("Koofr password is required.")
 
     if errors:
         template = "index.html" if is_first_run else "reconfigure.html"
@@ -138,16 +127,6 @@ def save():
             errors=errors,
             frame_name=frame_name or state.get("frame_name", "picframe"),
         )
-
-    # ── First-run: validate Koofr credentials before writing anything ─────────
-    if is_first_run:
-        valid, error_msg = _validate_koofr_credentials(koofr_user, koofr_pass)
-        if not valid:
-            return render_template(
-                "index.html",
-                errors=[error_msg],
-                frame_name=frame_name,
-            )
 
     # ── Configure WiFi via NetworkManager ────────────────────────────────────
     try:
@@ -161,13 +140,13 @@ def save():
             frame_name=frame_name or state.get("frame_name", "picframe"),
         )
 
-    # ── First-run: write frame name and Koofr creds ──────────────────────────
+    # ── First-run: write frame name, mark provisioned ────────────────────────
     if is_first_run:
         try:
-            _write_picframe_config(frame_name, koofr_user, koofr_pass)
+            _write_picframe_config(frame_name)
             state_manager.set("frame_name", frame_name)
             state_manager.set("provisioned", True)
-            state_manager.set("koofr_configured", True)
+            # koofr_configured stays False — Step 2 happens on the dashboard
         except Exception as e:
             logger.error(f"Failed to write picframe config: {e}")
             return render_template(
@@ -190,75 +169,6 @@ def save():
 
 
 # ── Helper functions ─────────────────────────────────────────────────────────
-
-def _validate_koofr_credentials(user: str, password: str) -> tuple[bool, str]:
-    """
-    Test Koofr credentials by running a quick rclone lsd with a temp config.
-
-    Creates a throwaway rclone config, runs 'rclone lsd koofr-test:' with a
-    20-second timeout, then deletes the temp file. Never touches the main
-    rclone config.
-
-    Args:
-        user: Koofr account email.
-        password: Koofr account password (plain text).
-
-    Returns:
-        Tuple of (is_valid, error_message).
-    """
-    # Step 1: obscure the password for the rclone config format
-    try:
-        result = subprocess.run(
-            ["rclone", "obscure", password],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode != 0:
-            logger.error(f"rclone obscure failed: {result.stderr}")
-            return False, "Failed to process Koofr password."
-        obscured = result.stdout.strip()
-    except FileNotFoundError:
-        logger.error("rclone not found — cannot validate Koofr credentials")
-        return False, "rclone is not installed. Cannot validate credentials."
-    except subprocess.TimeoutExpired:
-        return False, "Credential check timed out."
-
-    # Step 2: write a throwaway rclone config
-    config_content = (
-        "[koofr-test]\n"
-        "type = koofr\n"
-        f"user = {user}\n"
-        f"password = {obscured}\n"
-    )
-
-    tmp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".conf", delete=False, dir="/tmp"
-        ) as f:
-            f.write(config_content)
-            tmp_path = f.name
-        os.chmod(tmp_path, 0o600)
-
-        # Step 3: test the credentials — list root folders, 20s timeout
-        result = subprocess.run(
-            ["rclone", "lsd", "koofr-test:", "--config", tmp_path],
-            capture_output=True, text=True, timeout=20,
-        )
-        if result.returncode == 0:
-            logger.info(f"Koofr credentials validated for '{user}'")
-            return True, ""
-        logger.warning(f"Koofr validation failed for '{user}': {result.stderr.strip()}")
-        return False, "Could not connect to Koofr. Check your email and password."
-
-    except subprocess.TimeoutExpired:
-        return False, "Koofr connection timed out. Check your internet connection."
-    except Exception as e:
-        logger.error(f"Koofr validation error: {e}")
-        return False, "Failed to validate Koofr credentials."
-    finally:
-        if tmp_path:
-            Path(tmp_path).unlink(missing_ok=True)
-
 
 def _write_wifi_credentials(ssid: str, password: str) -> None:
     """
@@ -306,16 +216,15 @@ def _write_wifi_credentials(ssid: str, password: str) -> None:
         logger.info(f"NetworkManager 'picframe-wifi' configured (open) for SSID '{ssid}'")
 
 
-def _write_picframe_config(frame_name: str, koofr_user: str, koofr_pass: str) -> None:
+def _write_picframe_config(frame_name: str) -> None:
     """
-    Write frame name and Koofr credentials to ~/.picframe/config.yaml.
+    Write frame name to ~/.picframe/config.yaml. Merges into existing config.
 
-    Merges into existing config if present.
+    Koofr credentials are NOT written here — that is Step 2, handled by
+    the dashboard after WiFi is connected.
 
     Args:
         frame_name: Human-readable frame name.
-        koofr_user: Koofr account email.
-        koofr_pass: Koofr account password.
     """
     config: dict = {}
     if PICFRAME_CONFIG_PATH.exists():
@@ -323,12 +232,6 @@ def _write_picframe_config(frame_name: str, koofr_user: str, koofr_pass: str) ->
             config = yaml.safe_load(f) or {}
 
     config.setdefault("frame", {})["name"] = frame_name
-
-    # Koofr credentials stored under sync section
-    config.setdefault("sync", {}).update({
-        "koofr_user": koofr_user,
-        "koofr_pass": koofr_pass,
-    })
 
     tmp = PICFRAME_CONFIG_PATH.with_suffix(".tmp")
     try:

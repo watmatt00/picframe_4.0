@@ -8,7 +8,10 @@ Uses Jinja2 templates.
 import asyncio
 import io
 import logging
+import os
 import re
+import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -64,6 +67,83 @@ def _format_last_checked(iso_str: str | None) -> str:
         return dt.strftime("%-d %b %Y at %-I:%M %p")
     except Exception:
         return iso_str
+
+
+PICFRAME_APP_CONFIG = Path.home() / ".picframe" / "config.yaml"
+
+
+def _is_koofr_configured() -> bool:
+    """Return True if Koofr credentials are saved in ~/.picframe/config.yaml."""
+    try:
+        if not PICFRAME_APP_CONFIG.exists():
+            return False
+        with open(PICFRAME_APP_CONFIG) as f:
+            config = yaml.safe_load(f) or {}
+        return bool(config.get("sync", {}).get("koofr_user", "").strip())
+    except Exception:
+        return False
+
+
+async def _validate_koofr_credentials(user: str, password: str) -> tuple[bool, str]:
+    """
+    Test Koofr credentials using a temporary rclone config.
+
+    Returns (is_valid, error_message).
+    """
+    # Obscure the password
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "rclone", "obscure", password,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+        if proc.returncode != 0:
+            return False, "Failed to process Koofr password."
+        obscured = stdout.decode().strip()
+    except asyncio.TimeoutError:
+        return False, "Credential check timed out."
+    except FileNotFoundError:
+        return False, "rclone is not installed."
+
+    config_content = (
+        "[koofr-test]\n"
+        "type = koofr\n"
+        f"user = {user}\n"
+        f"password = {obscured}\n"
+    )
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".conf", delete=False, dir="/tmp"
+        ) as f:
+            f.write(config_content)
+            tmp_path = f.name
+        os.chmod(tmp_path, 0o600)
+
+        proc = await asyncio.create_subprocess_exec(
+            "rclone", "lsd", "koofr-test:", "--config", tmp_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            await asyncio.wait_for(proc.communicate(), timeout=20)
+        except asyncio.TimeoutError:
+            proc.kill()
+            return False, "Koofr connection timed out. Check your internet connection."
+
+        if proc.returncode == 0:
+            logger.info(f"Koofr credentials validated for '{user}'")
+            return True, ""
+        return False, "Could not connect to Koofr. Check your email and password."
+
+    except Exception as e:
+        logger.error(f"Koofr validation error: {e}")
+        return False, "Failed to validate Koofr credentials."
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
 
 
 def _get_picframe_config() -> dict:
@@ -161,6 +241,7 @@ async def dashboard_home(request: Request):
         "update_available_commit": settings.updates.available_commit,
         "update_local_commit": local_commit,
         "update_local_version": local_version,
+        "koofr_configured": _is_koofr_configured(),
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
 
@@ -429,7 +510,54 @@ async def get_dashboard_status():
         "storage_percent": capacity["percent_used"],
         "last_sync": last_sync,
         "last_restart": last_restart,
+        "koofr_configured": _is_koofr_configured(),
     }
+
+
+@router.post("/dashboard/koofr-setup")
+async def koofr_setup(request: Request):
+    """
+    Save and validate Koofr credentials. Step 2 of first-run setup.
+
+    Validates credentials live via rclone before writing anything.
+    On success, saves to ~/.picframe/config.yaml and returns 200.
+    """
+    data = await request.json()
+    koofr_user = str(data.get("koofr_user", "")).strip()
+    koofr_pass = str(data.get("koofr_pass", "")).strip()
+
+    import re as _re
+    EMAIL_RE = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    if not EMAIL_RE.match(koofr_user):
+        return {"success": False, "error": "Invalid Koofr email address."}
+    if not koofr_pass:
+        return {"success": False, "error": "Koofr password is required."}
+
+    valid, error_msg = await _validate_koofr_credentials(koofr_user, koofr_pass)
+    if not valid:
+        return {"success": False, "error": error_msg}
+
+    # Write credentials to config.yaml
+    try:
+        config: dict = {}
+        if PICFRAME_APP_CONFIG.exists():
+            with open(PICFRAME_APP_CONFIG) as f:
+                config = yaml.safe_load(f) or {}
+        config.setdefault("sync", {}).update({
+            "koofr_user": koofr_user,
+            "koofr_pass": koofr_pass,
+        })
+        tmp = PICFRAME_APP_CONFIG.with_suffix(".tmp")
+        with open(tmp, "w") as f:
+            yaml.safe_dump(config, f, default_flow_style=False)
+        tmp.chmod(0o600)
+        tmp.rename(PICFRAME_APP_CONFIG)
+        logger.info(f"Koofr credentials saved for '{koofr_user}'")
+    except Exception as e:
+        logger.error(f"Failed to save Koofr config: {e}")
+        return {"success": False, "error": "Failed to save credentials. Please try again."}
+
+    return {"success": True}
 
 
 @router.get("/current-image")

@@ -2401,3 +2401,45 @@ async function apiFetch(url, opts = {}) {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return resp.json();
 }
+
+async function saveKoofrSetup() {
+    const user = document.getElementById('koofr-user-input').value.trim();
+    const pass = document.getElementById('koofr-pass-input').value.trim();
+    const msg  = document.getElementById('koofr-setup-msg');
+    const btn  = document.getElementById('koofr-save-btn');
+
+    if (!user || !pass) {
+        msg.style.color = '#dc3545';
+        msg.textContent = 'Email and password are required.';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Checking\u2026';
+    msg.style.color = '#666';
+    msg.textContent = 'Verifying credentials with Koofr\u2026';
+
+    try {
+        const resp = await fetch('/dashboard/koofr-setup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ koofr_user: user, koofr_pass: pass }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+            document.getElementById('koofr-setup-banner').style.display = 'none';
+            alert('Koofr connected! Your photos will start syncing shortly.');
+            location.reload();
+        } else {
+            msg.style.color = '#dc3545';
+            msg.textContent = data.error || 'Verification failed. Check your credentials.';
+            btn.disabled = false;
+            btn.textContent = 'Save & Verify';
+        }
+    } catch (err) {
+        msg.style.color = '#dc3545';
+        msg.textContent = 'Network error. Please try again.';
+        btn.disabled = false;
+        btn.textContent = 'Save & Verify';
+    }
+}

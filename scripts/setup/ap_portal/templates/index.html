@@ -55,35 +55,12 @@
       </div>
     </section>
 
-    <section>
-      <h2>Koofr Cloud Storage</h2>
-      <p class="section-note">Your photos sync from Koofr. Enter your Koofr account credentials.</p>
-      <div class="field">
-        <label for="koofr_user">Koofr email</label>
-        <input type="email" id="koofr_user" name="koofr_user"
-               placeholder="you@example.com"
-               required>
-      </div>
-      <div class="field">
-        <label for="koofr_pass">Koofr password</label>
-        <input type="password" id="koofr_pass" name="koofr_pass"
-               placeholder="Koofr password"
-               required>
-      </div>
-    </section>
-
-    <button type="submit" class="btn-submit" id="submit-btn">Save &amp; Connect</button>
+    <button type="submit" class="btn-submit">Save &amp; Connect</button>
 
   </form>
 
-  <p class="footer-note">The frame will reboot and connect to your network.</p>
+  <p class="footer-note">Step 1 of 2 — the frame will reboot and connect to your network.</p>
+  <p class="footer-note">Step 2: open the dashboard at <strong>http://[frame-ip]:8000</strong> to finish setup.</p>
 </div>
-<script>
-  document.querySelector('form').addEventListener('submit', function() {
-    var btn = document.getElementById('submit-btn');
-    btn.disabled = true;
-    btn.textContent = 'Checking credentials\u2026';
-  });
-</script>
 </body>
 </html>
