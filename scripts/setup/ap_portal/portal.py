@@ -34,6 +34,9 @@ logger = logging.getLogger("portal")
 PICFRAME_USER_HOME = Path(os.environ.get("PICFRAME_USER_HOME", "/home/pi"))
 PICFRAME_CONFIG_PATH = PICFRAME_USER_HOME / ".picframe" / "config.yaml"
 
+# Frame user — needed to chown files written by root back to the correct owner
+PICFRAME_USER = os.environ.get("PICFRAME_USER", PICFRAME_USER_HOME.name)
+
 # Input validation patterns
 SSID_RE = re.compile(r"^[\w\s\-\.]{1,32}$")
 PASSWORD_RE = re.compile(r"^(.{8,63})?$")  # empty = open network, or 8–63 chars
@@ -240,6 +243,8 @@ def _write_picframe_config(frame_name: str) -> None:
             yaml.safe_dump(config, f, default_flow_style=False)
         tmp.chmod(0o600)
         tmp.rename(PICFRAME_CONFIG_PATH)
+        # Portal runs as root — restore ownership to the frame user so the API can read it
+        subprocess.run(["chown", f"{PICFRAME_USER}:{PICFRAME_USER}", str(PICFRAME_CONFIG_PATH)], check=False)
         logger.info(f"picframe config updated (frame_name='{frame_name}')")
     except Exception:
         if tmp.exists():

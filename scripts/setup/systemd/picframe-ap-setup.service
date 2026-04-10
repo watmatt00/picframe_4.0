@@ -7,6 +7,7 @@ After=network.target NetworkManager.service
 Type=simple
 # __PROJECT_DIR__ and __USER_HOME__ are substituted by install_setup.sh
 Environment=PICFRAME_USER_HOME=__USER_HOME__
+Environment=PICFRAME_USER=__FRAME_USER__
 
 # ── Cleanup: kill any leftover processes from a previous failed run ──────────
 ExecStartPre=/bin/sh -c 'pkill -x hostapd 2>/dev/null || true'

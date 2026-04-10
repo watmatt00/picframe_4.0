@@ -133,8 +133,9 @@ for service in picframe-watchdog.service picframe-ble-setup.service picframe-ap-
     sed \
         -e "s|__PROJECT_DIR__|${PROJECT_DIR}|g" \
         -e "s|__USER_HOME__|${FRAME_USER_HOME}|g" \
+        -e "s|__FRAME_USER__|${FRAME_USER}|g" \
         "${SYSTEMD_SRC}/${service}" > "${SYSTEMD_DEST}/${service}"
-    LOG "  Installed ${service} (PROJECT_DIR=${PROJECT_DIR}, USER_HOME=${FRAME_USER_HOME})"
+    LOG "  Installed ${service} (PROJECT_DIR=${PROJECT_DIR}, USER_HOME=${FRAME_USER_HOME}, USER=${FRAME_USER})"
 done
 
 systemctl daemon-reload
