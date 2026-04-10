@@ -60,7 +60,7 @@ LOG "System packages installed"
 LOG "Creating setup venv at ${SETUP_VENV}..."
 python3 -m venv "${SETUP_VENV}"
 LOG "Installing Python packages into setup venv (flask, bless, pyyaml, filelock)..."
-"${SETUP_VENV}/bin/pip" install --quiet flask bless pyyaml filelock
+"${SETUP_VENV}/bin/pip" install --quiet flask bless pyyaml filelock pillow
 LOG "Python packages installed"
 
 # ── hostapd config ────────────────────────────────────────────────────────────

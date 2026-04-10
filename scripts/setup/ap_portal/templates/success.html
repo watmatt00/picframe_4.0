@@ -5,18 +5,82 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PicFrame — Saved</title>
 <link rel="stylesheet" href="/static/portal.css">
+<style>
+  .step-box {
+    background: #1a2a1a;
+    border: 2px solid #4caf50;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-top: 24px;
+    text-align: left;
+  }
+  .step-box h2 {
+    color: #4caf50;
+    margin: 0 0 16px 0;
+    font-size: 1.1em;
+    text-align: center;
+  }
+  .step-box ol {
+    margin: 0;
+    padding-left: 20px;
+    line-height: 2;
+  }
+  .step-box li {
+    margin-bottom: 4px;
+  }
+  .dashboard-url {
+    display: block;
+    background: #0a1a0a;
+    border: 1px solid #4caf50;
+    border-radius: 4px;
+    padding: 10px 16px;
+    margin: 12px 0;
+    font-family: monospace;
+    font-size: 1.15em;
+    color: #7fff7f;
+    text-align: center;
+    word-break: break-all;
+  }
+  .note {
+    font-size: 0.85em;
+    color: #aaa;
+    margin-top: 16px;
+    text-align: center;
+  }
+</style>
 </head>
 <body>
 <div class="container">
   <div class="header">
     <div class="logo">✓</div>
-    <h1>All Set!</h1>
-    <p class="subtitle">Configuration saved</p>
+    <h1>Step 1 Complete!</h1>
+    <p class="subtitle">WiFi credentials saved</p>
   </div>
   <div class="success-message">
     <p>Your frame is rebooting and will connect to your WiFi network shortly.</p>
-    <p>You can disconnect from the PicFrame hotspot now.</p>
   </div>
+
+  {% if is_first_run %}
+  <div class="step-box">
+    <h2>Step 2 of 2 — Finish Setup</h2>
+    <ol>
+      <li><strong>Rejoin your home WiFi network</strong> on this device</li>
+      <li>Open a browser and go to:</li>
+    </ol>
+    <span class="dashboard-url">http://{{ frame_name }}.local:8000</span>
+    <ol start="3">
+      <li>Enter your <strong>Koofr email and password</strong> in the banner that appears</li>
+    </ol>
+    <p class="note">
+      If the address above doesn't work, check your router for the frame's IP address
+      and use <code>http://&lt;ip-address&gt;:8000</code> instead.
+    </p>
+  </div>
+  {% else %}
+  <p style="text-align:center; color:#aaa; margin-top:16px;">
+    You can disconnect from the PicFrame hotspot now.
+  </p>
+  {% endif %}
 </div>
 </body>
 </html>

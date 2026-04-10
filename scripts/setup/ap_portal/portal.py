@@ -168,7 +168,9 @@ def save():
     # Reboot after a brief delay so the response can be sent
     subprocess.Popen(["sh", "-c", "sleep 2 && reboot"])
 
-    return render_template("success.html")
+    # Pass frame_name for Step 2 instructions on the success page
+    final_frame_name = frame_name or state.get("frame_name", "picframe")
+    return render_template("success.html", frame_name=final_frame_name, is_first_run=is_first_run)
 
 
 # ── Helper functions ─────────────────────────────────────────────────────────

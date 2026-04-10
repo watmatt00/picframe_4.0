@@ -1,6 +1,5 @@
 [Unit]
 Description=PicFrame 4.0 Photo Sync Timer
-After=picframe-api.service
 
 [Timer]
 # Run 15 minutes after boot

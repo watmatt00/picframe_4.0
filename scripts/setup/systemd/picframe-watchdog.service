@@ -5,7 +5,9 @@ Wants=network.target
 
 [Service]
 Type=simple
-# __PROJECT_DIR__ is substituted with the actual project path by install_setup.sh
+# __PROJECT_DIR__, __USER_HOME__, __FRAME_USER__ are substituted by install_setup.sh
+Environment=PICFRAME_USER_HOME=__USER_HOME__
+Environment=PICFRAME_USER=__FRAME_USER__
 ExecStart=__PROJECT_DIR__/scripts/setup/venv/bin/python3 __PROJECT_DIR__/scripts/setup/watchdog.py
 Restart=on-failure
 RestartSec=10

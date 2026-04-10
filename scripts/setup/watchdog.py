@@ -9,6 +9,7 @@ Never pings 8.8.8.8 — internet down != WiFi down.
 """
 
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -19,6 +20,12 @@ HOSTAPD_CONF_PATH = Path("/etc/hostapd/picframe-hostapd.conf")
 AP_PORTAL_IP = "192.168.4.1"
 ISSUE_PATH = Path("/etc/issue")
 ISSUE_BACKUP_PATH = Path("/etc/issue.picframe-backup")
+
+# Frame user info — set by systemd service from install.conf
+FRAME_USER_HOME = Path(os.environ.get("PICFRAME_USER_HOME", "/home/pi"))
+FRAME_USER = os.environ.get("PICFRAME_USER", FRAME_USER_HOME.name)
+NO_PICTURES_PATH = FRAME_USER_HOME / "picframe_data" / "data" / "no_pictures.jpg"
+NO_PICTURES_BACKUP = FRAME_USER_HOME / "picframe_data" / "data" / "no_pictures.setup-backup"
 
 
 # Allow running from any working directory
@@ -42,6 +49,143 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("watchdog")
+
+
+def _get_lan_ip() -> str:
+    """Return the IPv4 address of wlan0 or eth0, or empty string if not available."""
+    for iface in ("wlan0", "eth0"):
+        try:
+            result = subprocess.run(
+                ["ip", "-4", "addr", "show", iface],
+                capture_output=True, text=True, timeout=5,
+            )
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                if line.startswith("inet "):
+                    return line.split()[1].split("/")[0]
+        except Exception:
+            pass
+    return ""
+
+
+def _load_font(size: int):
+    """Load a TrueType font from common system paths, fall back to PIL default."""
+    from PIL import ImageFont
+    candidates = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        "/usr/share/fonts/truetype/piboto/Piboto-Bold.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
+    ]
+    for path in candidates:
+        if Path(path).exists():
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                pass
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
+
+
+def generate_setup_image(frame_name: str) -> None:
+    """
+    Generate a first-run Step 2 instruction image and write it to
+    ~/picframe_data/data/no_pictures.jpg so Pi3D displays it when there
+    are no photos yet.
+
+    Backs up the original file first. Restored by restore_no_pictures()
+    once Koofr is configured.
+    """
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        logger.warning("Pillow not installed — skipping setup image generation")
+        return
+
+    if not NO_PICTURES_PATH.parent.exists():
+        logger.warning(f"no_pictures.jpg parent dir not found: {NO_PICTURES_PATH.parent}")
+        return
+
+    # Backup original if not already backed up
+    if not NO_PICTURES_BACKUP.exists() and NO_PICTURES_PATH.exists():
+        import shutil
+        shutil.copy2(str(NO_PICTURES_PATH), str(NO_PICTURES_BACKUP))
+        logger.info(f"Backed up original no_pictures.jpg to {NO_PICTURES_BACKUP.name}")
+
+    # Get LAN IP for URL — fall back to mDNS hostname
+    lan_ip = _get_lan_ip()
+    dashboard_url = f"http://{lan_ip}:8000" if lan_ip else f"http://{frame_name}.local:8000"
+
+    # Build image: 1920x1080 dark background
+    W, H = 1920, 1080
+    img = Image.new("RGB", (W, H), color=(18, 18, 28))
+    draw = ImageDraw.Draw(img)
+
+    yellow = (255, 200, 0)
+    white = (235, 235, 235)
+    green = (100, 220, 100)
+    gray = (140, 140, 140)
+
+    font_title = _load_font(72)
+    font_body = _load_font(48)
+    font_url = _load_font(56)
+    font_small = _load_font(34)
+
+    cx = W // 2
+    y = 160
+
+    draw.text((cx, y), "PicFrame — Setup Step 2 of 2", font=font_title, fill=yellow, anchor="mm")
+    y += 90
+    draw.line([(cx - 500, y), (cx + 500, y)], fill=(60, 60, 80), width=2)
+    y += 50
+
+    draw.text((cx, y), "WiFi connected! Now finish setup on your phone or computer:", font=font_body, fill=white, anchor="mm")
+    y += 90
+
+    draw.text((cx, y), "1.  Rejoin your home WiFi network", font=font_body, fill=white, anchor="mm")
+    y += 75
+    draw.text((cx, y), "2.  Open a browser and go to:", font=font_body, fill=white, anchor="mm")
+    y += 80
+
+    # URL box
+    pad = 28
+    url_bbox = draw.textbbox((cx, y), dashboard_url, font=font_url, anchor="mm")
+    draw.rounded_rectangle(
+        [url_bbox[0] - pad, url_bbox[1] - pad // 2, url_bbox[2] + pad, url_bbox[3] + pad // 2],
+        radius=12, fill=(10, 30, 10), outline=green, width=2,
+    )
+    draw.text((cx, y), dashboard_url, font=font_url, fill=green, anchor="mm")
+    y += 90
+
+    draw.text((cx, y), "3.  Enter your Koofr email and password in the banner", font=font_body, fill=white, anchor="mm")
+    y += 100
+
+    draw.line([(cx - 500, y), (cx + 500, y)], fill=(60, 60, 80), width=2)
+    y += 40
+    draw.text((cx, y), f"Frame: {frame_name}", font=font_small, fill=gray, anchor="mm")
+
+    try:
+        img.save(str(NO_PICTURES_PATH), "JPEG", quality=92)
+        subprocess.run(["chown", f"{FRAME_USER}:{FRAME_USER}", str(NO_PICTURES_PATH)], check=False)
+        logger.info(f"Setup instruction image written to {NO_PICTURES_PATH} (URL: {dashboard_url})")
+    except Exception as e:
+        logger.error(f"Failed to write setup image: {e}")
+
+
+def restore_no_pictures() -> None:
+    """Restore the original no_pictures.jpg from the setup backup, if present."""
+    if NO_PICTURES_BACKUP.exists():
+        import shutil
+        try:
+            shutil.copy2(str(NO_PICTURES_BACKUP), str(NO_PICTURES_PATH))
+            NO_PICTURES_BACKUP.unlink()
+            subprocess.run(["chown", f"{FRAME_USER}:{FRAME_USER}", str(NO_PICTURES_PATH)], check=False)
+            logger.info("Restored original no_pictures.jpg")
+        except Exception as e:
+            logger.error(f"Failed to restore no_pictures.jpg: {e}")
 
 
 def is_wifi_associated() -> bool:
@@ -310,6 +454,16 @@ def main() -> None:
         start_setup_mode()
         run_monitoring_loop(in_setup_mode=True)
         return
+
+    # Show setup instruction image if Koofr hasn't been configured yet
+    frame_name = state.get("frame_name", "picframe")
+    koofr_configured = state.get("koofr_configured", False)
+    if not koofr_configured:
+        logger.info("koofr_configured=false — generating setup instruction image")
+        generate_setup_image(frame_name)
+    else:
+        # Ensure setup image is cleaned up if it was left from a previous run
+        restore_no_pictures()
 
     # Normal operation: check WiFi on boot, then monitor
     if is_wifi_associated():
