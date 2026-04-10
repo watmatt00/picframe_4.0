@@ -73,15 +73,44 @@ PICFRAME_APP_CONFIG = Path.home() / ".picframe" / "config.yaml"
 
 
 def _is_koofr_configured() -> bool:
-    """Return True if Koofr credentials are saved in ~/.picframe/config.yaml."""
+    """Return True if cloud sync is configured on this frame.
+
+    Checks three signals in order:
+    1. state.yaml has koofr_configured=true (explicit Phase 6 first-run completion)
+    2. config.yaml has sync.koofr_user (Koofr credentials saved via dashboard)
+    3. Any enabled source already has an rclone_remote (pre-existing sync config)
+    """
     try:
+        # 1. Explicit Phase 6 state flag
+        state_path = Path("/var/lib/picframe/state.yaml")
+        if state_path.exists():
+            with open(state_path) as f:
+                state = yaml.safe_load(f) or {}
+            if state.get("koofr_configured"):
+                return True
+
         if not PICFRAME_APP_CONFIG.exists():
             return False
+
         with open(PICFRAME_APP_CONFIG) as f:
             config = yaml.safe_load(f) or {}
-        return bool(config.get("sync", {}).get("koofr_user", "").strip())
+
+        # 2. Koofr credentials saved via dashboard
+        if config.get("sync", {}).get("koofr_user", "").strip():
+            return True
+
+        # 3. Any enabled source already has a cloud remote (pre-existing config)
+        sources_path = Path.home() / ".picframe" / "sources.yaml"
+        if sources_path.exists():
+            with open(sources_path) as f:
+                sources_data = yaml.safe_load(f) or {}
+            for source in sources_data.get("sources", []):
+                if source.get("enabled") and source.get("rclone_remote", "").strip():
+                    return True
+
     except Exception:
-        return False
+        pass
+    return False
 
 
 async def _validate_koofr_credentials(user: str, password: str) -> tuple[bool, str]:
