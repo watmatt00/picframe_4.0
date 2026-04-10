@@ -55,6 +55,30 @@ def get_repo_path() -> Path:
     return REPO_PATH
 
 
+async def get_current_branch(repo_path: Optional[Path] = None) -> str:
+    """
+    Get the active git branch name.
+
+    Returns:
+        Branch name string, 'detached' if in detached HEAD state, or 'unknown' on error.
+    """
+    if repo_path is None:
+        repo_path = get_repo_path()
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "-C", str(repo_path), "branch", "--show-current",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+        if proc.returncode == 0:
+            branch = stdout.decode().strip()
+            return branch if branch else "detached"
+    except Exception as e:
+        logger.warning(f"Failed to get current branch: {e}")
+    return "unknown"
+
+
 async def check_for_updates(repo_path: Optional[Path] = None) -> dict:
     """
     Check for available updates by comparing local HEAD vs remote.
@@ -71,6 +95,7 @@ async def check_for_updates(repo_path: Optional[Path] = None) -> dict:
         repo_path = get_repo_path()
 
     checked_at = datetime.now().isoformat()
+    branch = await get_current_branch(repo_path)
 
     try:
         # Run git fetch
@@ -92,6 +117,7 @@ async def check_for_updates(repo_path: Optional[Path] = None) -> dict:
                 "local_version": _format_version(local_count),
                 "remote_version": None,
                 "checked_at": checked_at,
+                "branch": branch,
                 "error": f"git fetch failed: {error}",
             }
 
@@ -123,6 +149,7 @@ async def check_for_updates(repo_path: Optional[Path] = None) -> dict:
                 "local_version": _format_version(local_count),
                 "remote_version": None,
                 "checked_at": checked_at,
+                "branch": branch,
                 "error": f"Could not get remote: {error}",
             }
 
@@ -140,6 +167,7 @@ async def check_for_updates(repo_path: Optional[Path] = None) -> dict:
             "local_version": _format_version(local_count),
             "remote_version": _format_version(remote_count),
             "checked_at": checked_at,
+            "branch": branch,
             "error": None,
         }
 
@@ -150,6 +178,7 @@ async def check_for_updates(repo_path: Optional[Path] = None) -> dict:
             "local_commit": None,
             "remote_commit": None,
             "checked_at": checked_at,
+            "branch": branch,
             "error": "git fetch timed out",
         }
     except Exception as e:
@@ -159,6 +188,7 @@ async def check_for_updates(repo_path: Optional[Path] = None) -> dict:
             "local_commit": None,
             "remote_commit": None,
             "checked_at": checked_at,
+            "branch": branch,
             "error": str(e),
         }
 
@@ -324,7 +354,7 @@ async def start_update_scheduler() -> None:
             if result.get("error"):
                 logger.warning(f"Scheduled update check failed: {result['error']}")
             elif result.get("up_to_date") is False:
-                logger.info(f"Update available: remote commit {result.get('remote_commit')}")
+                logger.info(f"Update available on branch '{result.get('branch', 'unknown')}': remote commit {result.get('remote_commit')}")
                 # Auto-apply if configured
                 if updates.auto_apply:
                     logger.info("Auto-apply enabled — running git pull")

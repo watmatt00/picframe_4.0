@@ -1295,6 +1295,22 @@ async function checkForUpdates() {
 
         if (localVersionEl && data.local_version) localVersionEl.textContent = data.local_version;
         if (localHashEl && data.local_commit) localHashEl.textContent = '(' + data.local_commit + ')';
+
+        // Update branch badge
+        const branchBadge = document.getElementById('update-branch-badge');
+        const branchHidden = document.getElementById('update-branch');
+        if (branchBadge && data.branch) {
+            branchBadge.textContent = data.branch.toUpperCase();
+            if (data.branch === 'dev') {
+                branchBadge.style.background = 'rgba(239,68,68,0.15)';
+                branchBadge.style.color = '#ef4444';
+            } else {
+                branchBadge.style.background = 'rgba(34,197,94,0.15)';
+                branchBadge.style.color = '#22c55e';
+            }
+        }
+        if (branchHidden && data.branch) branchHidden.textContent = data.branch;
+
         if (lastCheckedEl && data.checked_at) {
             try {
                 const d = new Date(data.checked_at);

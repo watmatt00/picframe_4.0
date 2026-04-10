@@ -28,7 +28,7 @@ from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
 from src.services.systemd_service import systemd_service, update_sync_timer, VALID_SYNC_INTERVALS
 from src.services.display_service import display_service
-from src.services.update_service import check_for_updates, save_check_result, get_local_commit, get_local_version, apply_update
+from src.services.update_service import check_for_updates, save_check_result, get_local_commit, get_local_version, apply_update, get_current_branch
 from src.services.status_service import (
     get_current_source,
     get_photo_counts,
@@ -267,6 +267,7 @@ async def dashboard_home(request: Request):
     # Get update status for Settings tab card
     local_commit = await get_local_commit()
     local_version = await get_local_version()
+    update_branch = await get_current_branch()
 
     context = {
         "request": request,
@@ -300,6 +301,7 @@ async def dashboard_home(request: Request):
         "update_available_commit": settings.updates.available_commit,
         "update_local_commit": local_commit,
         "update_local_version": local_version,
+        "update_branch": update_branch,
         "koofr_configured": _is_koofr_configured(),
         "lan_ip": _get_lan_ip(),
         "wifi_ssid": _get_wifi_ssid(),
@@ -1093,6 +1095,7 @@ async def get_update_settings():
     settings = get_settings()
     local_commit = await get_local_commit()
     local_version = await get_local_version()
+    branch = await get_current_branch()
     return {
         "auto_check": settings.updates.auto_check,
         "auto_apply": settings.updates.auto_apply,
@@ -1103,6 +1106,7 @@ async def get_update_settings():
         "last_result": settings.updates.last_result,
         "local_version": local_version,
         "local_commit": local_commit,
+        "branch": branch,
     }
 
 
@@ -1124,6 +1128,7 @@ async def check_for_updates_api():
         "local_version": result.get("local_version"),
         "remote_version": result.get("remote_version"),
         "checked_at": result.get("checked_at"),
+        "branch": result.get("branch"),
         "error": result.get("error"),
     }
 

@@ -472,11 +472,25 @@
                 <div class="advanced-section" id="updates-section">
                 <div style="padding: 0 1.5rem 1.5rem;">
                     <!-- Version comparison table -->
+                    <span id="update-branch" style="display:none;">{{ update_branch or 'unknown' }}</span>
                     <div class="service-grid" style="margin-bottom: 1.25rem;">
                         <div class="service-label">Installed</div>
                         <div class="service-value">
                             <code id="update-local-version">{{ update_local_version or '4.0.?' }}</code>
                             <span style="color:#6b7280; font-size:0.8rem; margin-left:0.4rem;" id="update-local-commit">({{ update_local_commit or '?' }})</span>
+                        </div>
+
+                        <div class="service-label">Branch</div>
+                        <div class="service-value">
+                            <span id="update-branch-badge" style="
+                                display:inline-block; padding:2px 8px; border-radius:10px;
+                                font-size:11px; font-weight:600; letter-spacing:0.5px;
+                                {% if update_branch == 'dev' %}
+                                background:rgba(239,68,68,0.15); color:#ef4444;
+                                {% else %}
+                                background:rgba(34,197,94,0.15); color:#22c55e;
+                                {% endif %}
+                            ">{{ (update_branch or 'unknown')|upper }}</span>
                         </div>
 
                         <div class="service-label">Available</div>
