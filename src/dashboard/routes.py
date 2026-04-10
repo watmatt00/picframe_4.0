@@ -185,15 +185,18 @@ def _get_lan_ip() -> str:
 
 
 def _get_wifi_ssid() -> str:
-    """Get the currently connected WiFi SSID."""
+    """Get the currently connected WiFi SSID via nmcli."""
     try:
         import subprocess
         result = subprocess.run(
-            ["iwgetid", "-r"],
+            ["nmcli", "-t", "-f", "active,ssid", "dev", "wifi"],
             capture_output=True, text=True, timeout=5,
         )
         if result.returncode == 0:
-            return result.stdout.strip()
+            for line in result.stdout.splitlines():
+                parts = line.split(":", 1)
+                if len(parts) == 2 and parts[0] == "yes":
+                    return parts[1].strip()
     except Exception as e:
         logger.warning(f"Failed to get WiFi SSID: {e}")
     return ""
