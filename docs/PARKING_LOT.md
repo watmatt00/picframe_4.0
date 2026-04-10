@@ -58,11 +58,8 @@ Port is now configurable (stored in PairedFrame, defaults to 8000). Backend incl
 
 iOS `FrameStatus` model matches backend response. Backend `ServiceStatus` enriched with `display_name`, `can_restart`, and mobile-friendly status strings.
 
-### Revert Pairing Code Rate Limit
-**Priority:** Last step before prod
-**Status:** Pending — do this immediately before promoting to production
-
-The pairing code generation rate limit was increased from 3 to 50 codes per hour to allow rapid testing. Revert to 3 per hour before going to prod to prevent brute-force pairing attempts.
+### ~~Revert Pairing Code Rate Limit~~
+**Status:** Done — already at 3 per hour (`MAX_CODES_PER_HOUR = 3` in `src/auth/pairing.py`).
 
 ### ~~TestFlight Distribution~~
 **Status:** Done
@@ -81,9 +78,8 @@ During setup mode, `/etc/issue` is replaced with WiFi setup instructions (SSID, 
 ### ~~BLE Service UUID / GATT Characteristic Spec~~
 **Status:** Done — UUIDs finalized: Service `4fafc201-1fb5-459e-8fcc-c5c9c331914b`, Characteristic `beb5483e-36e1-4688-b7f5-ea07361b26a8`. Implemented in `ble_setup.py`.
 
-### AP Password — Random Per-Frame Password
-**Priority:** Last step before prod
-**Status:** Code ready in `install_setup.sh` — generates 8-char password from Pi serial number. Currently hardcoded to `"picframe"` for testing. Switch to random before final production test stage.
+### ~~AP Password — Random Per-Frame Password~~
+**Status:** Done — `install_setup.sh` generates 8-char password from Pi serial number. Displayed in `/etc/issue` during setup mode.
 
 ### ~~First-Run Sync Failure UX~~
 **Status:** Resolved — portal validates Koofr credentials live (via temp rclone config) before accepting the form. Frame never reboots with bad creds.

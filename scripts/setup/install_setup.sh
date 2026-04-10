@@ -93,20 +93,16 @@ fi
 mkdir -p /etc/hostapd
 
 # ── AP password ───────────────────────────────────────────────────────────────
-# TODO (pre-prod): switch from fixed "picframe" to AP_PASSWORD below.
-# The random password is generated here from the Pi serial number for
-# reproducibility, then truncated to 8 chars. It is displayed automatically
-# in /etc/issue by watchdog.py, so the user can always see it on the console.
-#
-# To activate: replace wpa_passphrase=picframe with wpa_passphrase=${AP_PASSWORD}
-#
+# Generate a random 8-char password from the Pi serial number for
+# reproducibility across reinstalls. Falls back to random bytes if serial
+# is unavailable. Displayed automatically in /etc/issue by watchdog.py.
 PI_SERIAL=$(grep Serial /proc/cpuinfo 2>/dev/null | awk '{print $3}' | tail -c 9 | tr -d '\n' || true)
 if [[ -n "$PI_SERIAL" ]]; then
     AP_PASSWORD=$(echo "${PI_SERIAL}" | tr '[:upper:]' '[:lower:]' | tr -dc 'a-z0-9' | head -c 8)
 else
     AP_PASSWORD=$(tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
 fi
-LOG "AP password generated: ${AP_PASSWORD} (not active — using 'picframe' until final test stage)"
+LOG "AP password: ${AP_PASSWORD}"
 
 cat > "${HOSTAPD_CONF}" <<EOF
 interface=wlan0
@@ -115,15 +111,14 @@ ssid=PicFrame-${FRAME_NAME}
 hw_mode=g
 channel=6
 wpa=2
-wpa_passphrase=picframe
+wpa_passphrase=${AP_PASSWORD}
 wpa_key_mgmt=WPA-PSK
 wpa_pairwise=CCMP
 ieee80211n=1
 EOF
 
 chmod 600 "${HOSTAPD_CONF}"
-LOG "hostapd config written (SSID: PicFrame-${FRAME_NAME}, password: picframe)"
-WARN "TODO (pre-prod): switch AP password from 'picframe' to random per-frame password"
+LOG "hostapd config written (SSID: PicFrame-${FRAME_NAME}, password: ${AP_PASSWORD})"
 
 # ── Systemd service files ─────────────────────────────────────────────────────
 
