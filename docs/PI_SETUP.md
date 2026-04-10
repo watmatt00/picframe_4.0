@@ -342,16 +342,22 @@ curl https://<hostname>.<tailnet>.ts.net/health
 ### What the frame does in setup mode
 
 1. Photo display stops
-2. Console shows a box with the hotspot name, password, and portal URL
-3. Frame broadcasts a WiFi hotspot: `PicFrame-<framename>` / password `picframe`
+2. Console (`/etc/issue`) shows a box with the hotspot name, AP password, and portal URL — visible above the login prompt
+3. Frame broadcasts a WiFi hotspot: `PicFrame-<framename>` with a unique 8-character password derived from the Pi's serial number
 4. Any URL resolves to `http://192.168.4.1` (DNS hijack via dnsmasq)
 
 ### Reconfiguring WiFi via hotspot
 
-1. On your phone or laptop, connect to `PicFrame-<framename>` (password: `picframe`)
+1. On your phone or laptop, connect to `PicFrame-<framename>` (password shown on console)
 2. A captive portal should open automatically — or open a browser to `http://192.168.4.1`
 3. Enter your home WiFi SSID and password
 4. Frame reboots and reconnects; gallery resumes
+
+### First-run setup (new frame, two steps)
+
+**Step 1 — Portal:** Enter frame name + home WiFi credentials. Success page shows Step 2 instructions.
+
+**Step 2 — Dashboard:** Rejoin your home WiFi, open `http://<framename>.local:8000` in a browser. A Koofr setup banner appears — enter your Koofr email and password. The frame validates credentials and starts syncing photos.
 
 ### Reconfiguring WiFi via SSH / `picframe-config`
 

@@ -42,6 +42,10 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 | `~/.config/systemd/user/picframe-sync.service` | Sync service unit (calls POST /sync) |
 | `~/.config/systemd/user/picframe-sync.timer` | Sync timer unit |
 | `~/.config/systemd/user/picframe.service` | Pi3D display service unit |
+| `/var/lib/picframe/state.yaml` | Phase 6 state (provisioned, koofr_configured, needs_setup, frame_name) |
+| `/var/lib/picframe/install.conf` | Written by install_setup.sh — frame user, home dir, project path |
+| `/etc/hostapd/picframe-hostapd.conf` | AP hotspot config (SSID, random password from Pi serial) |
+| `~/picframe_data/data/no_pictures.jpg` | Shown by Pi3D when no photos exist; replaced with setup instruction image during first-run |
 
 ## Deployment Workflow
 
@@ -51,7 +55,12 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 4. Restart API: `ssh matt@192.168.102.210 "systemctl --user restart picframe-api"`
 5. Test dashboard: `http://192.168.102.210:8000`
 
-All systemd services are **user services** (`systemctl --user`), not system services.
+User services (`systemctl --user`): `picframe-api`, `picframe-sync`, `picframe-sync.timer`, `picframe`
+
+**Phase 6 system services** (run as root, `systemctl` without `--user`):
+- `picframe-watchdog` — WiFi monitor, enabled at boot
+- `picframe-ble-setup` — BLE WiFi setup, started on demand by watchdog
+- `picframe-ap-setup` — AP hotspot + captive portal, started on demand by watchdog
 
 ## Dashboard Architecture
 
@@ -88,8 +97,21 @@ The iOS app has been built in Xcode and tested on simulator against live tkframe
 | `picframe_mgr` | Mobile app (iOS only) | Consumes API |
 
 Known issues tracked in `docs/PARKING_LOT.md`.
-Phase 4 & 5 completion plan in `docs/PHASE_4_5_PLAN.md` - **always reference this for next steps**.
+Phase 4, 5 & 6 plan in `docs/PHASE_4_5_PLAN.md` - **always reference this for next steps**.
 Test plan in `docs/TEST_PLAN.md` - covers backend, dashboard, and iOS app. Test runs stored in `docs/test_runs/`.
+Phase 6 setup guide in `docs/PI_SETUP.md` — includes WiFi recovery usage guide and troubleshooting.
+
+## Phase 6: First-Run & WiFi Recovery
+
+Two-step first-run flow:
+1. **Portal (Step 1):** Frame broadcasts `PicFrame-[name]` AP hotspot. User connects, enters WiFi SSID/password + frame name. Frame reboots.
+2. **Dashboard banner (Step 2):** After WiFi connects, dashboard shows Koofr setup banner. User enters Koofr email + password (validated live). Once saved, normal operation begins.
+
+While waiting for Step 2, Pi3D displays a PIL instruction image (`no_pictures.jpg`) with the dashboard URL. Image is restored to the original once Koofr is configured.
+
+WiFi recovery (existing frame): same AP portal, Step 1 only (no frame name or Koofr — already configured).
+
+Phase 6 install: `sudo bash scripts/setup/install_setup.sh` (run from project root as sudo).
 
 When making API changes, update `docs/API.md` so mobile repo can reference it.
 

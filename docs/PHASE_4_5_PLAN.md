@@ -91,14 +91,15 @@ Camera-based QR code scanning implemented and tested in picframe_mgr repo.
 | ~~Run backend test suite (`pytest`)~~ | Done |
 | ~~TestFlight beta distribution~~ | Done |
 | ~~QR scanner for pairing~~ | Done |
-| Revert pairing code rate limit (50 → 3 per hour) | **Last step before prod** |
+| ~~Revert pairing code rate limit (50 → 3 per hour)~~ | Done |
+| ~~Phase 6: WiFi recovery + setup mode~~ | Done |
 
 ---
 
 ## Phase 6: WiFi Recovery & Setup Mode
 
-**Status:** Design complete — ready for implementation
-**Problem:** Frames deployed to family have no recovery path when WiFi changes. Fix requires physical SD card removal today.
+**Status:** Complete — implemented and tested on tkframe (2026-04-10)
+**Problem solved:** Frames deployed to family had no recovery path when WiFi changes. Phase 6 provides browser-based and BLE-based recovery with no physical access required.
 
 ### Design Decisions (finalized 2026-03-02)
 
@@ -143,22 +144,32 @@ setup_mode_reason: null          # "boot_no_wifi" | "extended_outage" | "unprovi
 - hostapd hotspot: `PicFrame-[framename]`
 - dnsmasq: DHCP + DNS hijack → any URL opens portal
 - Flask page at `192.168.4.1`
-- First run: collects WiFi + Koofr creds + frame name
-- Reconfiguration: collects WiFi SSID/password only
-- Random per-frame password generated from Pi serial in `install_setup.sh`. Currently set to `"picframe"` for testing — switch to random for final production test stage.
+- **First run (Step 1 of 2):** collects WiFi SSID/password + frame name only
+- **Reconfiguration:** collects WiFi SSID/password only
+- Random per-frame AP password generated from Pi serial in `install_setup.sh` — reproducible across reinstalls. Shown in `/etc/issue` during setup mode.
+- Open WiFi (no password) is supported.
 
-### 6.4 First-Run Flow
+### 6.4 First-Run Flow (Two-Step)
 
 ```
 Boot (provisioned = false)
-  └─► Skip watchdog
   └─► Enter setup mode (BLE + AP)
-  └─► Write config, provisioned = true, first_run_complete = false
-  └─► Reboot → connect WiFi → verify Koofr → initial sync
-  └─► first_run_complete = true → normal operation
+  └─► Step 1 — Portal: WiFi SSID/password + frame name
+      └─► provisioned = true, koofr_configured = false
+      └─► Success page shows "Step 2" instructions with dashboard URL
+  └─► Reboot → frame connects to WiFi
+  └─► Frame display shows PIL instruction image (http://frame.local:8000)
+  └─► Step 2 — Dashboard banner: enter Koofr email + password
+      └─► Live validation via rclone before saving
+      └─► koofr_configured = true, setup image restored
+  └─► Normal operation + first sync
 ```
 
-Resolved — portal validates Koofr credentials live before accepting the form. Frame never reboots with bad creds.
+Koofr credentials are collected in the dashboard (Step 2) rather than the portal because Koofr requires a live internet connection for validation. The portal only runs while WiFi is disconnected (AP mode).
+
+### 6.4a Setup Instruction Image
+
+When `koofr_configured=false` at boot, the watchdog generates a PIL image (1920×1080) and writes it to `~/picframe_data/data/no_pictures.jpg`. Pi3D displays this image on the TV when no photos exist yet. Shows `http://[framename].local:8000` as primary URL with IP fallback as footnote. Original `no_pictures.jpg` is backed up and restored automatically once Koofr is configured.
 
 ### 6.5 `picframe-config` Bash Wrapper
 

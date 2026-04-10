@@ -15,9 +15,9 @@ Sync interval is configurable in Settings (dashboard + mobile app) and stored in
 Manual sync via "Sync Now" button does not reset the timer.
 
 ### ~~Open-Box Fresh Install - Cloud Storage Chicken-and-Egg Problem~~
-**Status:** Addressed in Phase 6
+**Status:** Done (Phase 6)
 
-First-run flow is designed: setup mode (BLE + AP captive portal) collects WiFi + Koofr creds + frame name before provisioning. See Phase 6 in `docs/PHASE_4_5_PLAN.md`.
+Two-step first-run flow: Step 1 (captive portal) collects WiFi + frame name → Step 2 (dashboard banner) collects Koofr credentials with live validation. Frame displays a PIL instruction image on the TV guiding the user to the dashboard URL. See Phase 6 in `docs/PHASE_4_5_PLAN.md`.
 
 ### ~~Generate OpenAPI Spec~~
 **Status:** Done
@@ -82,7 +82,7 @@ During setup mode, `/etc/issue` is replaced with WiFi setup instructions (SSID, 
 **Status:** Done — `install_setup.sh` generates 8-char password from Pi serial number. Displayed in `/etc/issue` during setup mode.
 
 ### ~~First-Run Sync Failure UX~~
-**Status:** Resolved — portal validates Koofr credentials live (via temp rclone config) before accepting the form. Frame never reboots with bad creds.
+**Status:** Done — Koofr credentials validated live via rclone in the Step 2 dashboard banner before saving. Frame never proceeds with bad creds.
 
 ### Status Overlay
 **Priority:** Low
