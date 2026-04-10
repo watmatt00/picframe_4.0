@@ -172,6 +172,33 @@ def _get_tailscale_ip() -> str:
     return ""
 
 
+def _get_lan_ip() -> str:
+    """Get the LAN IP address of the primary network interface."""
+    try:
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception as e:
+        logger.warning(f"Failed to get LAN IP: {e}")
+    return ""
+
+
+def _get_wifi_ssid() -> str:
+    """Get the currently connected WiFi SSID."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["iwgetid", "-r"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception as e:
+        logger.warning(f"Failed to get WiFi SSID: {e}")
+    return ""
+
+
 
 @router.get("/", response_class=HTMLResponse)
 async def dashboard_home(request: Request):
@@ -242,6 +269,8 @@ async def dashboard_home(request: Request):
         "update_local_commit": local_commit,
         "update_local_version": local_version,
         "koofr_configured": _is_koofr_configured(),
+        "lan_ip": _get_lan_ip(),
+        "wifi_ssid": _get_wifi_ssid(),
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
 

@@ -110,6 +110,18 @@ function initAdvancedToggles() {
         });
     }
 
+    // Network info sub-card toggle
+    const networkInfoToggle = document.getElementById('network-info-toggle');
+    const networkInfoSection = document.getElementById('network-info-section');
+    if (networkInfoToggle && networkInfoSection) {
+        networkInfoToggle.addEventListener('click', () => {
+            networkInfoSection.classList.toggle('visible');
+            networkInfoToggle.textContent = networkInfoSection.classList.contains('visible')
+                ? '▾ Hide'
+                : '▸ Show';
+        });
+    }
+
     // Updates card toggle
     const updatesToggle = document.getElementById('updates-toggle');
     const updatesSection = document.getElementById('updates-section');

@@ -314,6 +314,28 @@
                     </div>
                 </form>
                 </div> <!-- /settings-form-section -->
+
+                <!-- Network Sub-card -->
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.08);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-size: 0.95rem; font-weight: 600; color: #cbd5e1;">🌐 Network</div>
+                        <button class="advanced-toggle" id="network-info-toggle">▸ Show</button>
+                    </div>
+                    <div class="advanced-section" id="network-info-section" style="border-left-color: #0ea5e9;">
+                        <div class="form-row" style="margin-bottom: 0;">
+                            <div class="form-group">
+                                <label class="form-label">LAN IP Address</label>
+                                <input type="text" class="form-input" value="{{ lan_ip or 'Unavailable' }}" readonly disabled
+                                       style="opacity: 0.6; cursor: not-allowed;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">WiFi Network (SSID)</label>
+                                <input type="text" class="form-input" value="{{ wifi_ssid or 'Not connected / unavailable' }}" readonly disabled
+                                       style="opacity: 0.6; cursor: not-allowed;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Device Pairing Card -->
