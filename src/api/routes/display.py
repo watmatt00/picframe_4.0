@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/display", tags=["display"])
 
-SPOTLIGHT_DIR = Path("/tmp/pf_spotlight")
+SPOTLIGHT_DIR = Path.home() / "Pictures" / ".spotlight"
 
 
 class DisplayFolder(BaseModel):

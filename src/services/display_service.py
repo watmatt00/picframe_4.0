@@ -1,10 +1,13 @@
 """
 PicFrame 4.0 - Display Service.
 
-Controls the Pi3D PictureFrame display via MQTT and configuration.
+Controls the Pi3D PictureFrame display via its built-in HTTP API and configuration.
 """
 
+import asyncio
 import logging
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
@@ -15,9 +18,12 @@ from src.services.systemd_service import systemd_service
 
 logger = logging.getLogger(__name__)
 
-# Default Pi3D config location
+# Pi3D config location
 PI3D_CONFIG_PATH = Path.home() / "picframe_data" / "config" / "configuration.yaml"
+# Base pictures directory — Pi3D pic_dir is always anchored here
 PI3D_PICTURES_PATH = Path.home() / "Pictures"
+# Pi3D built-in HTTP control port
+PI3D_HTTP_PORT = 9000
 
 
 class DisplayConfig(BaseModel):
@@ -33,7 +39,10 @@ class DisplayService:
     """
     Controls the Pi3D PictureFrame display.
 
-    Uses MQTT for real-time control and config file for persistent settings.
+    Prefers Pi3D's built-in HTTP API (port 9000) for real-time directory
+    switching — no service restart, seamless fade transition.  Falls back
+    to config-file update + service restart only when the target path is
+    outside ~/Pictures or the HTTP API is unreachable.
     """
 
     def __init__(self, mqtt_client=None):
@@ -63,6 +72,26 @@ class DisplayService:
             logger.error(f"Failed to save Pi3D config: {e}")
             return False
 
+    async def _pi3d_set(self, key: str, value: str) -> bool:
+        """Send a live control command to Pi3D's HTTP API.
+
+        Pi3D accepts GET /?<key>=<value> to change settings in real time
+        without any service restart.  Returns True if the request succeeded.
+        """
+        encoded = urllib.parse.quote(str(value), safe="")
+        url = f"http://localhost:{PI3D_HTTP_PORT}/?{key}={encoded}"
+        loop = asyncio.get_event_loop()
+        try:
+            await loop.run_in_executor(
+                None,
+                lambda: urllib.request.urlopen(url, timeout=3),
+            )
+            logger.debug(f"Pi3D HTTP: {key}={value!r}")
+            return True
+        except Exception as e:
+            logger.warning(f"Pi3D HTTP API unavailable ({key}={value!r}): {e}")
+            return False
+
     async def get_current_folder(self) -> str:
         """
         Get the currently active display folder.
@@ -83,40 +112,69 @@ class DisplayService:
         """
         Switch the display to a different photo source.
 
-        Updates the Pi3D configuration and optionally restarts the service.
+        Strategy:
+        1. If source_path is inside ~/Pictures, use Pi3D's live HTTP API
+           (GET /?subdirectory=<rel>) — seamless fade, no restart.
+        2. Update Pi3D configuration.yaml for persistence across reboots.
+        3. Fall back to service restart only when outside ~/Pictures or
+           when the HTTP API is unreachable.
 
         Args:
-            source_path: Path to the photo source directory
-            restart_service: Whether to restart picframe.service after updating
+            source_path: Path to the photo source directory.
+            restart_service: Whether to restart if HTTP API is unavailable.
 
         Returns:
-            True if switch was successful
+            True if switch was successful.
         """
         logger.info(f"Switching display to: {source_path}")
 
-        if not source_path.exists():
-            logger.error(f"Source path does not exist: {source_path}")
+        source_resolved = source_path.expanduser().resolve()
+        pictures_resolved = PI3D_PICTURES_PATH.expanduser().resolve()
+
+        if not source_resolved.exists():
+            logger.error(f"Source path does not exist: {source_resolved}")
             return False
 
-        # Load current config
+        # Determine subdirectory relative to ~/Pictures (None = outside, must restart)
+        subdir: Optional[str] = None
+        try:
+            rel = source_resolved.relative_to(pictures_resolved)
+            subdir = "" if str(rel) == "." else str(rel)
+        except ValueError:
+            pass  # Outside ~/Pictures — will fall back to restart
+
+        # Always update Pi3D config for persistence across reboots
         config = self._load_pi3d_config()
         if not config:
             logger.error("Failed to load Pi3D config")
             return False
-
-        # Update the pic_dir
         if "model" not in config:
             config["model"] = {}
-        config["model"]["pic_dir"] = str(source_path)
-        config["model"]["subdirectory"] = ""  # Clear subdirectory when switching
 
-        # Save config
+        if subdir is not None:
+            config["model"]["pic_dir"] = str(pictures_resolved)
+            config["model"]["subdirectory"] = subdir
+        else:
+            config["model"]["pic_dir"] = str(source_resolved)
+            config["model"]["subdirectory"] = ""
+
         if not self._save_pi3d_config(config):
             return False
 
-        logger.info(f"Updated Pi3D config: pic_dir = {source_path}")
+        logger.info(
+            f"Updated Pi3D config: pic_dir={config['model']['pic_dir']!r}, "
+            f"subdirectory={config['model']['subdirectory']!r}"
+        )
 
-        # Restart the service to pick up changes
+        # Prefer live HTTP API — seamless, no restart
+        if subdir is not None:
+            ok = await self._pi3d_set("subdirectory", subdir)
+            if ok:
+                logger.info(f"Switched display via HTTP API: subdirectory={subdir!r}")
+                return True
+            logger.warning("Pi3D HTTP API failed — falling back to service restart")
+
+        # Fall back to service restart
         if restart_service:
             success = await systemd_service.restart("picframe")
             if not success:
