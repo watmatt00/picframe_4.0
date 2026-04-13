@@ -236,9 +236,26 @@ class DisplayService:
         """Enable or disable shuffle mode."""
         return await self.send_mqtt_command("picframe/shuffle", str(enabled).lower())
 
+    async def get_time_delay(self) -> float:
+        """Read the current time_delay from Pi3D's HTTP API. Falls back to config."""
+        url = f"http://localhost:{PI3D_HTTP_PORT}/?all"
+        loop = asyncio.get_event_loop()
+        try:
+            response = await loop.run_in_executor(
+                None,
+                lambda: urllib.request.urlopen(url, timeout=3),
+            )
+            import json
+            data = json.loads(response.read().decode())
+            return float(data.get("time_delay", 30.0))
+        except Exception as e:
+            logger.warning(f"Could not read time_delay from Pi3D: {e}")
+            config = self._load_pi3d_config()
+            return float(config.get("model", {}).get("time_delay", 30.0))
+
     async def set_delay(self, seconds: float) -> bool:
-        """Set the delay between images."""
-        return await self.send_mqtt_command("picframe/time_delay", str(seconds))
+        """Set the delay between images via Pi3D HTTP API."""
+        return await self._pi3d_set("time_delay", str(seconds))
 
 
 # Global service instance
