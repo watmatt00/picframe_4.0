@@ -27,7 +27,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/display", tags=["display"])
 
-SPOTLIGHT_DIR = Path.home() / "Pictures" / ".spotlight"
+# Non-hidden, persistent — Pi3D indexes this dir at startup and tracks it via mtime.
+# Never removed, only its contents are cleared after a spotlight ends.
+SPOTLIGHT_DIR = Path.home() / "Pictures" / "spotlight"
+SPOTLIGHT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class DisplayFolder(BaseModel):
@@ -209,13 +212,20 @@ async def spotlight_photo(
         else Path(await display_service.get_current_folder())
     )
 
-    # Build spotlight dir with a single symlink to the target photo
-    if SPOTLIGHT_DIR.exists():
-        shutil.rmtree(SPOTLIGHT_DIR)
-    SPOTLIGHT_DIR.mkdir(parents=True)
-    (SPOTLIGHT_DIR / Path(request.filename).name).symlink_to(photo_path.resolve())
+    # Clear any previous spotlight content, copy the target photo.
+    # Copy (not symlink) to avoid follow_links issues; keep the dir itself
+    # so Pi3D continues to track it in its DB via mtime changes.
+    SPOTLIGHT_DIR.mkdir(parents=True, exist_ok=True)
+    for old in SPOTLIGHT_DIR.glob("*"):
+        old.unlink(missing_ok=True)
+    spotlight_file = SPOTLIGHT_DIR / Path(request.filename).name
+    shutil.copy2(str(photo_path.resolve()), str(spotlight_file))
 
-    # Switch display to spotlight dir
+    # Give Pi3D's update_interval scan (2s) time to detect the new file
+    # before switching — avoids "no pictures selected" flash.
+    await asyncio.sleep(2.5)
+
+    # Switch display to spotlight dir via HTTP API (no service restart)
     success = await display_service.switch_folder(SPOTLIGHT_DIR)
     if not success:
         raise HTTPException(
@@ -231,9 +241,9 @@ async def spotlight_photo(
         await display_service.switch_folder(restore_path)
         config_manager.set("display.current_source", restore_source_id)
         reload_settings()
-        # Remove spotlight dir so symlinked photo doesn't appear in normal cycle
-        if SPOTLIGHT_DIR.exists():
-            shutil.rmtree(SPOTLIGHT_DIR, ignore_errors=True)
+        # Remove spotlight files (keep the dir so Pi3D keeps it indexed)
+        for f in SPOTLIGHT_DIR.glob("*"):
+            f.unlink(missing_ok=True)
 
     background_tasks.add_task(_restore)
 
