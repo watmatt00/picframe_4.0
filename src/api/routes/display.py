@@ -231,6 +231,9 @@ async def spotlight_photo(
         await display_service.switch_folder(restore_path)
         config_manager.set("display.current_source", restore_source_id)
         reload_settings()
+        # Remove spotlight dir so symlinked photo doesn't appear in normal cycle
+        if SPOTLIGHT_DIR.exists():
+            shutil.rmtree(SPOTLIGHT_DIR, ignore_errors=True)
 
     background_tasks.add_task(_restore)
 
