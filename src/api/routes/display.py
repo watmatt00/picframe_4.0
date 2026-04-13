@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/display", tags=["display"])
 
+# Cancellation event for the active spotlight restore task.
+# Set by DELETE /spotlight to wake _restore() early.
+_spotlight_cancel: asyncio.Event | None = None
+
 # Non-hidden, persistent — Pi3D indexes this dir at startup and tracks it via mtime.
 # Never removed, only its contents are cleared after a spotlight ends.
 SPOTLIGHT_DIR = Path.home() / "Pictures" / "spotlight"
@@ -162,7 +166,7 @@ class SpotlightRequest(BaseModel):
     """Request to spotlight a single photo."""
     source_id: str
     filename: str
-    duration_seconds: int = 60
+    duration_seconds: int = 30
 
 
 class SpotlightResponse(BaseModel):
@@ -239,9 +243,19 @@ async def spotlight_photo(
 
     logger.info(f"Spotlight started: '{request.filename}' for {request.duration_seconds}s (restore → '{restore_source_id}')")
 
+    # Cancel any in-progress spotlight and arm a new cancellation event
+    global _spotlight_cancel
+    if _spotlight_cancel and not _spotlight_cancel.is_set():
+        _spotlight_cancel.set()
+    _spotlight_cancel = asyncio.Event()
+    cancel_event = _spotlight_cancel
+
     async def _restore() -> None:
-        await asyncio.sleep(request.duration_seconds)
-        logger.info(f"Spotlight ending — restoring to '{restore_source_id}'")
+        try:
+            await asyncio.wait_for(cancel_event.wait(), timeout=request.duration_seconds)
+            logger.info(f"Spotlight cancelled early — restoring to '{restore_source_id}'")
+        except asyncio.TimeoutError:
+            logger.info(f"Spotlight ended — restoring to '{restore_source_id}'")
         await display_service.resume()  # unpause before switching back
         await display_service.switch_folder(restore_path)
         config_manager.set("display.current_source", restore_source_id)
@@ -259,3 +273,13 @@ async def spotlight_photo(
         duration_seconds=request.duration_seconds,
         message=f"Displaying '{request.filename}' for {request.duration_seconds}s, then restoring '{restore_name}'",
     )
+
+
+@router.delete("/spotlight")
+async def cancel_spotlight(admin=Depends(require_admin)):
+    """Cancel an active spotlight immediately and restore the normal display."""
+    global _spotlight_cancel
+    if _spotlight_cancel and not _spotlight_cancel.is_set():
+        _spotlight_cancel.set()
+        return {"cancelled": True}
+    return {"cancelled": False, "message": "No active spotlight"}
