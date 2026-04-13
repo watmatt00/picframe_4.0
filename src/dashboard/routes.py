@@ -339,8 +339,15 @@ async def generate_pairing_endpoint():
     pairing_code = generate_pairing_code()
 
     if pairing_code:
+        url = settings.frame.funnel_url or ""
+        if not url:
+            ts_ip = _get_tailscale_ip()
+            if ts_ip:
+                url = f"http://{ts_ip}:8000"
+        if not url:
+            return {"error": "No address available — set funnel_url in config or ensure Tailscale is running"}
         qr_data_url = generate_qr_data_url(
-            url=settings.frame.funnel_url,
+            url=url,
             code=pairing_code.code,
             frame_name=settings.frame.name,
         )

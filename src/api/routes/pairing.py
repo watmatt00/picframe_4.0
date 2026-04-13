@@ -29,6 +29,7 @@ class PairRequest(BaseModel):
     """Request body for pairing exchange."""
     code: str
     device_name: str
+    requested_role: str | None = None
 
 
 class PairResponse(BaseModel):
@@ -83,6 +84,10 @@ async def pair_device(request: PairRequest, http_request: Request):
                 detail="Invalid or expired pairing code",
             )
         role = invite.role
+
+    # Honor contributor role request — app may voluntarily downgrade from admin to contributor
+    if role == "admin" and request.requested_role == "contributor":
+        role = "contributor"
 
     # Get frame config
     settings = get_settings()
