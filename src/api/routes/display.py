@@ -212,9 +212,6 @@ async def spotlight_photo(
         else Path(await display_service.get_current_folder())
     )
 
-    # Read Pi3D's current time_delay so we can restore it afterward
-    restore_time_delay = await display_service.get_time_delay()
-
     # Clear any previous spotlight content, copy the target photo.
     # Copy (not symlink) to avoid follow_links issues; keep the dir itself
     # so Pi3D continues to track it in its DB via mtime changes.
@@ -228,9 +225,6 @@ async def spotlight_photo(
     # before switching — avoids "no pictures selected" flash.
     await asyncio.sleep(2.5)
 
-    # Set time_delay to match spotlight duration so Pi3D doesn't loop the photo
-    await display_service.set_delay(float(request.duration_seconds))
-
     # Switch display to spotlight dir via HTTP API (no service restart)
     success = await display_service.switch_folder(SPOTLIGHT_DIR)
     if not success:
@@ -239,13 +233,17 @@ async def spotlight_photo(
             detail="Failed to switch display for spotlight",
         )
 
+    # Pause immediately after switch — Pi3D will complete the fade-in of the
+    # spotlight photo then freeze on it, preventing it from looping.
+    await display_service.pause()
+
     logger.info(f"Spotlight started: '{request.filename}' for {request.duration_seconds}s (restore → '{restore_source_id}')")
 
     async def _restore() -> None:
         await asyncio.sleep(request.duration_seconds)
         logger.info(f"Spotlight ending — restoring to '{restore_source_id}'")
+        await display_service.resume()  # unpause before switching back
         await display_service.switch_folder(restore_path)
-        await display_service.set_delay(restore_time_delay)
         config_manager.set("display.current_source", restore_source_id)
         reload_settings()
         # Remove spotlight files (keep the dir so Pi3D keeps it indexed)
