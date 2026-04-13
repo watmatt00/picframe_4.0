@@ -174,6 +174,20 @@ def _validate_filename_raw(filename: str) -> bool:
     return "/" not in filename and "\\" not in filename and ".." not in filename
 
 
+def _validate_relative_path(path: str) -> bool:
+    """Relative path validator for photos in subdirectories.
+
+    Allows forward slashes as directory separators but blocks path traversal,
+    absolute paths, and non-image extensions.
+    Only for paths discovered from the local filesystem listing — NOT user input.
+    """
+    if not path or path.startswith("/") or "\\" in path or ".." in path:
+        return False
+    if Path(path).suffix.lower() not in IMAGE_EXTENSIONS:
+        return False
+    return True
+
+
 async def rclone_deletefile_raw(rclone_remote: str, filename: str) -> RcloneResult:
     """Delete a single file from an rclone remote. Accepts filenames with special chars.
 

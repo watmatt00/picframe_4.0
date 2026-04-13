@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from src.api.dependencies import require_admin
 from src.services.source_manager import source_manager
-from src.utils.rclone import rclone_deletefile, rclone_movefile, _validate_filename, IMAGE_EXTENSIONS
+from src.utils.rclone import rclone_deletefile, rclone_movefile, _validate_filename, _validate_relative_path, IMAGE_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sources", tags=["photos"])
@@ -67,7 +67,7 @@ async def list_photos(source_id: str, admin=Depends(require_admin)):
         if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS:
             st = f.stat()
             photos.append(PhotoInfo(
-                filename=f.name,
+                filename=str(f.relative_to(local_path)),
                 size_bytes=st.st_size,
                 modified_epoch=int(st.st_mtime),
             ))
@@ -81,7 +81,7 @@ async def get_thumbnail(
     admin=Depends(require_admin),
 ):
     """Return a JPEG thumbnail for a photo. Cached in /tmp/pfthumb/."""
-    if not _validate_filename(filename):
+    if not _validate_relative_path(filename):
         raise HTTPException(400, "Invalid filename")
     source = source_manager.get_source(source_id)
     if not source:
@@ -96,7 +96,8 @@ async def get_thumbnail(
         raise HTTPException(400, "Invalid filename")
 
     mtime = int(local_file.stat().st_mtime)
-    cache_path = THUMB_CACHE_DIR / f"{source_id}_{filename}_{mtime}.jpg"
+    cache_key = filename.replace("/", "_")
+    cache_path = THUMB_CACHE_DIR / f"{source_id}_{cache_key}_{mtime}.jpg"
     if cache_path.exists():
         return Response(content=cache_path.read_bytes(), media_type="image/jpeg")
 

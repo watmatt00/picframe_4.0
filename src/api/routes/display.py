@@ -4,9 +4,12 @@ PicFrame 4.0 API - Display Control Routes.
 Controls the Pi3D PictureFrame display:
 - GET /display/folder: Get current display folder
 - POST /display/folder: Switch display folder
+- POST /display/spotlight: Show a single photo for N seconds, then restore
 """
 
+import asyncio
 import logging
+import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
@@ -18,10 +21,13 @@ from src.config.manager import config_manager
 from src.services.display_service import display_service
 from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
+from src.utils.rclone import _validate_filename, _validate_relative_path
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/display", tags=["display"])
+
+SPOTLIGHT_DIR = Path("/tmp/pf_spotlight")
 
 
 class DisplayFolder(BaseModel):
@@ -146,4 +152,92 @@ async def switch_folder(
         source_name=source.name,
         path=source.local_path,
         message=f"Display switched to '{source.name}'",
+    )
+
+
+class SpotlightRequest(BaseModel):
+    """Request to spotlight a single photo."""
+    source_id: str
+    filename: str
+    duration_seconds: int = 60
+
+
+class SpotlightResponse(BaseModel):
+    """Response after starting a spotlight."""
+    success: bool
+    filename: str
+    duration_seconds: int
+    message: str
+
+
+@router.post("/spotlight", response_model=SpotlightResponse)
+async def spotlight_photo(
+    request: SpotlightRequest,
+    background_tasks: BackgroundTasks,
+    admin=Depends(require_admin),
+):
+    """
+    Display a single photo on the frame for a limited time, then restore
+    the previous source automatically.
+    """
+    if not _validate_relative_path(request.filename):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid filename")
+
+    if not (1 <= request.duration_seconds <= 3600):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="duration_seconds must be 1–3600")
+
+    source = source_manager.get_source(request.source_id)
+    if not source:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Source '{request.source_id}' not found")
+
+    photo_path = Path(source.local_path) / request.filename
+    if not photo_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found")
+
+    # Guard against path traversal
+    try:
+        photo_path.resolve().relative_to(Path(source.local_path).resolve())
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid filename")
+
+    # Capture current source for restoration
+    settings = get_settings()
+    restore_source_id = settings.display.current_source
+    restore_source = source_manager.get_source(restore_source_id)
+    restore_path = (
+        Path(restore_source.local_path) if restore_source
+        else Path(await display_service.get_current_folder())
+    )
+
+    # Build spotlight dir with a single symlink to the target photo
+    if SPOTLIGHT_DIR.exists():
+        shutil.rmtree(SPOTLIGHT_DIR)
+    SPOTLIGHT_DIR.mkdir(parents=True)
+    (SPOTLIGHT_DIR / Path(request.filename).name).symlink_to(photo_path.resolve())
+
+    # Switch display to spotlight dir
+    success = await display_service.switch_folder(SPOTLIGHT_DIR)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to switch display for spotlight",
+        )
+
+    logger.info(f"Spotlight started: '{request.filename}' for {request.duration_seconds}s (restore → '{restore_source_id}')")
+
+    async def _restore() -> None:
+        await asyncio.sleep(request.duration_seconds)
+        logger.info(f"Spotlight ending — restoring to '{restore_source_id}'")
+        await display_service.switch_folder(restore_path)
+        config_manager.set("display.current_source", restore_source_id)
+        reload_settings()
+
+    background_tasks.add_task(_restore)
+
+    restore_name = restore_source.name if restore_source else restore_source_id
+    return SpotlightResponse(
+        success=True,
+        filename=request.filename,
+        duration_seconds=request.duration_seconds,
+        message=f"Displaying '{request.filename}' for {request.duration_seconds}s, then restoring '{restore_name}'",
     )
