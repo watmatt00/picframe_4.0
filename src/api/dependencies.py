@@ -37,6 +37,13 @@ async def get_current_device(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    if device_storage.get_device(claims.device_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Device has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     device_storage.update_last_seen(claims.device_id)
     return claims
 
