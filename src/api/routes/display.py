@@ -239,9 +239,9 @@ async def spotlight_photo(
 
     # Wait for Pi3D to complete the fade transition to the spotlight photo
     # before pausing. Pi3D processes the subdirectory change on its next loop
-    # iteration and then fades in over fade_time (default 2s). Pausing too
-    # early freezes the old photo instead of the spotlight photo.
-    await asyncio.sleep(3.5)
+    # iteration and then fades in over fade_time (3s on this frame). Pausing
+    # too early freezes the old photo instead of the spotlight photo.
+    await asyncio.sleep(4.5)
     await display_service.pause()
 
     logger.info(f"Spotlight started: '{request.filename}' for {request.duration_seconds}s (restore → '{restore_source_id}')")
