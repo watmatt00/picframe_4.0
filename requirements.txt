@@ -18,6 +18,7 @@ qrcode[pil]>=7.4.2
 
 # Image processing (thumbnails)
 Pillow>=10.0.0
+pillow-heif>=0.13
 
 # File handling
 python-multipart>=0.0.6

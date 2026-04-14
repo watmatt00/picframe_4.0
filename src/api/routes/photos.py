@@ -7,6 +7,7 @@ Provides per-source photo listing, thumbnail generation, and deletion:
 - DELETE /sources/{source_id}/photos/{filename}  — delete from cloud first, then local
 """
 
+import asyncio
 import io
 import logging
 from pathlib import Path
@@ -104,13 +105,27 @@ async def get_thumbnail(
     from PIL import Image  # noqa: PLC0415 — lazy import, Pillow is optional at startup
 
     THUMB_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    try:
-        with Image.open(local_file) as img:
+
+    # Capture locals for the thread (Path objects are safe to pass across threads)
+    _local_file = local_file
+
+    def _generate_thumb() -> bytes:
+        """Run in executor — keeps Pillow CPU work off the asyncio event loop."""
+        try:
+            import pillow_heif  # noqa: PLC0415
+            pillow_heif.register_heif_opener()
+        except ImportError:
+            pass  # HEIC support optional; JPEG/PNG still work
+        with Image.open(_local_file) as img:
             img = img.convert("RGB")
             img.thumbnail(THUMB_SIZE, Image.LANCZOS)
             buf = io.BytesIO()
             img.save(buf, format="JPEG", quality=75, optimize=True)
-            jpeg_bytes = buf.getvalue()
+            return buf.getvalue()
+
+    try:
+        loop = asyncio.get_event_loop()
+        jpeg_bytes = await loop.run_in_executor(None, _generate_thumb)
     except Exception as exc:
         logger.warning(f"Thumbnail generation failed for {filename}: {exc}")
         raise HTTPException(500, f"Failed to generate thumbnail: {exc}")
