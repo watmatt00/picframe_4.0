@@ -248,7 +248,7 @@
                         <div class="card-title">⚙️ Frame Settings</div>
                         <div class="card-subtitle">Configure your picture frame</div>
                     </div>
-                    <button class="advanced-toggle" id="settings-form-toggle">▸ Show</button>
+                    <button class="advanced-toggle" id="settings-form-toggle" style="display:none;">▾ Hide</button>
                 </div>
 
                 <div class="advanced-section" id="settings-form-section">
@@ -345,7 +345,7 @@
                         <div class="card-title">📱 Mobile App Pairing</div>
                         <div class="card-subtitle">Connect your phone to control this frame</div>
                     </div>
-                    <button class="advanced-toggle" id="pairing-toggle">▸ Show</button>
+                    <button class="advanced-toggle" id="pairing-toggle" style="display:none;">▾ Hide</button>
                 </div>
 
                 <div class="advanced-section" id="pairing-section">
@@ -435,7 +435,7 @@
                         <div class="card-title">📋 Logs</div>
                         <div class="card-subtitle">Operations and security log viewer</div>
                     </div>
-                    <button class="advanced-toggle" id="settings-logs-toggle">▸ Show</button>
+                    <button class="advanced-toggle" id="settings-logs-toggle" style="display:none;">▾ Hide</button>
                 </div>
                 <div class="advanced-section" id="settings-logs-section">
                     <div style="padding: 0 1.5rem 1.5rem;">
@@ -467,7 +467,7 @@
                         <div class="card-title">🔄 Updates</div>
                         <div class="card-subtitle">Check for and apply updates from GitHub</div>
                     </div>
-                    <button class="advanced-toggle" id="updates-toggle">▸ Show</button>
+                    <button class="advanced-toggle" id="updates-toggle" style="display:none;">▾ Hide</button>
                 </div>
                 <div class="advanced-section" id="updates-section">
                 <div style="padding: 0 1.5rem 1.5rem;">
@@ -616,17 +616,20 @@
 
             <!-- Filename Cleaner -->
             <section class="card" style="margin-bottom:1.5rem;">
-                <div class="card-header">
+                <div class="card-header card-header--expandable" id="filenames-card-header">
                     <div>
                         <div class="card-title">✏️ Filename Cleaner</div>
                         <div class="card-subtitle">Remove Google Photos ID tokens, numbered suffixes, fix extension case</div>
                     </div>
-                    <button class="btn secondary" id="btn-scan-filenames" style="flex-shrink:0;">Scan</button>
+                    <span id="filenames-scan-status" style="color:#94a3b8;font-size:0.875rem;flex-shrink:0;"></span>
                 </div>
                 <div id="filenames-result" style="padding:0 1.5rem 1.5rem; display:none;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
                         <div id="filenames-summary" style="color:#94a3b8; font-size:0.9rem;"></div>
-                        <button class="advanced-toggle" id="btn-close-filenames">✕ Close</button>
+                        <div style="display:flex;gap:0.75rem;align-items:center;">
+                            <button class="advanced-toggle" id="btn-rescan-filenames">↻ Rescan</button>
+                            <button class="advanced-toggle" id="btn-close-filenames">✕ Close</button>
+                        </div>
                     </div>
                     <div id="filenames-filter-bar" style="margin-bottom:0.75rem;"></div>
                     <div class="button-row" style="margin-bottom:0.75rem;">
@@ -659,17 +662,20 @@
 
             <!-- Duplicate Finder -->
             <section class="card" style="margin-bottom:1.5rem;">
-                <div class="card-header">
+                <div class="card-header card-header--expandable" id="duplicates-card-header">
                     <div>
                         <div class="card-title">🔁 Duplicate Finder</div>
                         <div class="card-subtitle">Finds byte-for-byte identical files. One copy is kept; duplicates are deleted.</div>
                     </div>
-                    <button class="btn secondary" id="btn-scan-duplicates" style="flex-shrink:0;">Scan</button>
+                    <span id="duplicates-scan-status" style="color:#94a3b8;font-size:0.875rem;flex-shrink:0;"></span>
                 </div>
                 <div id="duplicates-result" style="padding:0 1.5rem 1.5rem; display:none;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
                         <div id="duplicates-summary" style="color:#94a3b8; font-size:0.9rem;"></div>
-                        <button class="advanced-toggle" id="btn-close-duplicates">✕ Close</button>
+                        <div style="display:flex;gap:0.75rem;align-items:center;">
+                            <button class="advanced-toggle" id="btn-rescan-duplicates">↻ Rescan</button>
+                            <button class="advanced-toggle" id="btn-close-duplicates">✕ Close</button>
+                        </div>
                     </div>
                     <div class="button-row" style="margin-bottom:0.75rem;">
                         <button class="btn btn-danger" id="btn-apply-duplicates-top" disabled>Delete Duplicates</button>
@@ -687,17 +693,20 @@
 
             <!-- Video File Manager -->
             <section class="card" style="margin-bottom:1.5rem;">
-                <div class="card-header">
+                <div class="card-header card-header--expandable" id="videos-card-header">
                     <div>
                         <div class="card-title">🎬 Video File Manager</div>
                         <div class="card-subtitle">Pi3D cannot display video files — find and remove them from your library</div>
                     </div>
-                    <button class="btn secondary" id="btn-scan-videos" style="flex-shrink:0;">Scan</button>
+                    <span id="videos-scan-status" style="color:#94a3b8;font-size:0.875rem;flex-shrink:0;"></span>
                 </div>
                 <div id="videos-result" style="padding:0 1.5rem 1.5rem; display:none;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
                         <div id="videos-summary" style="color:#94a3b8; font-size:0.9rem;"></div>
-                        <button class="advanced-toggle" id="btn-close-videos">✕ Close</button>
+                        <div style="display:flex;gap:0.75rem;align-items:center;">
+                            <button class="advanced-toggle" id="btn-rescan-videos">↻ Rescan</button>
+                            <button class="advanced-toggle" id="btn-close-videos">✕ Close</button>
+                        </div>
                     </div>
                     <div class="button-row" style="margin-bottom:0.75rem;">
                         <button class="btn btn-danger" id="btn-apply-videos-top" disabled>Delete Selected Videos</button>
@@ -726,17 +735,20 @@
 
             <!-- Rename File -->
             <section class="card" style="margin-bottom:1.5rem;">
-                <div class="card-header">
+                <div class="card-header card-header--expandable" id="rename-card-header">
                     <div>
                         <div class="card-title">✏️ Rename File</div>
                         <div class="card-subtitle">Browse all files and rename individually — cloud + local</div>
                     </div>
-                    <button class="btn secondary" id="btn-scan-rename" style="flex-shrink:0;">Scan</button>
+                    <span id="rename-scan-status" style="color:#94a3b8;font-size:0.875rem;flex-shrink:0;"></span>
                 </div>
                 <div id="rename-result" style="padding:0 1.5rem 1.5rem; display:none;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
                         <div id="rename-summary" style="color:#94a3b8;font-size:0.9rem;"></div>
-                        <button class="advanced-toggle" id="btn-close-rename">✕ Close</button>
+                        <div style="display:flex;gap:0.75rem;align-items:center;">
+                            <button class="advanced-toggle" id="btn-rescan-rename">↻ Rescan</button>
+                            <button class="advanced-toggle" id="btn-close-rename">✕ Close</button>
+                        </div>
                     </div>
                     <div class="button-row" style="margin-bottom:0.75rem;">
                         <button class="btn" id="btn-apply-rename-top" disabled>Apply Renames</button>
@@ -769,7 +781,7 @@
                         <div class="card-title">💾 Photo Backups</div>
                         <div class="card-subtitle">Create and manage local tar.gz backups — saved to ~/Pictures/backups/</div>
                     </div>
-                    <button class="advanced-toggle" id="backup-toggle">▸ Show</button>
+                    <button class="advanced-toggle" id="backup-toggle" style="display:none;">▾ Hide</button>
                 </div>
                 <div class="advanced-section" id="backup-section">
                     <div style="padding:0 1.5rem 1.5rem;">

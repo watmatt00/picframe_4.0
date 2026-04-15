@@ -65,9 +65,21 @@ function switchTab(tabId) {
 // =============================================================================
 
 function initAdvancedToggles() {
-    // Helper: sync cursor on the card-header — pointer when collapsed, default when expanded
+    // Helper: pointer cursor on header when collapsed, default when expanded
     function updateHeaderCursor(header, section) {
         header.classList.toggle('card-header--expandable', !section.classList.contains('visible'));
+    }
+
+    // Helper: expand a section and show its hide button
+    function expandSection(section, btn) {
+        section.classList.add('visible');
+        btn.style.display = '';
+    }
+
+    // Helper: collapse a section and hide its hide button
+    function collapseSection(section, btn) {
+        section.classList.remove('visible');
+        btn.style.display = 'none';
     }
 
     // Settings logs toggle
@@ -77,19 +89,17 @@ function initAdvancedToggles() {
         const settingsLogsHeader = settingsLogsToggle.closest('.card-header');
         settingsLogsToggle.addEventListener('click', (e) => {
             e.stopPropagation();
-            settingsLogsSection.classList.toggle('visible');
-            settingsLogsToggle.textContent = settingsLogsSection.classList.contains('visible')
-                ? '▾ Hide'
-                : '▸ Show';
             if (settingsLogsSection.classList.contains('visible')) {
+                collapseSection(settingsLogsSection, settingsLogsToggle);
+            } else {
+                expandSection(settingsLogsSection, settingsLogsToggle);
                 loadSettingsLogs();
             }
             updateHeaderCursor(settingsLogsHeader, settingsLogsSection);
         });
         settingsLogsHeader.addEventListener('click', () => {
             if (!settingsLogsSection.classList.contains('visible')) {
-                settingsLogsSection.classList.add('visible');
-                settingsLogsToggle.textContent = '▾ Hide';
+                expandSection(settingsLogsSection, settingsLogsToggle);
                 loadSettingsLogs();
                 updateHeaderCursor(settingsLogsHeader, settingsLogsSection);
             }
@@ -104,22 +114,20 @@ function initAdvancedToggles() {
         const pairingHeader = pairingToggle.closest('.card-header');
         pairingToggle.addEventListener('click', (e) => {
             e.stopPropagation();
-            pairingSection.classList.toggle('visible');
-            const isVisible = pairingSection.classList.contains('visible');
-            pairingToggle.textContent = isVisible ? '▾ Hide' : '▸ Show';
-            // Collapse the devices card when pairing section hides
-            if (!isVisible) {
+            if (pairingSection.classList.contains('visible')) {
+                collapseSection(pairingSection, pairingToggle);
                 const devicesCard = document.getElementById('devices-card');
                 const toggleBtn = document.getElementById('btn-toggle-devices');
                 if (devicesCard) devicesCard.style.display = 'none';
                 if (toggleBtn) toggleBtn.textContent = 'Manage Devices';
+            } else {
+                expandSection(pairingSection, pairingToggle);
             }
             updateHeaderCursor(pairingHeader, pairingSection);
         });
         pairingHeader.addEventListener('click', () => {
             if (!pairingSection.classList.contains('visible')) {
-                pairingSection.classList.add('visible');
-                pairingToggle.textContent = '▾ Hide';
+                expandSection(pairingSection, pairingToggle);
                 updateHeaderCursor(pairingHeader, pairingSection);
             }
         });
@@ -133,16 +141,16 @@ function initAdvancedToggles() {
         const settingsFormHeader = settingsFormToggle.closest('.card-header');
         settingsFormToggle.addEventListener('click', (e) => {
             e.stopPropagation();
-            settingsFormSection.classList.toggle('visible');
-            settingsFormToggle.textContent = settingsFormSection.classList.contains('visible')
-                ? '▾ Hide'
-                : '▸ Show';
+            if (settingsFormSection.classList.contains('visible')) {
+                collapseSection(settingsFormSection, settingsFormToggle);
+            } else {
+                expandSection(settingsFormSection, settingsFormToggle);
+            }
             updateHeaderCursor(settingsFormHeader, settingsFormSection);
         });
         settingsFormHeader.addEventListener('click', () => {
             if (!settingsFormSection.classList.contains('visible')) {
-                settingsFormSection.classList.add('visible');
-                settingsFormToggle.textContent = '▾ Hide';
+                expandSection(settingsFormSection, settingsFormToggle);
                 updateHeaderCursor(settingsFormHeader, settingsFormSection);
             }
         });
@@ -168,16 +176,16 @@ function initAdvancedToggles() {
         const updatesHeader = updatesToggle.closest('.card-header');
         updatesToggle.addEventListener('click', (e) => {
             e.stopPropagation();
-            updatesSection.classList.toggle('visible');
-            updatesToggle.textContent = updatesSection.classList.contains('visible')
-                ? '▾ Hide'
-                : '▸ Show';
+            if (updatesSection.classList.contains('visible')) {
+                collapseSection(updatesSection, updatesToggle);
+            } else {
+                expandSection(updatesSection, updatesToggle);
+            }
             updateHeaderCursor(updatesHeader, updatesSection);
         });
         updatesHeader.addEventListener('click', () => {
             if (!updatesSection.classList.contains('visible')) {
-                updatesSection.classList.add('visible');
-                updatesToggle.textContent = '▾ Hide';
+                expandSection(updatesSection, updatesToggle);
                 updateHeaderCursor(updatesHeader, updatesSection);
             }
         });
@@ -191,18 +199,17 @@ function initAdvancedToggles() {
         const backupHeader = backupToggle.closest('.card-header');
         backupToggle.addEventListener('click', (e) => {
             e.stopPropagation();
-            backupSection.classList.toggle('visible');
-            const isVisible = backupSection.classList.contains('visible');
-            backupToggle.textContent = isVisible ? '▾ Hide' : '▸ Show';
-            if (isVisible) {
+            if (backupSection.classList.contains('visible')) {
+                collapseSection(backupSection, backupToggle);
+            } else {
+                expandSection(backupSection, backupToggle);
                 loadBackupList();
             }
             updateHeaderCursor(backupHeader, backupSection);
         });
         backupHeader.addEventListener('click', () => {
             if (!backupSection.classList.contains('visible')) {
-                backupSection.classList.add('visible');
-                backupToggle.textContent = '▾ Hide';
+                expandSection(backupSection, backupToggle);
                 loadBackupList();
                 updateHeaderCursor(backupHeader, backupSection);
             }
@@ -1513,12 +1520,43 @@ async function saveUpdateSchedule() {
 function initPhotoTools() {
     // Source loading is triggered by switchTab('tools') — see switchTab().
 
+    // Helper: wire a scan card header — click header to scan, close/rescan buttons in result bar
+    function initScanCard(headerEl, resultEl, statusEl, scanFn, closeFn, rescanFn) {
+        if (!headerEl || !resultEl) return;
+
+        // Header click: trigger scan only when result is hidden and not already scanning
+        headerEl.addEventListener('click', () => {
+            if (headerEl.dataset.scanning) return;
+            if (resultEl.style.display !== 'none' && resultEl.style.display !== '') return;
+            scanFn();
+        });
+
+        // Close button: hide result and restore expandable cursor
+        if (closeFn) closeFn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resultEl.style.display = 'none';
+            headerEl.classList.add('card-header--expandable');
+        });
+
+        // Rescan button: re-run scan even when results are showing
+        if (rescanFn) rescanFn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!headerEl.dataset.scanning) scanFn();
+        });
+    }
+
     // Filename Cleaner
-    const btnScanFn = document.getElementById('btn-scan-filenames');
+    const fnHeader = document.getElementById('filenames-card-header');
+    const fnResult = document.getElementById('filenames-result');
     const btnApplyFn = document.getElementById('btn-apply-filenames');
     const btnApplyFnTop = document.getElementById('btn-apply-filenames-top');
     const chkAllFn = document.getElementById('filenames-check-all');
-    if (btnScanFn) btnScanFn.addEventListener('click', runFilenameScan);
+    initScanCard(
+        fnHeader, fnResult, document.getElementById('filenames-scan-status'),
+        runFilenameScan,
+        document.getElementById('btn-close-filenames'),
+        document.getElementById('btn-rescan-filenames')
+    );
     if (btnApplyFn) btnApplyFn.addEventListener('click', runFilenameApply);
     if (btnApplyFnTop) btnApplyFnTop.addEventListener('click', runFilenameApply);
     if (chkAllFn) chkAllFn.addEventListener('change', function () {
@@ -1533,38 +1571,36 @@ function initPhotoTools() {
     });
 
     // Duplicate Finder
-    const btnScanDup = document.getElementById('btn-scan-duplicates');
+    const dupHeader = document.getElementById('duplicates-card-header');
+    const dupResult = document.getElementById('duplicates-result');
     const btnApplyDup = document.getElementById('btn-apply-duplicates');
     const btnApplyDupTop = document.getElementById('btn-apply-duplicates-top');
-    if (btnScanDup) btnScanDup.addEventListener('click', runDupScan);
+    initScanCard(
+        dupHeader, dupResult, document.getElementById('duplicates-scan-status'),
+        runDupScan,
+        document.getElementById('btn-close-duplicates'),
+        document.getElementById('btn-rescan-duplicates')
+    );
     if (btnApplyDup) btnApplyDup.addEventListener('click', runDupApply);
     if (btnApplyDupTop) btnApplyDupTop.addEventListener('click', runDupApply);
 
     // Video Manager
-    const btnScanVid = document.getElementById('btn-scan-videos');
+    const vidHeader = document.getElementById('videos-card-header');
+    const vidResult = document.getElementById('videos-result');
     const btnApplyVid = document.getElementById('btn-apply-videos');
     const btnApplyVidTop = document.getElementById('btn-apply-videos-top');
     const chkAllVid = document.getElementById('videos-check-all');
-    if (btnScanVid) btnScanVid.addEventListener('click', runVideoScan);
+    initScanCard(
+        vidHeader, vidResult, document.getElementById('videos-scan-status'),
+        runVideoScan,
+        document.getElementById('btn-close-videos'),
+        document.getElementById('btn-rescan-videos')
+    );
     if (btnApplyVid) btnApplyVid.addEventListener('click', runVideoApply);
     if (btnApplyVidTop) btnApplyVidTop.addEventListener('click', runVideoApply);
     if (chkAllVid) chkAllVid.addEventListener('change', function () {
         document.querySelectorAll('.video-check').forEach(cb => cb.checked = this.checked);
         updateVideoApplyBtn();
-    });
-
-    // Close buttons
-    const closeFn = document.getElementById('btn-close-filenames');
-    const closeDup = document.getElementById('btn-close-duplicates');
-    const closeVid = document.getElementById('btn-close-videos');
-    if (closeFn) closeFn.addEventListener('click', () => {
-        document.getElementById('filenames-result').style.display = 'none';
-    });
-    if (closeDup) closeDup.addEventListener('click', () => {
-        document.getElementById('duplicates-result').style.display = 'none';
-    });
-    if (closeVid) closeVid.addEventListener('click', () => {
-        document.getElementById('videos-result').style.display = 'none';
     });
 
     // Cancel buttons
@@ -1582,16 +1618,18 @@ function initPhotoTools() {
     });
 
     // Rename File card
-    const btnScanRename = document.getElementById('btn-scan-rename');
+    const renameHeader = document.getElementById('rename-card-header');
+    const renameResult = document.getElementById('rename-result');
     const btnApplyRename = document.getElementById('btn-apply-rename');
     const btnApplyRenameTop = document.getElementById('btn-apply-rename-top');
-    const btnCloseRename = document.getElementById('btn-close-rename');
-    if (btnScanRename) btnScanRename.addEventListener('click', runRenameScan);
+    initScanCard(
+        renameHeader, renameResult, document.getElementById('rename-scan-status'),
+        runRenameScan,
+        document.getElementById('btn-close-rename'),
+        document.getElementById('btn-rescan-rename')
+    );
     if (btnApplyRename) btnApplyRename.addEventListener('click', runRenameApply);
     if (btnApplyRenameTop) btnApplyRenameTop.addEventListener('click', runRenameApply);
-    if (btnCloseRename) btnCloseRename.addEventListener('click', () => {
-        document.getElementById('rename-result').style.display = 'none';
-    });
 
     // Photo Backups card
     const btnCreateBackup = document.getElementById('btn-create-backup');
@@ -1748,8 +1786,11 @@ function reasonLabel(r) {
 async function runFilenameScan() {
     const src = toolsSourceId();
     if (!src) { alert('Select a source first'); return; }
-    const btn = document.getElementById('btn-scan-filenames');
-    btn.disabled = true; btn.textContent = 'Scanning…';
+    const header = document.getElementById('filenames-card-header');
+    const statusEl = document.getElementById('filenames-scan-status');
+    header.dataset.scanning = 'true';
+    header.classList.remove('card-header--expandable');
+    if (statusEl) statusEl.textContent = 'Scanning…';
     document.getElementById('filenames-result').style.display = 'none';
     try {
         const data = await apiFetch(`/api/tools/${src}/scan/filenames`);
@@ -1757,8 +1798,10 @@ async function runFilenameScan() {
         renderFilenameResults(src, data);
     } catch (e) {
         alert('Filename scan failed: ' + e.message);
+        header.classList.add('card-header--expandable');
     } finally {
-        btn.disabled = false; btn.textContent = 'Scan';
+        delete header.dataset.scanning;
+        if (statusEl) statusEl.textContent = '';
     }
 }
 
@@ -2046,8 +2089,11 @@ async function runFilenameApply() {
 async function runDupScan() {
     const src = toolsSourceId();
     if (!src) { alert('Select a source first'); return; }
-    const btn = document.getElementById('btn-scan-duplicates');
-    btn.disabled = true; btn.textContent = 'Scanning…';
+    const header = document.getElementById('duplicates-card-header');
+    const statusEl = document.getElementById('duplicates-scan-status');
+    header.dataset.scanning = 'true';
+    header.classList.remove('card-header--expandable');
+    if (statusEl) statusEl.textContent = 'Scanning…';
     document.getElementById('duplicates-result').style.display = 'none';
     try {
         const data = await apiFetch(`/api/tools/${src}/scan/duplicates`);
@@ -2055,8 +2101,10 @@ async function runDupScan() {
         renderDupResults(src, data);
     } catch (e) {
         alert('Duplicate scan failed: ' + e.message);
+        header.classList.add('card-header--expandable');
     } finally {
-        btn.disabled = false; btn.textContent = 'Scan';
+        delete header.dataset.scanning;
+        if (statusEl) statusEl.textContent = '';
     }
 }
 
@@ -2207,8 +2255,11 @@ async function runDupApply() {
 async function runVideoScan() {
     const src = toolsSourceId();
     if (!src) { alert('Select a source first'); return; }
-    const btn = document.getElementById('btn-scan-videos');
-    btn.disabled = true; btn.textContent = 'Scanning…';
+    const header = document.getElementById('videos-card-header');
+    const statusEl = document.getElementById('videos-scan-status');
+    header.dataset.scanning = 'true';
+    header.classList.remove('card-header--expandable');
+    if (statusEl) statusEl.textContent = 'Scanning…';
     document.getElementById('videos-result').style.display = 'none';
     try {
         const data = await apiFetch(`/api/tools/${src}/scan/videos`);
@@ -2216,8 +2267,10 @@ async function runVideoScan() {
         renderVideoResults(src, data);
     } catch (e) {
         alert('Video scan failed: ' + e.message);
+        header.classList.add('card-header--expandable');
     } finally {
-        btn.disabled = false; btn.textContent = 'Scan';
+        delete header.dataset.scanning;
+        if (statusEl) statusEl.textContent = '';
     }
 }
 
@@ -2338,11 +2391,13 @@ let _renameFileSet = new Set();
 async function runRenameScan() {
     const srcId = toolsSourceId();
     if (!srcId) { alert('Select a source first.'); return; }
-    const btn = document.getElementById('btn-scan-rename');
+    const header = document.getElementById('rename-card-header');
+    const statusEl = document.getElementById('rename-scan-status');
     const summaryEl = document.getElementById('rename-summary');
     const resultEl = document.getElementById('rename-result');
-    btn.disabled = true;
-    btn.textContent = 'Scanning…';
+    header.dataset.scanning = 'true';
+    header.classList.remove('card-header--expandable');
+    if (statusEl) statusEl.textContent = 'Scanning…';
     resultEl.style.display = 'none';
     summaryEl.textContent = 'Reading files and EXIF data — may take a moment…';
     try {
@@ -2384,9 +2439,10 @@ async function runRenameScan() {
     } catch (e) {
         summaryEl.textContent = '❌ ' + e.message;
         summaryEl.style.color = '#f87171';
+        header.classList.add('card-header--expandable');
     } finally {
-        btn.disabled = false;
-        btn.textContent = 'Scan';
+        delete header.dataset.scanning;
+        if (statusEl) statusEl.textContent = '';
     }
 }
 
