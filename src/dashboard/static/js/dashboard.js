@@ -65,11 +65,18 @@ function switchTab(tabId) {
 // =============================================================================
 
 function initAdvancedToggles() {
+    // Helper: sync cursor on the card-header — pointer when collapsed, default when expanded
+    function updateHeaderCursor(header, section) {
+        header.classList.toggle('card-header--expandable', !section.classList.contains('visible'));
+    }
+
     // Settings logs toggle
     const settingsLogsToggle = document.getElementById('settings-logs-toggle');
     const settingsLogsSection = document.getElementById('settings-logs-section');
     if (settingsLogsToggle && settingsLogsSection) {
-        settingsLogsToggle.addEventListener('click', () => {
+        const settingsLogsHeader = settingsLogsToggle.closest('.card-header');
+        settingsLogsToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
             settingsLogsSection.classList.toggle('visible');
             settingsLogsToggle.textContent = settingsLogsSection.classList.contains('visible')
                 ? '▾ Hide'
@@ -77,14 +84,26 @@ function initAdvancedToggles() {
             if (settingsLogsSection.classList.contains('visible')) {
                 loadSettingsLogs();
             }
+            updateHeaderCursor(settingsLogsHeader, settingsLogsSection);
         });
+        settingsLogsHeader.addEventListener('click', () => {
+            if (!settingsLogsSection.classList.contains('visible')) {
+                settingsLogsSection.classList.add('visible');
+                settingsLogsToggle.textContent = '▾ Hide';
+                loadSettingsLogs();
+                updateHeaderCursor(settingsLogsHeader, settingsLogsSection);
+            }
+        });
+        updateHeaderCursor(settingsLogsHeader, settingsLogsSection);
     }
 
     // Mobile App Pairing card toggle
     const pairingToggle = document.getElementById('pairing-toggle');
     const pairingSection = document.getElementById('pairing-section');
     if (pairingToggle && pairingSection) {
-        pairingToggle.addEventListener('click', () => {
+        const pairingHeader = pairingToggle.closest('.card-header');
+        pairingToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
             pairingSection.classList.toggle('visible');
             const isVisible = pairingSection.classList.contains('visible');
             pairingToggle.textContent = isVisible ? '▾ Hide' : '▸ Show';
@@ -95,22 +114,42 @@ function initAdvancedToggles() {
                 if (devicesCard) devicesCard.style.display = 'none';
                 if (toggleBtn) toggleBtn.textContent = 'Manage Devices';
             }
+            updateHeaderCursor(pairingHeader, pairingSection);
         });
+        pairingHeader.addEventListener('click', () => {
+            if (!pairingSection.classList.contains('visible')) {
+                pairingSection.classList.add('visible');
+                pairingToggle.textContent = '▾ Hide';
+                updateHeaderCursor(pairingHeader, pairingSection);
+            }
+        });
+        updateHeaderCursor(pairingHeader, pairingSection);
     }
 
     // Frame Settings card toggle
     const settingsFormToggle = document.getElementById('settings-form-toggle');
     const settingsFormSection = document.getElementById('settings-form-section');
     if (settingsFormToggle && settingsFormSection) {
-        settingsFormToggle.addEventListener('click', () => {
+        const settingsFormHeader = settingsFormToggle.closest('.card-header');
+        settingsFormToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
             settingsFormSection.classList.toggle('visible');
             settingsFormToggle.textContent = settingsFormSection.classList.contains('visible')
                 ? '▾ Hide'
                 : '▸ Show';
+            updateHeaderCursor(settingsFormHeader, settingsFormSection);
         });
+        settingsFormHeader.addEventListener('click', () => {
+            if (!settingsFormSection.classList.contains('visible')) {
+                settingsFormSection.classList.add('visible');
+                settingsFormToggle.textContent = '▾ Hide';
+                updateHeaderCursor(settingsFormHeader, settingsFormSection);
+            }
+        });
+        updateHeaderCursor(settingsFormHeader, settingsFormSection);
     }
 
-    // Network info sub-card toggle
+    // Network info sub-card toggle (no card-header class — button only, unchanged)
     const networkInfoToggle = document.getElementById('network-info-toggle');
     const networkInfoSection = document.getElementById('network-info-section');
     if (networkInfoToggle && networkInfoSection) {
@@ -126,29 +165,52 @@ function initAdvancedToggles() {
     const updatesToggle = document.getElementById('updates-toggle');
     const updatesSection = document.getElementById('updates-section');
     if (updatesToggle && updatesSection) {
-        updatesToggle.addEventListener('click', () => {
+        const updatesHeader = updatesToggle.closest('.card-header');
+        updatesToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
             updatesSection.classList.toggle('visible');
             updatesToggle.textContent = updatesSection.classList.contains('visible')
                 ? '▾ Hide'
                 : '▸ Show';
+            updateHeaderCursor(updatesHeader, updatesSection);
         });
+        updatesHeader.addEventListener('click', () => {
+            if (!updatesSection.classList.contains('visible')) {
+                updatesSection.classList.add('visible');
+                updatesToggle.textContent = '▾ Hide';
+                updateHeaderCursor(updatesHeader, updatesSection);
+            }
+        });
+        updateHeaderCursor(updatesHeader, updatesSection);
     }
 
     // Photo Backups card toggle
     const backupToggle = document.getElementById('backup-toggle');
     const backupSection = document.getElementById('backup-section');
     if (backupToggle && backupSection) {
-        backupToggle.addEventListener('click', () => {
+        const backupHeader = backupToggle.closest('.card-header');
+        backupToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
             backupSection.classList.toggle('visible');
             const isVisible = backupSection.classList.contains('visible');
             backupToggle.textContent = isVisible ? '▾ Hide' : '▸ Show';
             if (isVisible) {
                 loadBackupList();
             }
+            updateHeaderCursor(backupHeader, backupSection);
         });
+        backupHeader.addEventListener('click', () => {
+            if (!backupSection.classList.contains('visible')) {
+                backupSection.classList.add('visible');
+                backupToggle.textContent = '▾ Hide';
+                loadBackupList();
+                updateHeaderCursor(backupHeader, backupSection);
+            }
+        });
+        updateHeaderCursor(backupHeader, backupSection);
     }
 
-    // Sources table advanced toggle
+    // Sources table advanced toggle (column visibility — unchanged)
     const sourcesTableToggle = document.getElementById('sources-table-advanced-toggle');
     const sourcesTable = document.getElementById('sources-table');
     if (sourcesTableToggle && sourcesTable) {

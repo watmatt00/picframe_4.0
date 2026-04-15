@@ -427,6 +427,10 @@ button {
 .advanced-toggle:hover {
     color: #cbd5e1;
 }
+.card-header--expandable {
+    cursor: pointer;
+    user-select: none;
+}
 .meta-line {
     margin-top: 0.35rem;
     font-size: 0.78rem;
