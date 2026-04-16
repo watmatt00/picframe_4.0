@@ -6,9 +6,8 @@ Pydantic settings with environment variable and YAML file support.
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import yaml
 
@@ -60,50 +59,6 @@ class UpdatesConfig(BaseModel):
     available_commit: Optional[str] = Field(default=None, description="Short hash if update available")
 
 
-class Source(BaseModel):
-    """Photo source configuration."""
-    id: str = Field(description="Unique source identifier")
-    name: str = Field(description="Human-readable source name")
-    local_path: str = Field(description="Local directory path for synced photos")
-    rclone_remote: str = Field(default="", description="rclone remote spec (e.g., 'koofr:KFR_kframe')")
-    enabled: bool = Field(default=True, description="Whether this source is active")
-
-    def get_local_path(self) -> Path:
-        """Get the local path as a Path object."""
-        return Path(self.local_path).expanduser()
-
-
-class SourcesConfig(BaseModel):
-    """Photo sources configuration."""
-    sources: list[Source] = Field(
-        default_factory=lambda: [
-            Source(
-                id="local",
-                name="Local Photos",
-                local_path="~/Pictures",
-                rclone_remote="",
-                enabled=True,
-            )
-        ],
-        description="List of photo sources"
-    )
-
-    def get_source(self, source_id: str) -> Optional[Source]:
-        """Get a source by ID."""
-        for source in self.sources:
-            if source.id == source_id:
-                return source
-        return None
-
-    def get_enabled_sources(self) -> list[Source]:
-        """Get all enabled sources."""
-        return [s for s in self.sources if s.enabled]
-
-    def get_syncable_sources(self) -> list[Source]:
-        """Get sources that have rclone remotes configured."""
-        return [s for s in self.sources if s.enabled and s.rclone_remote]
-
-
 class Settings(BaseSettings):
     """
     Application settings.
@@ -124,7 +79,6 @@ class Settings(BaseSettings):
     sync: SyncConfig = Field(default_factory=SyncConfig)
     tailscale: TailscaleConfig = Field(default_factory=TailscaleConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
-    sources: SourcesConfig = Field(default_factory=SourcesConfig)
     updates: UpdatesConfig = Field(default_factory=UpdatesConfig)
 
     @classmethod

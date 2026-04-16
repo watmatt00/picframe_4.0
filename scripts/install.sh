@@ -51,9 +51,16 @@ if [[ ! -f "$CONFIG_DIR/config.yaml" ]]; then
     echo "Created $CONFIG_DIR/config.yaml - please customize"
 fi
 
-if [[ ! -f "$CONFIG_DIR/sources.yaml" ]] && [[ -f "$PROJECT_DIR/config/sources.example.yaml" ]]; then
-    cp "$PROJECT_DIR/config/sources.example.yaml" "$CONFIG_DIR/sources.yaml"
-    echo "Created $CONFIG_DIR/sources.yaml - please customize"
+if [[ ! -f "$CONFIG_DIR/sources.yaml" ]]; then
+    cat > "$CONFIG_DIR/sources.yaml" << 'SOURCES_EOF'
+sources:
+  - id: "local"
+    name: "Local Photos"
+    local_path: "~/Pictures/local"
+    rclone_remote: ""
+    enabled: true
+SOURCES_EOF
+    echo "Created $CONFIG_DIR/sources.yaml - please customize with your photo sources"
 fi
 
 # Set up systemd services
