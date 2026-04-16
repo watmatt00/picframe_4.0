@@ -497,7 +497,7 @@ async def trigger_sync():
         try:
             await sync_service.sync_source(
                 source_id=source.id,
-                local_path=Path(source.local_path),
+                local_path=Path(source.local_path).expanduser(),
                 rclone_remote=source.rclone_remote,
             )
             logger.info(f"Sync completed for source '{source.id}'")
@@ -526,7 +526,7 @@ async def switch_source(source_id: str = Form(...)):
     if not source:
         return RedirectResponse(url="/?error=source_not_found", status_code=303)
 
-    source_path = Path(source.local_path)
+    source_path = Path(source.local_path).expanduser()
     if not source_path.exists():
         source_path.mkdir(parents=True, exist_ok=True)
 

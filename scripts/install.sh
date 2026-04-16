@@ -51,7 +51,7 @@ if [[ ! -f "$CONFIG_DIR/config.yaml" ]]; then
     echo "Created $CONFIG_DIR/config.yaml - please customize"
 fi
 
-if [[ ! -f "$CONFIG_DIR/sources.yaml" ]]; then
+if [[ ! -f "$CONFIG_DIR/sources.yaml" ]] && [[ -f "$PROJECT_DIR/config/sources.example.yaml" ]]; then
     cp "$PROJECT_DIR/config/sources.example.yaml" "$CONFIG_DIR/sources.yaml"
     echo "Created $CONFIG_DIR/sources.yaml - please customize"
 fi
