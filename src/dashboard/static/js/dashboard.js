@@ -1426,7 +1426,7 @@ async function applyUpdate() {
     const spinner = document.getElementById('btn-apply-update-spinner');
     const label = document.getElementById('btn-apply-update-label');
 
-    if (!confirm('Apply update now? This runs git pull on the Pi. The API will need to be restarted to pick up changes.')) return;
+    if (!confirm('Apply update now? This runs git pull and restarts the API.')) return;
 
     if (btn) btn.disabled = true;
     if (spinner) spinner.style.display = 'inline-block';
@@ -1439,9 +1439,9 @@ async function applyUpdate() {
         const data = await resp.json();
 
         if (data.ok) {
-            _setUpdateMsg('Update applied! Restart API to activate.', '#34d399');
+            _setUpdateMsg('Update applied! API restarting...', '#34d399');
             const statusEl = document.getElementById('update-status-text');
-            if (statusEl) statusEl.innerHTML = '<span style="color:#34d399;">Applied — restart required</span>';
+            if (statusEl) statusEl.innerHTML = '<span style="color:#34d399;">Applied — API restarting</span>';
         } else {
             _setUpdateMsg('Apply failed: ' + (data.error || 'unknown error'), '#f87171');
         }
