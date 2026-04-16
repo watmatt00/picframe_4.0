@@ -99,6 +99,9 @@ class Settings(BaseSettings):
         with open(path) as f:
             data = yaml.safe_load(f) or {}
 
+        # sources moved to sources.yaml — silently drop if present in old configs
+        data.pop("sources", None)
+
         return cls(**data)
 
     def to_yaml(self, path: Path = CONFIG_FILE):
