@@ -12,7 +12,7 @@ import os
 import re
 import subprocess
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -569,6 +569,17 @@ async def get_dashboard_status():
     last_sync = _get_last_sync_time()
     last_restart = await _get_last_restart_time()
 
+    # Calculate next sync time from last sync + interval
+    next_sync = None
+    if last_sync:
+        try:
+            settings = get_settings()
+            last_dt = datetime.strptime(last_sync, "%Y-%m-%d %H:%M:%S")
+            next_dt = last_dt + timedelta(seconds=settings.sync.interval)
+            next_sync = next_dt.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+
     return {
         "sync_status": sync_status,
         "local_count": local_count,
@@ -579,6 +590,7 @@ async def get_dashboard_status():
         "storage_total": capacity["total_gb"],
         "storage_percent": capacity["percent_used"],
         "last_sync": last_sync,
+        "next_sync": next_sync,
         "last_restart": last_restart,
         "koofr_configured": _is_koofr_configured(),
     }

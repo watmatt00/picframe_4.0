@@ -259,6 +259,7 @@ function initStatusDashboard() {
     const storageText = document.getElementById("storage-text");
 
     const lastSyncEl = document.getElementById("last-sync");
+    const nextSyncEl = document.getElementById("next-sync");
     const lastRestartEl = document.getElementById("last-restart");
 
     const btnRefresh = document.getElementById("btn-refresh");
@@ -387,6 +388,7 @@ function initStatusDashboard() {
 
             // Last sync and restart
             if (lastSyncEl) lastSyncEl.textContent = data.last_sync || "--";
+            if (nextSyncEl) nextSyncEl.textContent = data.next_sync || "--";
             if (lastRestartEl) lastRestartEl.textContent = data.last_restart || "--";
         } catch (err) {
             console.error("Failed to refresh status", err);
