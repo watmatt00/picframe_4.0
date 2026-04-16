@@ -399,7 +399,7 @@ def count_local_files(path: str | Path) -> int:
     Returns:
         Number of files (0 if path doesn't exist)
     """
-    path = Path(path)
+    path = Path(path).expanduser()
 
     if not path.exists():
         return 0
@@ -441,7 +441,7 @@ async def get_sync_status(
     Returns:
         SyncStatusResult with status, counts, and message
     """
-    local_path = Path(local_path)
+    local_path = Path(local_path).expanduser()
 
     # Validate remote
     if not _validate_remote(remote):
