@@ -6,6 +6,7 @@ Pydantic settings with environment variable and YAML file support.
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Optional
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
