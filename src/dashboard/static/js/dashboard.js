@@ -1439,9 +1439,10 @@ async function applyUpdate() {
         const data = await resp.json();
 
         if (data.ok) {
-            _setUpdateMsg('Update applied! API restarting...', '#34d399');
+            _setUpdateMsg('Update applied! API restarting — page will refresh shortly.', '#34d399');
             const statusEl = document.getElementById('update-status-text');
             if (statusEl) statusEl.innerHTML = '<span style="color:#34d399;">Applied — API restarting</span>';
+            setTimeout(() => location.reload(), 8000);
         } else {
             _setUpdateMsg('Apply failed: ' + (data.error || 'unknown error'), '#f87171');
         }
