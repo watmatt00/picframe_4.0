@@ -3,11 +3,12 @@ PicFrame 4.0 API - Contributor Routes.
 
 Endpoints accessible to both admin and contributor tokens:
 - GET  /contributor/folders              — list uploadable photo sources
-- POST /contributor/upload/{source_id}   — upload a photo directly to a source
+- POST /contributor/upload/{source_id}   — upload a photo to cloud storage
 """
 
 import logging
 import time
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -15,7 +16,7 @@ from pydantic import BaseModel
 
 from src.api.dependencies import require_contributor
 from src.services.source_manager import source_manager
-from src.utils.rclone import IMAGE_EXTENSIONS, _validate_filename, count_local_files
+from src.utils.rclone import IMAGE_EXTENSIONS, _validate_filename, count_local_files, rclone_copyto
 
 logger = logging.getLogger(__name__)
 
@@ -69,20 +70,26 @@ async def contributor_upload(
     device=Depends(require_contributor),
 ):
     """
-    Upload a photo directly to a source's local directory.
+    Upload a photo directly to cloud storage for a source.
 
-    The file is written atomically (write to .tmp, rename). The Pi's
-    scheduled rclone sync will push it to cloud storage on the next cycle.
+    The file is pushed to the source's rclone remote via rclone copyto.
+    It will appear on the frame after the next scheduled sync.
 
     Security:
     - File extension validated against IMAGE_EXTENSIONS whitelist
     - Filename sanitised and path-traversal checked
     - Max 50 MB per file
-    - Writes only to the source's configured local_path
+    - Only cloud-backed sources (with rclone_remote) are accepted
     """
     source = source_manager.get_source(source_id)
     if not source or not source.enabled:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Source '{source_id}' not found")
+
+    if not source.rclone_remote:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Source '{source_id}' has no cloud remote configured",
+        )
 
     filename = (file.filename or "upload.jpg").strip()
     if not _validate_filename(filename):
@@ -95,22 +102,6 @@ async def contributor_upload(
             f"File type '{suffix}' not allowed. Accepted: {', '.join(sorted(IMAGE_EXTENSIONS))}",
         )
 
-    local_dir = Path(source.local_path)
-    local_dir.mkdir(parents=True, exist_ok=True)
-    dest = local_dir / filename
-
-    # Guard against path traversal
-    try:
-        dest.resolve().relative_to(local_dir.resolve())
-    except ValueError:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid filename")
-
-    # On filename conflict, append a timestamp suffix before the extension
-    if dest.exists():
-        stem = dest.stem
-        dest = local_dir / f"{stem}_{int(time.time())}{suffix}"
-        filename = dest.name
-
     contents = await file.read()
     if len(contents) > _MAX_UPLOAD_BYTES:
         raise HTTPException(
@@ -118,23 +109,31 @@ async def contributor_upload(
             "File too large (max 50 MB)",
         )
 
-    tmp = dest.with_suffix(dest.suffix + ".tmp")
+    # Use a timestamp suffix to avoid collisions (same logic as before)
+    stem = Path(filename).stem
+    unique_filename = f"{stem}_{int(time.time())}_{uuid.uuid4().hex[:6]}{suffix}"
+    tmp = Path(f"/tmp/picframe_upload_{uuid.uuid4().hex}{suffix}")
+
     try:
         tmp.write_bytes(contents)
-        tmp.rename(dest)
-    except Exception as exc:
+        result = await rclone_copyto(tmp, f"{source.rclone_remote}/{unique_filename}")
+    finally:
         tmp.unlink(missing_ok=True)
-        logger.error(f"Contributor upload failed for '{filename}': {exc}")
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to save file")
+
+    if not result.success:
+        logger.error(
+            f"Contributor upload failed for '{filename}' → '{source.rclone_remote}': {result.error}"
+        )
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to upload file to cloud")
 
     logger.info(
-        f"Contributor upload: '{filename}' → source '{source_id}' "
+        f"Contributor upload: '{unique_filename}' → source '{source_id}' "
         f"by '{device.device_name}' (role={device.role})"
     )
 
     return ContributorUploadResponse(
         success=True,
-        file_name=filename,
+        file_name=unique_filename,
         source_id=source_id,
-        message=f"Uploaded '{filename}' to '{source.name}'. Will sync to cloud on next scheduled sync.",
+        message=f"Uploaded '{unique_filename}' to '{source.name}'. Will appear on frame after next sync.",
     )

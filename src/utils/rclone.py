@@ -5,6 +5,7 @@ Python wrapper for rclone operations (no shell scripts).
 
 Provides:
 - rclone_sync: Sync from remote to local
+- rclone_copyto: Upload a single local file to a remote destination
 - rclone_count: Count files on remote
 - rclone_check: Check if remote is accessible
 - rclone_list_remotes: List configured remotes
@@ -242,6 +243,32 @@ async def rclone_movefile_raw(rclone_remote: str, old_filename: str, new_filenam
         error=f"rclone movefile exited {proc.returncode}",
         output=output,
     )
+
+
+async def rclone_copyto(local_file: Path, remote_dest: str) -> RcloneResult:
+    """Upload a single local file to a remote destination via rclone copyto."""
+    if not _validate_remote(remote_dest):
+        return RcloneResult(success=False, error=f"Invalid remote destination: {remote_dest}")
+    cmd = ["rclone", "copyto", str(local_file), remote_dest]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        stdout, _ = await proc.communicate()
+        output = stdout.decode()
+        if proc.returncode == 0:
+            return RcloneResult(success=True, files_transferred=1, output=output)
+        return RcloneResult(
+            success=False,
+            error=f"rclone copyto exited {proc.returncode}",
+            output=output,
+        )
+    except FileNotFoundError:
+        return RcloneResult(success=False, error="rclone not found. Please install rclone.")
+    except Exception as e:
+        return RcloneResult(success=False, error=str(e))
 
 
 async def rclone_count(remote: str) -> int:
