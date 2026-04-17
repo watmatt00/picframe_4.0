@@ -23,14 +23,15 @@ LOCAL_PREFIXES = [
     "172.24.", "172.25.", "172.26.", "172.27.",
     "172.28.", "172.29.", "172.30.", "172.31.",
     "127.",
+    # Tailscale CGNAT range — allows direct VPN peer connections (e.g. fuckms →
+    # mnbframe over WireGuard). Funnel traffic is still blocked because the
+    # middleware reads X-Forwarded-For first, which contains the real public IP.
+    "100.",
 ]
-
-# Tailscale CGNAT range (Funnel traffic comes from here)
-TAILSCALE_PREFIX = "100."
 
 
 def is_local_ip(ip: str) -> bool:
-    """Check if an IP address is from a local network."""
+    """Check if an IP address is from a local network or Tailscale VPN peer."""
     if not ip:
         return False
     return any(ip.startswith(prefix) for prefix in LOCAL_PREFIXES)
@@ -54,10 +55,11 @@ def is_dashboard_path(path: str) -> bool:
 
 class LANOnlyDashboardMiddleware(BaseHTTPMiddleware):
     """
-    Middleware to restrict dashboard access to LAN only.
-    
+    Middleware to restrict dashboard access to LAN and Tailscale VPN peers.
+
     - LAN users (192.168.x.x, 10.x.x.x, etc.) can access everything
-    - Funnel users (100.x.x.x) can only access API endpoints, not dashboard
+    - Tailscale VPN peers (100.x.x.x, direct WireGuard) can access dashboard
+    - Funnel/public internet users can only access API endpoints
     """
 
     async def dispatch(self, request: Request, call_next):
