@@ -1442,7 +1442,10 @@ async def apply_update_api():
 
     if result["success"]:
         logger.info("Update applied via dashboard — restarting API")
-        asyncio.create_task(systemd_service.restart("picframe-api"))
+        async def _restart_after_response():
+            await asyncio.sleep(1)
+            await systemd_service.restart("picframe-api")
+        asyncio.create_task(_restart_after_response())
     else:
         logger.error(f"Update apply failed via dashboard: {result['error']}")
 
