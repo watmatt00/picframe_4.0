@@ -407,18 +407,17 @@ systemctl --user is-active picframe.service
 curl http://localhost:8000/dashboard/status 2>/dev/null | python3 -m json.tool | head -20
 ```
 
-**Access the dashboard from your PC** via SSH port forward:
-```bash
-# On your PC
-ssh -L 8080:localhost:8000 pi@100.125.51.92
-# Then open http://localhost:8080 in a browser
+**Access the dashboard from your PC** via Tailscale MagicDNS (no tunnel needed):
 ```
+http://mnbframe.whale-ayu.ts.net:8000
+```
+Requires Tailscale connected on your PC. Works for all frames on the tailnet.
 
 **Re-pair the mobile app:** The v4.0 JWT system is incompatible with v3.0. In the mobile app, remove the existing mnbframe entry and re-pair using the QR code or manual code from the dashboard Settings tab.
 
 **Checkpoint list:**
 - [ ] `curl http://localhost:8000/health` → `{"status":"ok"}`
-- [ ] Dashboard loads via SSH tunnel and shows photo count
+- [ ] Dashboard loads via Tailscale MagicDNS URL and shows photo count
 - [ ] Manual sync completes without error
 - [ ] Pi3D display still active: `systemctl --user is-active picframe.service` → `active`
 - [ ] Mobile app re-paired and shows frame status

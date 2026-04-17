@@ -2,8 +2,9 @@
 
 ## Base URL
 
-- **Local**: `http://<pi-ip>:8000`
-- **Remote**: `https://<hostname>.<tailnet>.ts.net` (via Tailscale Funnel)
+- **Local (LAN)**: `http://<pi-ip>:8000`
+- **Local (Tailscale VPN / MagicDNS)**: `http://<hostname>.whale-ayu.ts.net:8000` (dashboard + API, no JWT for dashboard)
+- **Remote (mobile app)**: `https://<hostname>.whale-ayu.ts.net` (via Tailscale Funnel, JWT required)
 
 ## Authentication
 
@@ -37,6 +38,8 @@ Tokens are obtained through the pairing flow (see [Security](SECURITY.md)).
 | `/api/v1/services/{name}/restart` | POST | Restart service |
 | `/api/v1/display/folder` | GET | Current display folder |
 | `/api/v1/display/folder` | POST | Switch folder |
+| `/api/v1/display/spotlight` | POST | Spotlight a single photo for N seconds, then auto-restore |
+| `/api/v1/display/spotlight` | DELETE | Cancel active spotlight immediately |
 | `/api/v1/folders` | GET | List folders |
 | `/api/v1/folders` | POST | Create folder |
 | `/api/v1/contributors` | GET | List contributor invites |
@@ -295,6 +298,67 @@ List all configured photo sources with current source. Admin only.
 
 ---
 
+### POST /api/v1/display/spotlight
+
+Display a single photo on the frame for a fixed duration, then automatically restore the previous source. Uses Pi3D's HTTP API for a seamless fade — no service restart.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Request:**
+```json
+{
+  "source_id": "koofr_main",
+  "filename": "2025/vacation/photo.jpg",
+  "duration_seconds": 30
+}
+```
+
+- `duration_seconds`: 1–3600. Defaults to 30.
+- `filename`: Relative path within the source's `local_path`.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "filename": "2025/vacation/photo.jpg",
+  "duration_seconds": 30,
+  "message": "Displaying 'photo.jpg' for 30s, then restoring 'Main Photos'"
+}
+```
+
+**Notes:**
+- Copies the photo to `~/Pictures/spotlight/` (persistent dir Pi3D keeps indexed).
+- Waits 2.5s for Pi3D to index the file, then switches via HTTP API.
+- Waits 4.5s for fade transition to complete, then pauses Pi3D to freeze the photo.
+- After `duration_seconds`, resumes Pi3D and restores the previous source.
+- Starting a new spotlight while one is active cancels the previous one.
+
+---
+
+### DELETE /api/v1/display/spotlight
+
+Cancel an active spotlight immediately and restore the normal display.
+
+**Headers:**
+```
+Authorization: Bearer <token>
+```
+
+**Response (200):**
+```json
+{"cancelled": true}
+```
+
+Or, if no spotlight is active:
+```json
+{"cancelled": false, "message": "No active spotlight"}
+```
+
+---
+
 ### POST /sync
 
 Trigger a manual sync (dashboard, no auth on LAN).
@@ -344,6 +408,8 @@ All errors follow this format:
 | `/services` | ✅ Implemented |
 | `/services/{name}/restart` | ✅ Implemented |
 | `/display/folder` | ✅ Implemented |
+| `/display/spotlight` | ✅ Implemented |
+| `/display/spotlight` (DELETE) | ✅ Implemented |
 | `/folders` | ✅ Implemented |
 | `/contributors` | Stub only |
 | `/sync` | ✅ Implemented |

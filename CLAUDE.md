@@ -13,18 +13,20 @@ PicFrame 4.0 is a Raspberry Pi picture frame management system:
 
 ```
 Mobile App ──(Tailscale Funnel)──> Pi API (JWT) ──> Pi3D Display
-Web Dashboard ──(LAN only)──────> Pi API (no auth) ──> Pi3D Display
-Cloud (Koofr) ──────────────────> rclone sync ──> local photos
+Web Dashboard ──(LAN or Tailscale VPN)──> Pi API (no auth) ──> Pi3D Display
+Cloud (Koofr) ──────────────────────────> rclone sync ──> local photos
 ```
 
 ## Device Connection Info
 
-| Device | IP (LAN) | IP (VPN) | User | Branch | Notes |
-|--------|----------|----------|------|--------|-------|
-| **tkframe** | 192.168.102.210 | 100.83.164.79 | matt | `dev` | Test frame — tracks dev branch |
-| **kframe** | 192.168.102.200 | 100.69.17.26 | pi | `main` | Home frame (production) |
-| **mnbframe** | none | 100.125.51.92 | pi | `main` | Remote only (production) |
-| **fuckms** | 192.168.102.100 | 100.82.140.119 | matt | — | Main PC (dev) |
+| Device | IP (LAN) | IP (VPN) | Dashboard URL | User | Branch | Notes |
+|--------|----------|----------|---------------|------|--------|-------|
+| **tkframe** | 192.168.102.210 | 100.83.164.79 | `http://tkframe.whale-ayu.ts.net:8000` | matt | `dev` | Test frame — tracks dev branch |
+| **kframe** | 192.168.102.200 | 100.69.17.26 | `http://kframe.whale-ayu.ts.net:8000` | pi | `main` | Home frame (production) |
+| **mnbframe** | 192.168.1.154 | 100.125.51.92 | `http://mnbframe.whale-ayu.ts.net:8000` | pi | `main` | Remote only (production) |
+| **fuckms** | 192.168.102.100 | 100.82.140.119 | — | matt | — | Main PC (dev) |
+
+Dashboard URLs require Tailscale connected (MagicDNS on tailnet `whale-ayu.ts.net`). LAN IPs also work directly on port 8000.
 
 Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 
@@ -46,6 +48,7 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 | `/var/lib/picframe/install.conf` | Written by install_setup.sh — frame user, home dir, project path |
 | `/etc/hostapd/picframe-hostapd.conf` | AP hotspot config (SSID, random password from Pi serial) |
 | `~/picframe_data/data/no_pictures.jpg` | Shown by Pi3D when no photos exist; replaced with setup instruction image during first-run |
+| `~/Pictures/spotlight/` | Persistent spotlight dir — Pi3D keeps it indexed; contents cleared after each spotlight |
 
 ## Deployment Workflow
 
@@ -93,7 +96,7 @@ Tab order: **Frame Status | Switch Photos | Tools | Settings**
 - **Frame Status Tab**: Traffic light (green/amber/red), photo counts (cloud + local), current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API)
 - **Switch Photos Tab**: Source table, add new source form with rclone folder browser, source switching
 - **Tools Tab**: Source selector (shared by all cards), Filename Cleaner (spaces→underscores, long-name >20 chars renamed to YYYYMMDD_HHMMSS, Google ID tokens, numbered suffixes, ext case/wrong-ext), Duplicate Finder, Video File Manager, Rename File (scan all files → editable table → batch cloud-first rename, blank inputs, dup guardrails), Photo Backups (tar.gz to `~/Pictures/backups/`, list + delete)
-- **Settings Tab**: Frame settings (name, rotation interval, sync interval, log level, read-only Frame ID + Funnel URL), device pairing (QR code, manual code, countdown, Tailscale IP, instructions), manage devices (inline table with AJAX revoke via `GET /api/devices`), log viewer (expandable, ops/security toggle, line count, auto-refresh), software updates (check/apply, auto-check schedule)
+- **Settings Tab**: Frame settings (name, rotation interval, sync interval, log level, read-only Frame ID + Funnel URL), Network sub-card (LAN IP + WiFi SSID, nested in Frame Settings), device pairing (QR code, manual code, countdown, Tailscale IP, instructions), manage devices (inline table with AJAX revoke via `GET /api/devices`), log viewer (expandable, ops/security toggle, line count, auto-refresh), software updates (check/apply, auto-check schedule, DEV/MAIN branch badge)
 
 ### Key Behaviors
 - Rotation interval changes write to `~/picframe_data/config/configuration.yaml` (model.time_delay) and auto-restart picframe service
@@ -104,6 +107,9 @@ Tab order: **Frame Status | Switch Photos | Tools | Settings**
 - Dashboard auto-refreshes every 15 seconds via AJAX to `/dashboard/status`
 - Cloud photo count uses shared `rclone_count()` via `status_service.py` with 15-second timeout
 - "Last restart" queries systemd `ActiveEnterTimestamp` (survives log rotation)
+- **Source switching uses Pi3D's HTTP API** (`GET http://localhost:9000/?subdirectory=<rel>`) for seamless fade with no service restart; falls back to config + restart only when the HTTP API is unreachable or the path is outside `~/Pictures`
+- **Revoked devices blocked on every request**: `get_current_device()` checks device storage after token validation — revoked tokens return 401 immediately
+- Tools tab card headers are **clickable**: clicking the header expands/collapses the card; scan cards (Filename Cleaner, Duplicate Finder, Video Manager, Rename File) trigger a scan directly when clicked from collapsed state
 
 ## Mobile App Scope
 
