@@ -44,7 +44,7 @@ def get_photo_count(source_id: str) -> int:
     if not source:
         return 0
 
-    local_path = Path(source.local_path)
+    local_path = Path(source.local_path).expanduser()
     if not local_path.exists():
         return 0
 

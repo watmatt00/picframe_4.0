@@ -60,7 +60,7 @@ async def list_photos(source_id: str, admin=Depends(require_admin)):
     source = source_manager.get_source(source_id)
     if not source:
         raise HTTPException(404, f"Source '{source_id}' not found")
-    local_path = Path(source.local_path)
+    local_path = Path(source.local_path).expanduser()
     if not local_path.exists():
         return PhotoListResponse(source_id=source_id, photos=[], total=0)
     photos = []
@@ -87,12 +87,12 @@ async def get_thumbnail(
     source = source_manager.get_source(source_id)
     if not source:
         raise HTTPException(404, f"Source '{source_id}' not found")
-    local_file = Path(source.local_path) / filename
+    local_file = Path(source.local_path).expanduser() / filename
     if not local_file.is_file():
         raise HTTPException(404, "Photo not found")
     # Block path traversal
     try:
-        local_file.resolve().relative_to(Path(source.local_path).resolve())
+        local_file.resolve().relative_to(Path(source.local_path).expanduser().resolve())
     except ValueError:
         raise HTTPException(400, "Invalid filename")
 
@@ -149,11 +149,11 @@ async def delete_photo(source_id: str, filename: str, admin=Depends(require_admi
     source = source_manager.get_source(source_id)
     if not source:
         raise HTTPException(404, f"Source '{source_id}' not found")
-    local_file = Path(source.local_path) / filename
+    local_file = Path(source.local_path).expanduser() / filename
     if not local_file.is_file():
         raise HTTPException(404, "Photo not found locally")
     try:
-        local_file.resolve().relative_to(Path(source.local_path).resolve())
+        local_file.resolve().relative_to(Path(source.local_path).expanduser().resolve())
     except ValueError:
         raise HTTPException(400, "Invalid filename")
 
@@ -197,14 +197,14 @@ async def rename_photo(source_id: str, filename: str, body: RenamePhotoRequest, 
     source = source_manager.get_source(source_id)
     if not source:
         raise HTTPException(404, f"Source '{source_id}' not found")
-    local_file = Path(source.local_path) / filename
+    local_file = Path(source.local_path).expanduser() / filename
     if not local_file.is_file():
         raise HTTPException(404, "Photo not found locally")
     try:
-        local_file.resolve().relative_to(Path(source.local_path).resolve())
+        local_file.resolve().relative_to(Path(source.local_path).expanduser().resolve())
     except ValueError:
         raise HTTPException(400, "Invalid filename")
-    new_local_file = Path(source.local_path) / new_filename
+    new_local_file = Path(source.local_path).expanduser() / new_filename
     if new_local_file.exists():
         raise HTTPException(409, f"A file named '{new_filename}' already exists")
 
