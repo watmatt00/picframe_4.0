@@ -129,7 +129,18 @@ check_rclone() {
 }
 
 check_koofr_remote() {
-    KOOFR_REMOTE=$(rclone listremotes 2>/dev/null | grep -i koofr | head -1 || echo "")
+    # Detect by type (koofr), not name — remote may be named anything (e.g. kfr_tkframe)
+    KOOFR_REMOTE=$(python3 -c "
+import subprocess, json, sys
+r = subprocess.run(['rclone', 'config', 'dump'], capture_output=True, text=True)
+if r.returncode != 0:
+    sys.exit(1)
+cfg = json.loads(r.stdout)
+for name, vals in cfg.items():
+    if vals.get('type') == 'koofr':
+        print(name + ':')
+        break
+" 2>/dev/null || echo "")
     if [[ -n "$KOOFR_REMOTE" ]]; then
         _ok "Koofr remote found: ${KOOFR_REMOTE}"
     else
