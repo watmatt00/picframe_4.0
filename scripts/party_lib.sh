@@ -121,7 +121,9 @@ check_sources_yaml() {
 
 check_rclone() {
     if command -v rclone &>/dev/null; then
-        local ver; ver=$(rclone version 2>/dev/null | head -1 || echo "unknown version")
+        local ver
+        ver=$(rclone version 2>/dev/null | head -1) || true
+        [[ -z "$ver" ]] && ver="unknown version"
         _ok "rclone installed ($ver)"
     else
         _fail "rclone not found — install rclone first"
