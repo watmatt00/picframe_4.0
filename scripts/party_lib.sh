@@ -221,9 +221,10 @@ else:
 }
 
 check_watchdog() {
-    if systemctl list-unit-files picframe-watchdog.service 2>/dev/null | grep -q 'picframe-watchdog'; then
+    # Check the unit file directly — more reliable than parsing systemctl list-unit-files output
+    if [[ -f /etc/systemd/system/picframe-watchdog.service ]]; then
         WATCHDOG_INSTALLED=true
-        local state; state=$(systemctl is-active picframe-watchdog.service 2>/dev/null || echo "inactive")
+        local state; state=$(systemctl is-active picframe-watchdog.service 2>/dev/null || echo "unknown")
         _info "Phase 6 watchdog INSTALLED (currently $state) — will be disabled"
     else
         WATCHDOG_INSTALLED=false
