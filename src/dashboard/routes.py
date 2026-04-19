@@ -29,6 +29,7 @@ from src.services.sync_service import sync_service
 from src.services.systemd_service import systemd_service, update_sync_timer, VALID_SYNC_INTERVALS
 from src.services.display_service import display_service
 from src.services.update_service import check_for_updates, save_check_result, get_local_commit, get_local_version, apply_update, get_current_branch
+from src.services.sleep_scheduler import is_sleeping
 from src.services.status_service import (
     get_current_source,
     get_photo_counts,
@@ -305,6 +306,10 @@ async def dashboard_home(request: Request):
         "koofr_configured": _is_koofr_configured(),
         "lan_ip": _get_lan_ip(),
         "wifi_ssid": _get_wifi_ssid(),
+        # Sleep mode schedule
+        "sleep_enabled": settings.sleep.enabled,
+        "sleep_time": settings.sleep.sleep_time,
+        "wake_time": settings.sleep.wake_time,
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
 
@@ -593,6 +598,7 @@ async def get_dashboard_status():
         "next_sync": next_sync,
         "last_restart": last_restart,
         "koofr_configured": _is_koofr_configured(),
+        "is_sleeping": is_sleeping(),
     }
 
 
@@ -1191,6 +1197,39 @@ async def save_update_schedule(request: SaveUpdateScheduleRequest):
         return {"ok": True}
     except Exception as e:
         logger.error(f"Failed to save update schedule: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+class SleepScheduleRequest(BaseModel):
+    """Request to save sleep mode schedule."""
+    enabled: bool
+    sleep_time: str
+    wake_time: str
+
+    @field_validator("sleep_time", "wake_time")
+    @classmethod
+    def must_be_hhmm(cls, v: str) -> str:
+        import re as _re
+        if not _re.match(r"^([01]\d|2[0-3]):[0-5]\d$", v):
+            raise ValueError("Time must be in HH:MM format (00:00–23:59)")
+        return v
+
+
+@router.post("/api/sleep-schedule")
+async def save_sleep_schedule(request: SleepScheduleRequest):
+    """Save sleep mode schedule from the dashboard."""
+    try:
+        config_manager.set("sleep.enabled", request.enabled)
+        config_manager.set("sleep.sleep_time", request.sleep_time)
+        config_manager.set("sleep.wake_time", request.wake_time)
+        reload_settings()
+        logger.info(
+            f"Sleep schedule saved: enabled={request.enabled}, "
+            f"sleep={request.sleep_time}, wake={request.wake_time}"
+        )
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Failed to save sleep schedule: {e}")
         return {"ok": False, "error": str(e)}
 
 

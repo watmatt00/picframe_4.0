@@ -60,6 +60,13 @@ class UpdatesConfig(BaseModel):
     available_commit: Optional[str] = Field(default=None, description="Short hash if update available")
 
 
+class SleepConfig(BaseModel):
+    """Sleep mode schedule settings."""
+    enabled: bool = Field(default=False, description="Enable automatic sleep/wake schedule")
+    sleep_time: str = Field(default="22:00", description="Time to sleep (HH:MM, 24-hour)")
+    wake_time: str = Field(default="07:00", description="Time to wake (HH:MM, 24-hour)")
+
+
 class Settings(BaseSettings):
     """
     Application settings.
@@ -81,6 +88,7 @@ class Settings(BaseSettings):
     tailscale: TailscaleConfig = Field(default_factory=TailscaleConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     updates: UpdatesConfig = Field(default_factory=UpdatesConfig)
+    sleep: SleepConfig = Field(default_factory=SleepConfig)
 
     @classmethod
     def from_yaml(cls, path: Path = CONFIG_FILE) -> "Settings":

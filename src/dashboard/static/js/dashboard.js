@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initAdvancedToggles();
     initStatusDashboard();
     initSettingsForm();
+    initSleepSchedule();
     initDeviceManagement();
     initSettingsLogViewer();
     initPhotoTools();
@@ -390,6 +391,18 @@ function initStatusDashboard() {
             if (lastSyncEl) lastSyncEl.textContent = data.last_sync || "--";
             if (nextSyncEl) nextSyncEl.textContent = data.next_sync || "--";
             if (lastRestartEl) lastRestartEl.textContent = data.last_restart || "--";
+
+            // Sleep status pill
+            const sleepPill = document.getElementById("sleep-status-pill");
+            const sleepPillValue = document.getElementById("sleep-status-pill-value");
+            if (sleepPill) {
+                if (data.is_sleeping) {
+                    sleepPill.style.display = "";
+                    if (sleepPillValue) sleepPillValue.textContent = "SLEEPING";
+                } else {
+                    sleepPill.style.display = "none";
+                }
+            }
         } catch (err) {
             console.error("Failed to refresh status", err);
             if (bannerText) bannerText.textContent = "Error fetching status";
@@ -1060,6 +1073,54 @@ function initSettingsForm() {
         } finally {
             btn.disabled = false;
             btn.textContent = 'Save Settings';
+        }
+    });
+}
+
+// =============================================================================
+// SLEEP MODE SCHEDULE
+// =============================================================================
+
+function initSleepSchedule() {
+    const btn = document.getElementById('sleep-save-btn');
+    if (!btn) return;
+
+    btn.addEventListener('click', async () => {
+        const statusEl = document.getElementById('sleep-status-msg');
+        const enabled = document.getElementById('sleep-enabled').checked;
+        const sleepTime = document.getElementById('sleep-time').value;
+        const wakeTime = document.getElementById('wake-time').value;
+
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+            const response = await fetch('/api/sleep-schedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled, sleep_time: sleepTime, wake_time: wakeTime })
+            });
+            const data = await response.json();
+
+            if (data.ok) {
+                statusEl.className = 'status-message success';
+                statusEl.textContent = enabled
+                    ? `Sleep schedule saved. Frame sleeps at ${sleepTime} and wakes at ${wakeTime}.`
+                    : 'Sleep schedule disabled.';
+                statusEl.style.display = 'block';
+                setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
+            } else {
+                statusEl.className = 'status-message error';
+                statusEl.textContent = 'Failed to save: ' + (data.error || 'Unknown error');
+                statusEl.style.display = 'block';
+            }
+        } catch (err) {
+            statusEl.className = 'status-message error';
+            statusEl.textContent = 'Error saving schedule: ' + err.message;
+            statusEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save Schedule';
         }
     });
 }

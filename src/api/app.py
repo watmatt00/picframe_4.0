@@ -28,11 +28,15 @@ from src.api.middleware import LANOnlyDashboardMiddleware
 # Update service
 from src.services.update_service import start_update_scheduler
 
+# Sleep scheduler
+from src.services.sleep_scheduler import start_sleep_scheduler
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: start background tasks on startup."""
     asyncio.create_task(start_update_scheduler())
+    asyncio.create_task(start_sleep_scheduler())
     yield
 
 
