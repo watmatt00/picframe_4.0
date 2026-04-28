@@ -11,23 +11,25 @@ if [[ $EUID -ne 0 ]]; then
     echo "ERROR: Run with sudo: sudo bash $0" >&2; exit 1
 fi
 
+# Parse flags first — --user= is needed before the guard when resume service
+# runs as root directly (SUDO_USER is not set by systemd).
 ACTUAL_USER=${SUDO_USER:-}
-if [[ -z "$ACTUAL_USER" || "$ACTUAL_USER" == "root" ]]; then
-    echo "ERROR: Run via sudo from a normal user account, not directly as root." >&2
-    exit 1
-fi
-ACTUAL_HOME=$(getent passwd "$ACTUAL_USER" | cut -d: -f6)
-
-# ── Parse flags ───────────────────────────────────────────────────────────────
 WITH_SAMBA=false
 WITH_MQTT=false
 for arg in "$@"; do
     case $arg in
         --with-samba) WITH_SAMBA=true ;;
         --with-mqtt)  WITH_MQTT=true ;;
+        --user=*)     ACTUAL_USER="${arg#--user=}" ;;
     esac
 done
 ORIG_ARGS="$*"
+
+if [[ -z "$ACTUAL_USER" || "$ACTUAL_USER" == "root" ]]; then
+    echo "ERROR: Run via sudo from a normal user account, not directly as root." >&2
+    exit 1
+fi
+ACTUAL_HOME=$(getent passwd "$ACTUAL_USER" | cut -d: -f6)
 
 # ── Self-persist for reboot resume ───────────────────────────────────────────
 # Save to a stable path so the resume systemd service can re-exec after reboots.
@@ -79,7 +81,7 @@ add_resume_service() {
 Description=Resume picframe install after reboot
 
 [Service]
-ExecStart=/bin/bash $PERSISTENT_SCRIPT $ORIG_ARGS
+ExecStart=/bin/bash $PERSISTENT_SCRIPT --user=$ACTUAL_USER $ORIG_ARGS
 Type=oneshot
 RemainAfterExit=true
 
