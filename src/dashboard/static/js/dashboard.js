@@ -2604,3 +2604,109 @@ async function saveKoofrSetup() {
         btn.textContent = 'Save & Verify';
     }
 }
+
+// =============================================================================
+// Party Mode
+// =============================================================================
+
+(function initPartyMode() {
+    const checkbox     = document.getElementById('party-mode-checkbox');
+    const saveBtn      = document.getElementById('btn-save-party');
+    const statusEl     = document.getElementById('party-mode-status');
+    const enableModal  = document.getElementById('party-enable-modal');
+    const modalSource  = document.getElementById('party-modal-source');
+    const confirmInput = document.getElementById('party-confirm-input');
+    const confirmBtn   = document.getElementById('btn-party-enable-confirm');
+    const cancelBtn    = document.getElementById('btn-party-enable-cancel');
+
+    if (!checkbox || !saveBtn) return;
+
+    const currentlyEnabled = checkbox.checked;
+
+    function showStatus(msg, type) {
+        statusEl.textContent = msg;
+        statusEl.className = 'status-message ' + type;
+        statusEl.style.display = 'block';
+    }
+
+    async function applyPartyMode(enabled) {
+        saveBtn.disabled = true;
+        showStatus(enabled ? 'Enabling party mode…' : 'Disabling party mode…', 'info');
+        try {
+            const resp = await fetch('/api/settings/party', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled }),
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                location.reload();
+            } else {
+                showStatus('Error: ' + (data.error || 'Unknown failure'), 'error');
+                saveBtn.disabled = false;
+            }
+        } catch (err) {
+            showStatus('Network error. Please try again.', 'error');
+            saveBtn.disabled = false;
+        }
+    }
+
+    // Enable modal: reactive input validation
+    if (confirmInput && confirmBtn) {
+        confirmInput.addEventListener('input', () => {
+            const valid = confirmInput.value === 'CONFIRM';
+            confirmBtn.disabled = !valid;
+            confirmBtn.style.opacity = valid ? '1' : '0.4';
+        });
+    }
+
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
+            enableModal.style.display = 'none';
+            confirmInput.value = '';
+            confirmBtn.disabled = true;
+            confirmBtn.style.opacity = '0.4';
+            applyPartyMode(true);
+        });
+    }
+
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            enableModal.style.display = 'none';
+            confirmInput.value = '';
+            confirmBtn.disabled = true;
+            confirmBtn.style.opacity = '0.4';
+            checkbox.checked = currentlyEnabled;
+        });
+    }
+
+    // Close modal on backdrop click
+    if (enableModal) {
+        enableModal.addEventListener('click', (e) => {
+            if (e.target === enableModal) cancelBtn.click();
+        });
+    }
+
+    saveBtn.addEventListener('click', () => {
+        const wantEnabled = checkbox.checked;
+        if (wantEnabled === currentlyEnabled) return; // no change
+
+        if (wantEnabled) {
+            // Show type-to-confirm modal
+            if (modalSource) modalSource.textContent = document.querySelector('#party-mode-checkbox')
+                ?.closest('section')?.querySelector('.form-input[disabled]')?.value || 'current source';
+            enableModal.style.display = 'flex';
+            confirmInput.value = '';
+            confirmBtn.disabled = true;
+            confirmBtn.style.opacity = '0.4';
+            setTimeout(() => confirmInput.focus(), 50);
+        } else {
+            // Two-click native confirm for disable
+            if (!confirm('This will re-enable cloud sync and WiFi recovery. Continue?')) {
+                checkbox.checked = true;
+                return;
+            }
+            applyPartyMode(false);
+        }
+    });
+})();

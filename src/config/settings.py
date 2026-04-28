@@ -28,6 +28,7 @@ class DisplayConfig(BaseModel):
     """Display settings."""
     current_source: str = Field(default="default", description="Active photo source ID")
     rotation_interval: int = Field(default=30, description="Seconds between images")
+    party_mode: bool = Field(default=False, description="Party mode: display only, no sync or WiFi recovery")
 
 
 class SyncConfig(BaseModel):

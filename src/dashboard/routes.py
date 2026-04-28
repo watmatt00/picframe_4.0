@@ -42,6 +42,7 @@ from src.utils.qr_generator import generate_qr_data_url
 from src.utils.rclone import count_local_files, rclone_list_remotes, _validate_filename_raw
 from src.services import photo_tools_service as photo_tools
 from src.services import backup_service
+from src.services.party_service import enable_party, disable_party
 
 logger = logging.getLogger(__name__)
 
@@ -305,6 +306,7 @@ async def dashboard_home(request: Request):
         "koofr_configured": _is_koofr_configured(),
         "lan_ip": _get_lan_ip(),
         "wifi_ssid": _get_wifi_ssid(),
+        "party_mode": settings.display.party_mode,
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
 
@@ -1033,6 +1035,11 @@ class SaveSettingsRequest(BaseModel):
         return v
 
 
+class PartyModeRequest(BaseModel):
+    """Request to enable or disable party mode."""
+    enabled: bool
+
+
 class SaveUpdateScheduleRequest(BaseModel):
     """Request to save update schedule settings."""
     auto_check: bool
@@ -1101,6 +1108,32 @@ async def save_settings_api(request: SaveSettingsRequest):
         return {"ok": True, "restarted": restarted}
     except Exception as e:
         logger.error(f"Failed to save settings: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+@router.post("/api/settings/party")
+async def toggle_party_mode(request: PartyModeRequest):
+    """
+    Enable or disable party mode.
+
+    Party mode stops cloud sync and WiFi watchdog so the frame runs as a
+    standalone local slideshow. LAN-only endpoint, no JWT auth required.
+    """
+    try:
+        settings = get_settings()
+        if request.enabled:
+            result = await enable_party()
+            logger.info("Party mode enabled")
+        else:
+            result = await disable_party(settings.sync.interval)
+            logger.info("Party mode disabled")
+
+        config_manager.set("display.party_mode", request.enabled)
+        reload_settings()
+
+        return {"ok": result["ok"], "party_mode": request.enabled, **result}
+    except Exception as e:
+        logger.error(f"Failed to toggle party mode: {e}")
         return {"ok": False, "error": str(e)}
 
 
