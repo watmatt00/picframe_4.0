@@ -4,6 +4,48 @@ Future tasks and improvements tracked for later work.
 
 **Note: Android is permanently on hold. iOS only. Do not create Android tasks.**
 
+---
+
+## Security Audit (2026-04-15)
+
+Items identified during expert code audit. All confirmed real issues — no false positives included.
+
+### Remove /debug/token endpoint
+**Priority:** High  
+**File:** `src/api/app.py:62-74`  
+Delete the unauthenticated debug token endpoint. It's dead code never called anywhere. Tokens it mints are already rejected by the device-existence check in `src/api/dependencies.py:40`, but the endpoint should not exist.
+
+### Remove dead revoke_token() stub from jwt_handler.py
+**Priority:** Low  
+**File:** `src/auth/jwt_handler.py:116-132`  
+The function always returns `False` and is never called. Token revocation is handled by deleting the device record in device storage. Safe to delete with no impact.
+
+### Fix fragile DASHBOARD_PATHS allowlist in middleware
+**Priority:** High  
+**File:** `src/api/middleware.py:12`  
+The LAN-restriction only covers explicitly listed paths. The dashboard has ~35 routes, most not in the list (including `POST /sync`, `POST /services/{name}/restart`, `POST /api/updates/apply`). Fix: flip to a blocklist — deny non-LAN IPs from everything *except* `/api/v1/`, `/health`, and `/version`. New dashboard routes are then protected automatically.
+
+### Remove X-Forwarded-For trust from LAN middleware
+**Priority:** High  
+**File:** `src/api/middleware.py:73-76`  
+The middleware trusts the `X-Forwarded-For` header, allowing any Tailscale peer to spoof a LAN IP and bypass the dashboard restriction. The Pi runs without a reverse proxy, so this header should not be trusted. Remove it and use only `request.client.host`.
+
+### Fix contributor upload memory risk
+**Priority:** Medium  
+**File:** `src/api/routes/contributor.py:114-115`  
+The full file is read into RAM (`await file.read()`) before the 50 MB size check fires. A large upload exhausts memory before being rejected. Fix by streaming with a chunked read loop that aborts early once the limit is exceeded.
+
+---
+
+## Infrastructure
+
+### Installer Script Distribution Strategy
+**Priority:** Low  
+**File:** `scripts/setup/install_picframe.sh`  
+Repo is currently public to allow `curl | bash` from the Pi during fresh installs. Evaluate long-term options: keep public (simplest), move script to a public Gist (repo private again), use GitHub PAT (read-only token stored on Pi), or attach script as a public release asset. Decision should consider whether the repo ever needs to be private again and the maintenance burden of each approach.
+
+---
+
 ## picframe_4.0 (Backend)
 
 ### Sync Interval - systemd Timer Integration
