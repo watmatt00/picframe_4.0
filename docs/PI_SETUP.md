@@ -2,6 +2,8 @@
 
 Complete setup guide for a fresh Raspberry Pi.
 
+**Upgrading an existing v3.0 frame?** See [UPGRADE_V3_TO_V4.md](UPGRADE_V3_TO_V4.md) instead.
+
 **IMPORTANT FOR CLAUDE**: When guiding a user through Pi setup, prompt them explicitly
 at each step checkpoint before moving to the next step. Do not assume any step is complete
 unless the user confirms it.
@@ -61,18 +63,21 @@ python3 --version
 
 **PROMPT USER**: "Now we'll install the Pi3D display engine. This is what actually shows photos on the screen."
 
-Install the display engine using the one-click installer:
+Install the display engine using our installer (derived from thedigitalpictureframe.com's 2025 guide):
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/helgeerbe/picframe/main/scripts/install_picframe.sh)
+sudo bash <(curl -s https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh)
 ```
 
-During setup, enter:
-- **Picture directory**: `/home/<user>/Pictures`
-- **Deleted pictures**: `/home/<user>/picframe_data/deleted_pictures`
-- **Locale**: `en_US.UTF-8`
+The script handles multiple reboots automatically and resumes where it left off. Total time ~8–12 minutes. It installs: labwc (Wayland compositor), SDL2, VLC, FFmpeg, picframe (via pip), and wires up the systemd user service.
 
-Verify installation:
+Optional services (not installed by default):
+```bash
+# Add Samba file sharing and/or Mosquitto MQTT broker:
+sudo bash <(curl -s https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh) --with-samba --with-mqtt
+```
+
+Verify installation after the final reboot:
 ```bash
 systemctl --user status picframe.service
 ```

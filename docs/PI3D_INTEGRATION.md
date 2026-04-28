@@ -17,15 +17,27 @@
 
 Reference: [TheDigitalPictureFrame.com Installation Guide](https://www.thedigitalpictureframe.com/install-the-pi3d-pictureframe-software-with-one-click-2025-edition-raspberry-pi-2-3-4-5/)
 
+The upstream helgeerbe install script no longer exists. We maintain our own at `scripts/setup/install_picframe.sh`, derived from the thedigitalpictureframe.com 2025 installer with these improvements:
+- Username-agnostic (uses `$SUDO_USER` — works with any username, not just `pi`)
+- Samba and Mosquitto/MQTT are optional flags, not installed by default
+- Preserves reboot-resume progress tracking and Wayland/labwc setup
+
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/helgeerbe/picframe/main/scripts/install_picframe.sh)
+# Default (no Samba, no MQTT):
+sudo bash <(curl -s https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh)
+
+# With optional services:
+sudo bash <(curl -s https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh) --with-samba --with-mqtt
 ```
 
 The installer:
-1. Creates virtual environment at `/home/<user>/venv_picframe`
-2. Installs `picframe` package via pip
-3. Creates config at `/home/<user>/picframe_data/config/configuration.yaml`
-4. Sets up systemd user service
+1. Updates OS and sets boot to console mode (2 reboots)
+2. Installs core packages: `labwc` (Wayland compositor), `libsdl2-dev`, `vlc`, `ffmpeg`
+3. Creates virtual environment at `/home/<user>/venv_picframe` and installs `picframe` via pip
+4. Creates `~/Pictures` and `~/picframe_data/deleted_pictures`
+5. Creates `~/start_picframe.sh` launcher and `~/.config/labwc/autostart`
+6. Sets up `~/.config/systemd/user/picframe.service` (runs `labwc` → picframe)
+7. Enables linger so the service starts at boot without login
 
 ## File Locations
 
@@ -98,10 +110,10 @@ http:
 
 | Control Method | How We Use It |
 |----------------|---------------|
-| **systemctl** | Start/stop/restart picframe.service |
-| **MQTT** | Real-time commands (pause, next, shuffle, subdirectory) |
-| **Config file** | Change settings, picture directory |
-| **Symlink** | Switch photo sources by changing pic_dir symlink |
+| **Pi3D HTTP API** | Primary real-time control: subdirectory switching, pause/resume, time_delay (port 9000) |
+| **Config file** | Persistence: updates `pic_dir` / `subdirectory` in `configuration.yaml` for reboot survival |
+| **systemctl** | Start/stop/restart picframe.service (fallback when HTTP API unreachable or path is outside ~/Pictures) |
+| **MQTT** | Available but not actively used — HTTP API preferred |
 
 ### systemctl Commands
 
@@ -159,23 +171,27 @@ client.publish("picframe/subdirectory", "vacation/hawaii")
 
 ## Source Switching Strategy
 
-picframe_4.0 manages multiple photo sources by using symlinks:
+picframe_4.0 manages multiple photo sources as directories under `~/Pictures/`:
 
 ```
-/home/<user>/Pictures/          <- symlink to active source
-/home/<user>/Pictures_sources/
-  ├── koofr_main/              <- Synced from Koofr
-  ├── google_drive/            <- Synced from Google Drive
-  └── local/                   <- Local photos
+~/Pictures/
+  ├── koofr_main/          <- Synced from Koofr
+  ├── google_drive/        <- Synced from Google Drive
+  ├── local/               <- Local photos
+  └── spotlight/           <- Temporary spotlight dir (permanent, never deleted)
 ```
 
-To switch sources:
-1. Update the symlink to point to the new source
-2. Restart picframe service (or use MQTT to trigger rescan)
+To switch sources, picframe_4.0 uses Pi3D's HTTP API:
 
-## HTTP Status Interface
+```
+GET http://localhost:9000/?subdirectory=koofr_main
+```
 
-Pi3D can optionally expose an HTTP interface for status:
+This triggers a live directory switch with a smooth fade transition — no service restart needed. The config file is also updated so the change survives reboots.
+
+## HTTP Control Interface
+
+Pi3D exposes a live control API on port 9000 (must be enabled in `configuration.yaml`):
 
 ```yaml
 http:
@@ -183,7 +199,36 @@ http:
   port: 9000
 ```
 
-This provides status info but picframe_4.0 uses MQTT for control instead.
+**picframe_4.0 uses this as the primary control method** — it accepts `GET /?<key>=<value>` to change settings without any service restart, producing seamless fade transitions.
+
+### HTTP API Commands
+
+| Parameter | Value | Action |
+|-----------|-------|--------|
+| `subdirectory` | relative path or `""` | Switch to subdirectory inside `pic_dir` |
+| `paused` | `true` / `false` | Pause or resume slideshow |
+| `time_delay` | seconds | Change interval between photos |
+| `shuffle` | `true` / `false` | Toggle random order |
+
+### Source Switching Strategy
+
+`display_service.switch_folder()` uses this priority:
+
+1. If the target path is inside `~/Pictures`: send `GET /?subdirectory=<rel>` (seamless, no restart)
+2. Always update `configuration.yaml` for persistence across reboots
+3. Fall back to `systemctl restart picframe` only if the HTTP API is unreachable or the target is outside `~/Pictures`
+
+### Spotlight Implementation
+
+The spotlight feature (`POST /api/v1/display/spotlight`) uses the HTTP API to display a single photo temporarily:
+
+1. Copy photo to `~/Pictures/spotlight/` (persistent dir so Pi3D keeps it indexed via SQLite)
+2. Wait 2.5s for Pi3D's update scan to index the new file
+3. Send `GET /?subdirectory=spotlight` to switch without restart
+4. Wait 4.5s for the fade transition to complete (matches tkframe `fade_time: 3.0s`)
+5. Send `GET /?paused=true` to freeze on the spotlight photo
+6. After `duration_seconds`: send `paused=false`, then restore previous subdirectory
+7. Clear spotlight dir contents (keep the dir so Pi3D's DB tracking is preserved)
 
 ## Troubleshooting
 
