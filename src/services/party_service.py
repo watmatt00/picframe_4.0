@@ -3,29 +3,37 @@ PicFrame 4.0 - Party Mode Service.
 
 Enables/disables party mode: stops cloud sync and WiFi watchdog so the
 frame runs as a standalone local slideshow.
+
+Requires install_setup.sh to have run, which installs:
+  - /etc/polkit-1/rules.d/50-picframe.rules  (allows systemctl via D-Bus)
+  - state.yaml group-writable by sudo group   (for clear-setup)
 """
 
 import asyncio
 import logging
+import os
 from pathlib import Path
+
+import yaml
 
 from src.services.systemd_service import update_sync_timer
 
 logger = logging.getLogger(__name__)
 
 _WATCHDOG_UNIT = Path("/etc/systemd/system/picframe-watchdog.service")
+_STATE_FILE = Path("/var/lib/picframe/state.yaml")
 
 
-async def _run_sudo(*args: str) -> bool:
-    """Run a sudo command. Returns True on success; logs and returns False on failure."""
+async def _systemctl(*args: str) -> bool:
+    """Run a system-level systemctl command (via polkit, no sudo). Returns True on success."""
     proc = await asyncio.create_subprocess_exec(
-        "sudo", *args,
+        "systemctl", *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
     _, stderr = await proc.communicate()
     if proc.returncode != 0:
-        logger.warning(f"sudo {' '.join(args)} failed: {stderr.decode().strip()}")
+        logger.warning(f"systemctl {' '.join(args)} failed: {stderr.decode().strip()}")
         return False
     return True
 
@@ -44,6 +52,28 @@ async def _run_user(*args: str) -> bool:
     return True
 
 
+def _clear_setup_flag() -> bool:
+    """
+    Clear the Phase 6 needs_setup flag in state.yaml so the watchdog
+    won't trigger hotspot mode on the next reboot.
+
+    Requires state.yaml to be group-writable (set by install_setup.sh).
+    """
+    if not _STATE_FILE.exists():
+        return True
+    try:
+        state = yaml.safe_load(_STATE_FILE.read_text()) or {}
+        state["needs_setup"] = False
+        state["setup_mode_reason"] = None
+        tmp = _STATE_FILE.with_suffix(".tmp")
+        tmp.write_text(yaml.safe_dump(state, default_flow_style=False))
+        os.replace(tmp, _STATE_FILE)
+        return True
+    except Exception as e:
+        logger.warning(f"Could not clear needs_setup flag: {e}")
+        return False
+
+
 async def enable_party() -> dict:
     """
     Enable party mode: stop + disable watchdog (if installed) and stop sync timer.
@@ -54,10 +84,9 @@ async def enable_party() -> dict:
     watchdog_ok = True
 
     if watchdog_installed:
-        await _run_sudo("systemctl", "stop", "picframe-watchdog.service")
-        watchdog_ok = await _run_sudo("systemctl", "disable", "picframe-watchdog.service")
-        # Clear Phase 6 needs_setup flag so watchdog won't trigger hotspot on restart
-        await _run_sudo("picframe-config", "--clear-setup")
+        await _systemctl("stop", "picframe-watchdog.service")
+        watchdog_ok = await _systemctl("disable", "picframe-watchdog.service")
+        _clear_setup_flag()
         logger.info("Party mode: watchdog stopped and disabled")
     else:
         logger.info("Party mode: watchdog not installed, skipping")
@@ -86,8 +115,8 @@ async def disable_party(sync_interval: int) -> dict:
     watchdog_ok = True
 
     if watchdog_installed:
-        await _run_sudo("systemctl", "enable", "picframe-watchdog.service")
-        watchdog_ok = await _run_sudo("systemctl", "start", "picframe-watchdog.service")
+        await _systemctl("enable", "picframe-watchdog.service")
+        watchdog_ok = await _systemctl("start", "picframe-watchdog.service")
         logger.info("Party mode: watchdog enabled and started")
     else:
         logger.info("Party mode: watchdog not installed, skipping")

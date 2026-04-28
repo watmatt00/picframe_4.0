@@ -167,6 +167,40 @@ else
     LOG "state.yaml already exists — not overwriting"
 fi
 
+# ── Party mode: polkit rule + state.yaml permissions ─────────────────────────
+# Allows the API (NoNewPrivileges=true) to manage watchdog units via D-Bus
+# and write state.yaml for --clear-setup, without requiring sudo.
+
+LOG "Installing party mode polkit rule..."
+mkdir -p /etc/polkit-1/rules.d
+cat > /etc/polkit-1/rules.d/50-picframe.rules << 'POLKIT_EOF'
+/* Allow sudo-group users to manage PicFrame system services without interaction */
+polkit.addRule(function(action, subject) {
+    var partyUnits = [
+        "picframe-watchdog.service",
+        "picframe-ble-setup.service",
+        "picframe-ap-setup.service"
+    ];
+    if (subject.isInGroup("sudo")) {
+        if (action.id === "org.freedesktop.systemd1.manage-units") {
+            var unit = action.lookup("unit") || "";
+            if (partyUnits.indexOf(unit) >= 0) {
+                return polkit.Result.YES;
+            }
+        }
+        if (action.id === "org.freedesktop.systemd1.manage-unit-files") {
+            return polkit.Result.YES;
+        }
+    }
+});
+POLKIT_EOF
+LOG "Polkit rule installed: /etc/polkit-1/rules.d/50-picframe.rules"
+
+LOG "Setting state.yaml group permissions for party mode..."
+chown root:sudo "${STATE_FILE}"
+chmod 664 "${STATE_FILE}"
+LOG "state.yaml: sudo group can now write (for party mode --clear-setup)"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 echo ""
