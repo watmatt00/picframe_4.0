@@ -30,13 +30,20 @@ done
 ORIG_ARGS="$*"
 
 # ── Self-persist for reboot resume ───────────────────────────────────────────
-# When run via bash <(curl ...), $0 is a file descriptor. Save to a real path
-# so the resume systemd service can re-exec after each reboot.
+# Copy the script to a stable path so the resume systemd service can re-exec
+# after each reboot. Works whether run from a local file (scp) or a pipe.
 PERSISTENT_SCRIPT="$ACTUAL_HOME/install_picframe_resume.sh"
-if [[ "$(realpath "$0" 2>/dev/null || echo "$0")" != "$PERSISTENT_SCRIPT" ]]; then
+CURRENT_PATH="$(realpath "$0" 2>/dev/null || echo "$0")"
+if [[ "$CURRENT_PATH" != "$PERSISTENT_SCRIPT" ]]; then
     echo "Saving installer to $PERSISTENT_SCRIPT for reboot resume..."
-    curl -fsSL "https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh" \
-        -o "$PERSISTENT_SCRIPT"
+    if [[ -f "$0" ]]; then
+        cp "$0" "$PERSISTENT_SCRIPT"
+    else
+        echo "ERROR: Cannot save installer — run from a local file:" >&2
+        echo "  scp picframe_4.0/scripts/setup/install_picframe.sh <pi>:/tmp/" >&2
+        echo "  sudo bash /tmp/install_picframe.sh" >&2
+        exit 1
+    fi
     chown "$ACTUAL_USER:$ACTUAL_USER" "$PERSISTENT_SCRIPT"
     chmod +x "$PERSISTENT_SCRIPT"
     exec bash "$PERSISTENT_SCRIPT" $ORIG_ARGS
