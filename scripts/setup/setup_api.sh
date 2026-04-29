@@ -142,7 +142,7 @@ sudo bash "$PROJECT_DIR/scripts/setup/install_setup.sh"
 log "--- Step 7: Mark provisioned ---"
 if ping -c 1 -W 2 8.8.8.8 &>/dev/null; then
     log "WiFi connected — marking frame as provisioned to skip AP portal..."
-    sudo python3 - <<PYEOF
+    sudo "$PROJECT_DIR/venv/bin/python3" - <<PYEOF
 import sys
 sys.path.insert(0, '${PROJECT_DIR}/scripts/setup')
 from state_manager import state_manager
