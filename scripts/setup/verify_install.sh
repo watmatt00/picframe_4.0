@@ -109,15 +109,16 @@ if [[ -z "$FUNNEL_URL" ]]; then
 else
     hostname=$(echo "$FUNNEL_URL" | sed 's|https://||' | sed 's|/.*||')
     if ! command -v dig &>/dev/null; then
-        sudo apt-get install -y -q dnsutils 2>/dev/null || true
-    fi
-    public_ip=$(dig +short "$hostname" @8.8.8.8 2>/dev/null | grep -v '\.$' | head -1 || true)
-    if [[ -z "$public_ip" ]]; then
-        fail "API health (Funnel public)" "Funnel DNS not resolving — visit https://login.tailscale.com/admin/machines"
-    elif curl -sf --connect-timeout 10 --resolve "$hostname:443:$public_ip" "https://$hostname/health" >/dev/null 2>&1; then
-        ok "API health (Funnel public → $public_ip)"
+        fail "API health (Funnel public)" "install dnsutils: sudo apt-get install -y dnsutils"
     else
-        fail "API health (Funnel public)" "sudo tailscale funnel --bg 8000  |  check https://login.tailscale.com/admin/machines"
+        public_ip=$(dig +short "$hostname" @8.8.8.8 2>/dev/null | grep -v '\.$' | head -1 || true)
+        if [[ -z "$public_ip" ]]; then
+            fail "API health (Funnel public)" "Funnel DNS not resolving — visit https://login.tailscale.com/admin/machines"
+        elif curl -sf --connect-timeout 10 --resolve "$hostname:443:$public_ip" "https://$hostname/health" >/dev/null 2>&1; then
+            ok "API health (Funnel public → $public_ip)"
+        else
+            fail "API health (Funnel public)" "sudo tailscale funnel --bg 8000  |  check https://login.tailscale.com/admin/machines"
+        fi
     fi
 fi
 

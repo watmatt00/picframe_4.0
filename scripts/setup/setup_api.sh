@@ -100,6 +100,14 @@ if [[ "$CURRENT_HOSTNAME" != "$FRAME_NAME" ]]; then
     log "Hostname updated. SSH prompt will show new name after next login."
 fi
 
+# ── Prerequisites ─────────────────────────────────────────────────────────────
+# Install dnsutils (dig) now so the Funnel public-path check can query 8.8.8.8
+# directly instead of going through Tailscale's MagicDNS.
+if ! command -v dig &>/dev/null; then
+    log "Installing dnsutils (required for Funnel verification)..."
+    sudo apt-get install -y -q dnsutils
+fi
+
 # ── Step 1: rclone ────────────────────────────────────────────────────────────
 log "--- Step 1: rclone ---"
 if command -v rclone &>/dev/null; then
