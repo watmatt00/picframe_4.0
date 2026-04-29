@@ -143,7 +143,8 @@ LOG "Systemd daemon reloaded"
 
 # Enable watchdog (starts at boot). BLE + AP are started on-demand by watchdog.
 systemctl enable picframe-watchdog
-LOG "picframe-watchdog enabled (starts at boot)"
+systemctl start picframe-watchdog
+LOG "picframe-watchdog enabled and started"
 
 # ── picframe-config bash wrapper ──────────────────────────────────────────────
 

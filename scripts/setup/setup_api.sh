@@ -64,7 +64,24 @@ fi
 log "Tailscale connected."
 
 log "Enabling Tailscale Funnel on port 8000..."
-sudo tailscale funnel --bg 8000
+FUNNEL_OUTPUT=$(sudo tailscale funnel --bg 8000 2>&1 || true)
+
+# If Funnel requires policy approval for this node, the output contains a URL.
+# Display it and wait for the user to approve before continuing.
+APPROVAL_URL=$(echo "$FUNNEL_OUTPUT" | grep -o 'https://login.tailscale.com/f/funnel[^ ]*' || true)
+if [[ -n "$APPROVAL_URL" ]]; then
+    echo ""
+    echo "============================================="
+    echo "  Tailscale Funnel needs policy approval."
+    echo "  Open this URL in a browser to approve:"
+    echo ""
+    echo "  $APPROVAL_URL"
+    echo ""
+    echo "  Then press ENTER to continue."
+    echo "============================================="
+    read -r
+    sudo tailscale funnel --bg 8000 || true
+fi
 
 FUNNEL_URL=$(tailscale funnel status 2>/dev/null | grep "^https://" | awk '{print $1}' | head -1 || true)
 if [[ -z "$FUNNEL_URL" ]]; then
