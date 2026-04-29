@@ -8,7 +8,7 @@ Use these stable IDs in test plans, bug reports, and development references:
 - `IOS-xxx` - iOS mobile app screens
 - `DASH-xxx` - Web dashboard screens/tabs
 
-**Last updated:** 2026-04-09
+**Last updated:** 2026-04-15
 
 ---
 
@@ -438,22 +438,27 @@ ContentView
   **Source Selector** (shared by all tool cards):
   - Dropdown listing all configured photo sources; active source pre-selected
 
+  **Card Header UX (all Tools cards):**
+  - Clicking anywhere on the card header expands/collapses the card
+  - Scan cards (Filename Cleaner, Duplicate Finder, Video Manager, Rename File): clicking the header triggers a scan directly when collapsed
+  - Collapse button is always **✕ Close** (visible once results are shown)
+
   **Filename Cleaner Card:**
-  - Scan button → results table: Preview | ☐ | Original Filename | Proposed Name | EXIF Date | Issues
+  - Click header to scan → results table: Preview | ☐ | Original Filename | Proposed Name | EXIF Date | Issues
   - Issues detected: Google ID tokens, numbered dup suffixes, spaces→underscores, long name (>20 chars → renamed to YYYYMMDD_HHMMSS), wrong/uppercase extension
   - Filter bar: All / per-issue type with tooltips
   - Apply Selected Renames button (top + bottom), Cancel button, ✕ Close
 
   **Duplicate Finder Card:**
-  - Scan button → grouped duplicate sets with suggested keeper
+  - Click header to scan → grouped duplicate sets with suggested keeper
   - Delete Duplicates button (top + bottom, destructive red), Cancel, ✕ Close
 
   **Video File Manager Card:**
-  - Scan button → table of video files with sizes
+  - Click header to scan → table of video files with sizes
   - Delete Selected Videos button (top + bottom, destructive red), Cancel, ✕ Close
 
   **Rename File Card:**
-  - Scan button (in card header) → table: Preview | Original Filename | EXIF Date | New Filename
+  - Click header to scan → table: Preview | Original Filename | EXIF Date | New Filename
   - New Filename inputs are blank by default (original shown as placeholder)
   - Apply Renames button enabled only when at least one name is filled in and all are conflict-free
   - Guardrails: red highlight if proposed name already exists or is used twice in the same batch
@@ -483,6 +488,9 @@ ContentView
   - Log Level - dropdown (DEBUG, INFO, WARNING, ERROR)
   - Save Settings button (shows "Saving...", updates header frame name on success)
   - Status message (success may include "Frame display restarted")
+  - **Network sub-card** (collapsible ▸ Show / ✕ Close, nested inside Frame Settings):
+    - LAN IP Address - read-only
+    - WiFi Network (SSID) - read-only
 
   **Mobile App Pairing Card:**
   - "Generate Pairing QR Code" button
@@ -516,6 +524,12 @@ ContentView
   - Loads via AJAX: `GET /api/logs?log_type={ops|security}&lines={50|100|500}`
   - Loads on first expand, reloads on type/count change
 
+  **Updates Card** (collapsible):
+  - Branch badge: **DEV** (blue) or **MAIN** (green) — shows which git branch the frame is tracking
+  - Check for Updates button
+  - Apply Updates button (shown when update is available)
+  - Auto-check schedule info
+
 ---
 
 ## Dashboard Navigation
@@ -534,10 +548,11 @@ Dashboard (single-page, dashboard.html)
   │     └── Photo Backups card [collapsible]
   └── Tab 4: Settings (DASH-SETTINGS)
         ├── Frame Settings card [collapsible]
+        │     └── Network sub-card [collapsible, nested]
         ├── Mobile App Pairing card [collapsible]
         ├── Manage Devices card [toggled via button]
         ├── Log Viewer card [collapsible]
-        └── Updates card [collapsible]
+        └── Updates card [collapsible, branch badge DEV/MAIN]
 ```
 
 ---

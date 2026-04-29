@@ -432,7 +432,10 @@ function initStatusDashboard() {
             const resp = await fetch("/sync", { method: "POST" });
             const data = await resp.json();
             if (data.error) {
-                alert("Sync error: " + data.error);
+                const msg = data.error.includes("Koofr setup")
+                    ? "Cloud sync not configured yet — complete Koofr setup in Settings."
+                    : "Sync error: " + data.error;
+                alert(msg);
             } else {
                 alert("Sync started!");
                 setTimeout(refreshStatus, 2000);

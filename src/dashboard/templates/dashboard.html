@@ -30,9 +30,9 @@
     </div>
 
     <!-- KOOFR SETUP BANNER (first-run step 2) -->
-    {% if not koofr_configured %}
+    {% if not koofr_configured and has_sources %}
     <div id="koofr-setup-banner" style="background:#2a2a1a;border-bottom:2px solid #c8a000;padding:0.85rem 1.25rem;color:#f0e080;">
-        <strong style="color:#ffd700;">Setup required:</strong> Connect your Koofr cloud storage to start syncing photos.
+        <strong style="color:#ffd700;">Set up cloud sync for your photos</strong> — connect Koofr to enable syncing.
         <button onclick="document.getElementById('koofr-setup-form').style.display='block';this.style.display='none';"
                 style="margin-left:1rem;padding:0.25rem 0.85rem;background:#c8a000;color:#111;border:none;border-radius:4px;cursor:pointer;font-weight:600;">
             Connect Koofr

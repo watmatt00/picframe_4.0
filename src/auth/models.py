@@ -7,21 +7,22 @@ Pydantic models for devices, tokens, and pairing.
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class Device(BaseModel):
     """A paired mobile device."""
+    model_config = ConfigDict()
+
     id: str = Field(..., description="Unique device identifier (UUID)")
     name: str = Field(..., description="User-provided device name")
     role: str = Field(default="admin", description="Device role")
     paired_at: datetime = Field(..., description="When device was paired")
     last_seen: Optional[datetime] = Field(None, description="Last API activity")
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-        }
+    @field_serializer("paired_at", "last_seen")
+    def serialize_dt(self, v: Optional[datetime]) -> Optional[str]:
+        return v.isoformat() if v is not None else None
 
 
 class PairingRequest(BaseModel):

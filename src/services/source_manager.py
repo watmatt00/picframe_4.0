@@ -225,6 +225,21 @@ class SourceManager:
 
         return False
 
+    def backfill_remotes(self) -> list[str]:
+        """Set rclone_remote on sources that were created before Koofr was configured."""
+        updated = []
+        sources = self._load_sources()
+        for source in sources:
+            if source.enabled and not source.rclone_remote:
+                remote = self._auto_configure_remote(source.id)
+                if remote:
+                    source.rclone_remote = remote
+                    updated.append(source.id)
+        if updated:
+            self._save_sources(sources)
+            logger.info(f"Backfilled rclone_remote for sources: {updated}")
+        return updated
+
     def update_source(self, source: PhotoSource) -> bool:
         """
         Update an existing source configuration.
