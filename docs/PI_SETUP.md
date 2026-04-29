@@ -88,200 +88,37 @@ See [Pi3D Integration](PI3D_INTEGRATION.md) for more details.
 
 ---
 
-## Step 4: rclone
+## Steps 4–9: API Setup (automated)
 
-**PROMPT USER**: "Now we'll install rclone for syncing photos from cloud storage (Koofr, Google Drive, etc.)."
+**PROMPT USER**: "Now we'll run the API setup script. This handles rclone, Tailscale, the repo clone, config, systemd services, and Phase 6 WiFi recovery in one shot."
 
-Install rclone for cloud sync:
+Run the setup script:
 
 ```bash
-curl https://rclone.org/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/setup_api.sh | bash -s -- --branch=dev --frame-name=tkframe
 ```
 
-**CHECKPOINT**: Ask user to run `rclone version` and confirm it's installed.
-
-**PROMPT USER**: "Do you want to configure a cloud remote now? (Koofr, Google Drive, etc.) This can also be done later."
-
-If yes, configure a remote:
+For `main` branch (production frames):
 ```bash
-rclone config
+curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/setup_api.sh | bash -s -- --branch=main --frame-name=kframe
 ```
 
-Test connection:
-```bash
-rclone lsd <remote>:
-```
+The script handles:
+1. **rclone** — installs if not present
+2. **Tailscale** — installs, authenticates (browser URL printed — follow it), enables Funnel on port 8000
+3. **picframe_4.0** — clones repo, checks out branch, creates venv, pip installs
+4. **Config** — generates `~/.picframe/config.yaml`, writes frame name and Funnel URL
+5. **Systemd** — deploys and starts `picframe-api.service` and `picframe-sync.timer`
+6. **Phase 6** — runs `install_setup.sh` (WiFi watchdog, AP portal, picframe-config)
+7. **Provisioned** — marks `provisioned=true` so frame doesn't enter AP portal on next boot
 
-**CHECKPOINT**: If remote configured, ask user to confirm `rclone listremotes` shows the remote.
+**Note on Tailscale Funnel**: Before running, approve Funnel for this node in the [Tailscale admin console](https://login.tailscale.com/admin/acls). If not yet approved, the script will print a URL — visit it to approve, then press Enter to continue.
+
+**CHECKPOINT**: Ask user to confirm the script completes successfully and shows the summary banner.
 
 ---
 
-## Step 5: Tailscale + Funnel
-
-**PROMPT USER**: "Now we'll set up Tailscale for secure remote access. Do you have a Tailscale account?"
-
-Install Tailscale:
-```bash
-curl -fsSL https://tailscale.com/install.sh | sh
-```
-
-Authenticate:
-```bash
-sudo tailscale up
-```
-
-**CHECKPOINT**: Ask user to confirm `tailscale status` shows connected.
-
-**PROMPT USER**: "Before enabling Funnel, you must approve it in the Tailscale admin console. Have you done this?"
-
-**Important**: Before enabling Funnel, you must approve it in the [Tailscale admin console](https://login.tailscale.com/admin/acls).
-
-Enable Funnel:
-```bash
-sudo tailscale funnel 443 http://localhost:8000
-```
-
-Verify Funnel URL:
-```bash
-tailscale funnel status
-# Should show: https://<hostname>.<tailnet>.ts.net
-```
-
-**CHECKPOINT**: Ask user to provide their Funnel URL (save this for config).
-
----
-
-## Step 6: picframe_4.0 Installation
-
-**PROMPT USER**: "Now we'll clone and install the picframe_4.0 API."
-
-Clone the repository:
-```bash
-cd ~
-git clone https://github.com/watmatt00/picframe_4.0.git
-cd picframe_4.0
-```
-
-Create virtual environment and install:
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -e .
-```
-
-**CHECKPOINT**: Ask user to confirm `~/picframe_4.0/venv/` exists.
-
----
-
-## Step 7: Configuration
-
-**PROMPT USER**: "Now we'll create the configuration. What name do you want for this frame?"
-
-Create the config directory:
-```bash
-mkdir -p ~/.picframe
-```
-
-The API will create a default config on first run at `~/.picframe/config.yaml`.
-
-Edit the config to set your frame details:
-```bash
-nano ~/.picframe/config.yaml
-```
-
-```yaml
-frame:
-  id: "tkframe"
-  name: "Kitchen Frame"
-  funnel_url: "https://tkframe.tail1234.ts.net"
-
-display:
-  current_source: "local"
-  rotation_interval: 30
-
-sync:
-  interval: 900
-  rclone_flags: []
-
-logging:
-  level: "INFO"
-  retention_days: 7
-  security_retention_days: 90
-```
-
-**CHECKPOINT**: Ask user to confirm `~/.picframe/config.yaml` exists.
-
----
-
-## Step 8: Start the API
-
-**PROMPT USER**: "Ready to start the API and sync services?"
-
-Copy systemd unit files and enable services:
-```bash
-cp ~/picframe_4.0/systemd/picframe-api.service ~/.config/systemd/user/
-cp ~/picframe_4.0/systemd/picframe-sync.service ~/.config/systemd/user/
-cp ~/picframe_4.0/systemd/picframe-sync.timer ~/.config/systemd/user/
-systemctl --user daemon-reload
-
-# Enable and start the API
-systemctl --user enable picframe-api.service
-systemctl --user start picframe-api.service
-
-# Enable and start the sync timer (runs every 15 minutes)
-systemctl --user enable picframe-sync.timer
-systemctl --user start picframe-sync.timer
-```
-
-Verify services are running:
-```bash
-systemctl --user status picframe-api.service
-systemctl --user status picframe-sync.timer
-```
-
-For development/testing (run API in foreground instead):
-```bash
-cd ~/picframe_4.0
-source venv/bin/activate
-python -m src.main
-```
-
-**CHECKPOINT**: Ask user to confirm `picframe-api.service` shows active (running) and `picframe-sync.timer` shows active (waiting).
-
----
-
-## Step 9: WiFi Recovery Setup (Phase 6)
-
-**PROMPT USER**: "Now we'll install the WiFi watchdog and captive portal. This lets you recover the frame if WiFi credentials ever change — no SD card removal needed."
-
-Run the Phase 6 installer as root:
-
-```bash
-cd ~/picframe_4.0
-sudo bash scripts/setup/install_setup.sh
-```
-
-The installer:
-- Installs `hostapd`, `dnsmasq`, `bluez` system packages
-- Creates a dedicated Python venv at `scripts/setup/venv/`
-- Copies systemd service files to `/etc/systemd/system/`
-- Enables `picframe-watchdog` to start at boot
-- Installs `picframe-config` to `/usr/local/bin/`
-- Initializes `/var/lib/picframe/state.yaml`
-
-Verify the watchdog is running:
-
-```bash
-sudo systemctl status picframe-watchdog
-```
-
-Verify `picframe-config` is available:
-
-```bash
-sudo picframe-config --show
-```
-
-**CHECKPOINT**: Ask user to confirm watchdog is active and `--show` prints state without errors.
+## Step 10 (was Step 10): Verify Installation
 
 ---
 

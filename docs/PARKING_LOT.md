@@ -39,6 +39,16 @@ The full file is read into RAM (`await file.read()`) before the 50 MB size check
 
 ## Infrastructure
 
+### provisioned=false Forces Portal on Fresh Rebuild
+**Priority:** Medium  
+**File:** `scripts/setup/install_setup.sh`, `scripts/setup/state_manager.py`  
+`install_setup.sh` always initializes `state.yaml` with `provisioned=false`. When run on a frame that already has WiFi (e.g. a rebuild), this forces the AP portal on next boot even though WiFi works fine. `setup_api.sh` works around this by setting `provisioned=true` at the end, but the root fix is: `install_setup.sh` should detect active WiFi connectivity and initialize `provisioned=true` instead of hardcoding false.
+
+### Installer Progress Visibility
+**Priority:** Low  
+**File:** `scripts/setup/install_picframe.sh`, `scripts/setup/setup_api.sh`  
+During the rebuild, status was only visible via `tail -f ~/install_log.txt` in a second SSH session. Add clearer step banners, elapsed time, and a final summary to make progress visible in a single terminal session without needing a second window.
+
 ### Installer Script Distribution Strategy
 **Priority:** Low  
 **File:** `scripts/setup/install_picframe.sh`  
