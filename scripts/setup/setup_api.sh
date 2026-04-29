@@ -20,6 +20,18 @@ PROJECT_DIR="$HOME/picframe_4.0"
 
 log() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"; }
 
+# ── Hostname ──────────────────────────────────────────────────────────────────
+# Set hostname before Tailscale registers so the Funnel URL uses the right name.
+if [[ -z "$FRAME_NAME" ]]; then
+    read -rp "Enter frame name (e.g. tkframe, kframe): " FRAME_NAME
+fi
+CURRENT_HOSTNAME=$(hostname)
+if [[ "$CURRENT_HOSTNAME" != "$FRAME_NAME" ]]; then
+    log "Setting hostname to $FRAME_NAME (was $CURRENT_HOSTNAME)..."
+    sudo hostnamectl set-hostname "$FRAME_NAME"
+    log "Hostname updated. SSH prompt will show new name after next login."
+fi
+
 # ── Step 1: rclone ────────────────────────────────────────────────────────────
 log "--- Step 1: rclone ---"
 if command -v rclone &>/dev/null; then
@@ -93,11 +105,6 @@ if [[ ! -f "$HOME/.picframe/config.yaml" ]]; then
     kill "$API_PID" 2>/dev/null || true
     wait "$API_PID" 2>/dev/null || true
     cd ~
-fi
-
-if [[ -z "$FRAME_NAME" ]]; then
-    echo ""
-    read -rp "Enter frame name (e.g. tkframe, kframe): " FRAME_NAME
 fi
 
 log "Writing frame config: name=$FRAME_NAME funnel=$FUNNEL_URL..."
