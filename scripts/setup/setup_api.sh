@@ -70,11 +70,12 @@ check_api_local() {
 check_funnel() {
     local funnel_url="$1"
     local hostname; hostname=$(echo "$funnel_url" | sed 's|https://||' | sed 's|/.*||')
-    # Ensure dig is available to query public DNS (bypasses Tailscale MagicDNS)
-    if ! command -v dig &>/dev/null; then
-        sudo apt-get install -y -q dnsutils
-    fi
-    local public_ip; public_ip=$(dig +short "$hostname" @8.8.8.8 2>/dev/null | grep -v '\.$' | head -1 || true)
+    # Use DNS-over-HTTPS to get the public relay IP, bypassing Tailscale MagicDNS
+    # (system DNS returns the Tailscale IP which always succeeds, masking approval failures)
+    local public_ip; public_ip=$(curl -sf --connect-timeout 5 \
+        "https://cloudflare-dns.com/dns-query?name=${hostname}&type=A" \
+        -H "accept: application/dns-json" \
+        | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((a['data'] for a in d.get('Answer',[]) if a['type']==1),''))" 2>/dev/null || true)
     if [[ -z "$public_ip" ]]; then
         log "ERROR: Funnel not resolving via public DNS — node may not be approved"
         log "  Check: https://login.tailscale.com/admin/machines"
@@ -100,12 +101,6 @@ if [[ "$CURRENT_HOSTNAME" != "$FRAME_NAME" ]]; then
     log "Hostname updated. SSH prompt will show new name after next login."
 fi
 
-# ── Prerequisites ─────────────────────────────────────────────────────────────
-# dnsutils (dig) is required so the Funnel public-path check can query 8.8.8.8
-# directly, bypassing Tailscale's MagicDNS which would return the Tailscale IP
-# (100.x.x.x) instead of the public relay IP, masking Funnel approval failures.
-log "Installing prerequisites (dnsutils)..."
-sudo apt-get install -y -q dnsutils
 
 # ── Step 1: rclone ────────────────────────────────────────────────────────────
 log "--- Step 1: rclone ---"

@@ -108,17 +108,16 @@ if [[ -z "$FUNNEL_URL" ]]; then
     fail "API health (Funnel public)" "Funnel URL unknown — re-run with --funnel-url=https://..."
 else
     hostname=$(echo "$FUNNEL_URL" | sed 's|https://||' | sed 's|/.*||')
-    if ! command -v dig &>/dev/null; then
-        fail "API health (Funnel public)" "install dnsutils: sudo apt-get install -y dnsutils"
+    public_ip=$(curl -sf --connect-timeout 5 \
+        "https://cloudflare-dns.com/dns-query?name=${hostname}&type=A" \
+        -H "accept: application/dns-json" \
+        | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((a['data'] for a in d.get('Answer',[]) if a['type']==1),''))" 2>/dev/null || true)
+    if [[ -z "$public_ip" ]]; then
+        fail "API health (Funnel public)" "Funnel DNS not resolving — visit https://login.tailscale.com/admin/machines"
+    elif curl -sf --connect-timeout 10 --resolve "$hostname:443:$public_ip" "https://$hostname/health" >/dev/null 2>&1; then
+        ok "API health (Funnel public → $public_ip)"
     else
-        public_ip=$(dig +short "$hostname" @8.8.8.8 2>/dev/null | grep -v '\.$' | head -1 || true)
-        if [[ -z "$public_ip" ]]; then
-            fail "API health (Funnel public)" "Funnel DNS not resolving — visit https://login.tailscale.com/admin/machines"
-        elif curl -sf --connect-timeout 10 --resolve "$hostname:443:$public_ip" "https://$hostname/health" >/dev/null 2>&1; then
-            ok "API health (Funnel public → $public_ip)"
-        else
-            fail "API health (Funnel public)" "sudo tailscale funnel --bg 8000  |  check https://login.tailscale.com/admin/machines"
-        fi
+        fail "API health (Funnel public)" "sudo tailscale funnel --bg 8000  |  check https://login.tailscale.com/admin/machines"
     fi
 fi
 
