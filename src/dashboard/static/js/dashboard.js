@@ -413,6 +413,12 @@ function initStatusDashboard() {
             if (lastSyncEl) lastSyncEl.textContent = data.last_sync || "--";
             if (nextSyncEl) nextSyncEl.textContent = data.next_sync || "--";
             if (lastRestartEl) lastRestartEl.textContent = data.last_restart || "--";
+
+            // Show Koofr setup banner once sources exist and Koofr isn't configured
+            const koofrBanner = document.getElementById("koofr-setup-banner");
+            if (koofrBanner && !data.koofr_configured) {
+                koofrBanner.style.display = data.has_sources ? "block" : "none";
+            }
         } catch (err) {
             console.error("Failed to refresh status", err);
             if (bannerText) bannerText.textContent = "Error fetching status";
@@ -433,7 +439,7 @@ function initStatusDashboard() {
             const data = await resp.json();
             if (data.error) {
                 const msg = data.error.includes("Koofr setup")
-                    ? "Cloud sync not configured yet — complete Koofr setup in Settings."
+                    ? "Cloud sync not configured yet — use the setup banner at the top of the page to connect Koofr."
                     : "Sync error: " + data.error;
                 alert(msg);
             } else {

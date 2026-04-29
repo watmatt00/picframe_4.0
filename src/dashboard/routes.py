@@ -596,6 +596,7 @@ async def get_dashboard_status():
         "next_sync": next_sync,
         "last_restart": last_restart,
         "koofr_configured": _is_koofr_configured(),
+        "has_sources": len(source_manager.list_sources()) > 0,
     }
 
 
