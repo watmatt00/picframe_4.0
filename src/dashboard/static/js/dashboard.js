@@ -192,6 +192,29 @@ function initAdvancedToggles() {
         updateHeaderCursor(updatesHeader, updatesSection);
     }
 
+    // Party Mode card toggle
+    const partyToggle = document.getElementById('party-toggle');
+    const partySection = document.getElementById('party-section');
+    if (partyToggle && partySection) {
+        const partyHeader = partyToggle.closest('.card-header');
+        partyToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (partySection.classList.contains('visible')) {
+                collapseSection(partySection, partyToggle);
+            } else {
+                expandSection(partySection, partyToggle);
+            }
+            updateHeaderCursor(partyHeader, partySection);
+        });
+        partyHeader.addEventListener('click', () => {
+            if (!partySection.classList.contains('visible')) {
+                expandSection(partySection, partyToggle);
+                updateHeaderCursor(partyHeader, partySection);
+            }
+        });
+        updateHeaderCursor(partyHeader, partySection);
+    }
+
     // Photo Backups card toggle
     const backupToggle = document.getElementById('backup-toggle');
     const backupSection = document.getElementById('backup-section');

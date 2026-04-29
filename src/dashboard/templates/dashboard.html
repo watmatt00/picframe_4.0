@@ -342,54 +342,6 @@
                 </div> <!-- /settings-form-section -->
             </section>
 
-            <!-- Party Mode Card -->
-            <section class="card" style="margin-top: 1.5rem;">
-                <div class="card-header">
-                    <div>
-                        <div class="card-title">🎉 Party Mode</div>
-                        <div class="card-subtitle">Standalone slideshow — sync and WiFi recovery disabled</div>
-                    </div>
-                    {% if party_mode %}
-                    <span class="badge" style="background:rgba(251,191,36,0.2);color:#fbbf24;font-size:0.7rem;letter-spacing:0.05em;">PARTY MODE</span>
-                    {% endif %}
-                </div>
-                <div style="padding: 0 1.5rem 1.5rem;">
-                    <p style="color:#94a3b8;font-size:0.9rem;margin:0 0 1rem;">
-                        When enabled, cloud sync and WiFi recovery are disabled. The frame displays photos from the current source only. Dashboard remains accessible to turn party mode off.
-                    </p>
-                    <div class="form-row" style="margin-bottom:1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Currently displaying</label>
-                            <input type="text" class="form-input" value="{{ current_source }}" readonly disabled style="opacity:0.6;cursor:not-allowed;">
-                        </div>
-                    </div>
-                    <label class="checkbox-label" style="margin-bottom:1.25rem;display:flex;align-items:center;gap:0.6rem;cursor:pointer;">
-                        <input type="checkbox" id="party-mode-checkbox" {% if party_mode %}checked{% endif %}>
-                        <span style="color:#e2e8f0;">Enable Party Mode</span>
-                    </label>
-                    <button class="btn btn-primary" id="btn-save-party" style="{% if not party_mode %}background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.4);color:#fbbf24;{% endif %}">
-                        {% if party_mode %}Disable Party Mode{% else %}Enable Party Mode{% endif %}
-                    </button>
-                    <div id="party-mode-status" class="status-message" style="display:none;margin-top:0.75rem;"></div>
-                </div>
-            </section>
-
-            <!-- Party Mode Enable Modal (type-to-confirm) -->
-            <div id="party-enable-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1000;align-items:center;justify-content:center;">
-                <div style="background:#1e293b;border:1px solid #334155;border-radius:0.75rem;padding:1.75rem;max-width:460px;width:90%;box-shadow:0 25px 50px rgba(0,0,0,0.5);">
-                    <h3 style="margin:0 0 0.75rem;color:#f1f5f9;font-size:1.05rem;">⚠️ Enable Party Mode?</h3>
-                    <p style="color:#94a3b8;font-size:0.9rem;margin:0 0 1rem;line-height:1.5;">
-                        This will <strong style="color:#fbbf24;">stop cloud sync and WiFi recovery</strong>. The frame will display photos from <strong style="color:#e2e8f0;" id="party-modal-source"></strong> only until party mode is disabled from this dashboard.
-                    </p>
-                    <label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:0.4rem;">Type <strong style="color:#e2e8f0;">CONFIRM</strong> to proceed:</label>
-                    <input type="text" id="party-confirm-input" class="form-input" placeholder="CONFIRM" autocomplete="off" style="margin-bottom:1rem;">
-                    <div style="display:flex;gap:0.75rem;">
-                        <button id="btn-party-enable-confirm" class="btn btn-primary" disabled style="background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.4);color:#fbbf24;opacity:0.4;">Enable Party Mode</button>
-                        <button id="btn-party-enable-cancel" class="btn">Cancel</button>
-                    </div>
-                </div>
-            </div>
-
             <!-- Device Pairing Card -->
             <section class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">
@@ -643,6 +595,59 @@
                 </div> <!-- /padding -->
                 </div> <!-- /updates-section -->
             </section>
+
+            <!-- Party Mode Card -->
+            <section class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">🎉 Party Mode</div>
+                        <div class="card-subtitle">Standalone slideshow — sync and WiFi recovery disabled</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.75rem;">
+                        {% if party_mode %}
+                        <span class="badge" style="background:rgba(251,191,36,0.2);color:#fbbf24;font-size:0.7rem;letter-spacing:0.05em;">PARTY MODE</span>
+                        {% endif %}
+                        <button class="advanced-toggle" id="party-toggle" style="display:none;">✕ Close</button>
+                    </div>
+                </div>
+                <div class="advanced-section" id="party-section">
+                <div style="padding: 0 1.5rem 1.5rem;">
+                    <p style="color:#94a3b8;font-size:0.9rem;margin:0 0 1rem;">
+                        When enabled, cloud sync and WiFi recovery are disabled. The frame displays photos from the current source only. Dashboard remains accessible to turn party mode off.
+                    </p>
+                    <div class="form-row" style="margin-bottom:1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Currently displaying</label>
+                            <input type="text" class="form-input" value="{{ current_source }}" readonly disabled style="opacity:0.6;cursor:not-allowed;">
+                        </div>
+                    </div>
+                    <label class="checkbox-label" style="margin-bottom:1.25rem;display:flex;align-items:center;gap:0.6rem;cursor:pointer;">
+                        <input type="checkbox" id="party-mode-checkbox" {% if party_mode %}checked{% endif %}>
+                        <span style="color:#e2e8f0;">Enable Party Mode</span>
+                    </label>
+                    <button class="btn btn-primary" id="btn-save-party" style="{% if not party_mode %}background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.4);color:#fbbf24;{% endif %}">
+                        {% if party_mode %}Disable Party Mode{% else %}Enable Party Mode{% endif %}
+                    </button>
+                    <div id="party-mode-status" class="status-message" style="display:none;margin-top:0.75rem;"></div>
+                </div>
+                </div> <!-- /party-section -->
+            </section>
+
+            <!-- Party Mode Enable Modal (type-to-confirm) -->
+            <div id="party-enable-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1000;align-items:center;justify-content:center;">
+                <div style="background:#1e293b;border:1px solid #334155;border-radius:0.75rem;padding:1.75rem;max-width:460px;width:90%;box-shadow:0 25px 50px rgba(0,0,0,0.5);">
+                    <h3 style="margin:0 0 0.75rem;color:#f1f5f9;font-size:1.05rem;">⚠️ Enable Party Mode?</h3>
+                    <p style="color:#94a3b8;font-size:0.9rem;margin:0 0 1rem;line-height:1.5;">
+                        This will <strong style="color:#fbbf24;">stop cloud sync and WiFi recovery</strong>. The frame will display photos from <strong style="color:#e2e8f0;" id="party-modal-source"></strong> only until party mode is disabled from this dashboard.
+                    </p>
+                    <label style="display:block;color:#94a3b8;font-size:0.85rem;margin-bottom:0.4rem;">Type <strong style="color:#e2e8f0;">CONFIRM</strong> to proceed:</label>
+                    <input type="text" id="party-confirm-input" class="form-input" placeholder="CONFIRM" autocomplete="off" style="margin-bottom:1rem;">
+                    <div style="display:flex;gap:0.75rem;">
+                        <button id="btn-party-enable-confirm" class="btn btn-primary" disabled style="background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.4);color:#fbbf24;opacity:0.4;">Enable Party Mode</button>
+                        <button id="btn-party-enable-cancel" class="btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
