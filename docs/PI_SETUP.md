@@ -66,15 +66,17 @@ python3 --version
 Install the display engine using our installer (derived from thedigitalpictureframe.com's 2025 guide):
 
 ```bash
-sudo bash <(curl -s https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh)
+curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh -o /tmp/install_picframe.sh && sudo bash /tmp/install_picframe.sh
 ```
+
+> **Note:** Use the `curl -o /tmp/... && sudo bash` form — process substitution (`sudo bash <(curl ...)`) fails on Pi OS.
 
 The script handles multiple reboots automatically and resumes where it left off. Total time ~8–12 minutes. It installs: labwc (Wayland compositor), SDL2, VLC, FFmpeg, picframe (via pip), and wires up the systemd user service.
 
 Optional services (not installed by default):
 ```bash
 # Add Samba file sharing and/or Mosquitto MQTT broker:
-sudo bash <(curl -s https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh) --with-samba --with-mqtt
+curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh -o /tmp/install_picframe.sh && sudo bash /tmp/install_picframe.sh --with-samba --with-mqtt
 ```
 
 Verify installation after the final reboot:

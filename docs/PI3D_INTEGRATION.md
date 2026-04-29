@@ -24,11 +24,13 @@ The upstream helgeerbe install script no longer exists. We maintain our own at `
 
 ```bash
 # Default (no Samba, no MQTT):
-sudo bash <(curl -s https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh)
+curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh -o /tmp/install_picframe.sh && sudo bash /tmp/install_picframe.sh
 
 # With optional services:
-sudo bash <(curl -s https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh) --with-samba --with-mqtt
+curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh -o /tmp/install_picframe.sh && sudo bash /tmp/install_picframe.sh --with-samba --with-mqtt
 ```
+
+> **Note:** Use the `curl -o /tmp/... && sudo bash` form — process substitution (`sudo bash <(curl ...)`) fails on Pi OS.
 
 The installer:
 1. Updates OS and sets boot to console mode (2 reboots)
