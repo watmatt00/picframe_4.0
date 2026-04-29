@@ -101,12 +101,11 @@ if [[ "$CURRENT_HOSTNAME" != "$FRAME_NAME" ]]; then
 fi
 
 # ── Prerequisites ─────────────────────────────────────────────────────────────
-# Install dnsutils (dig) now so the Funnel public-path check can query 8.8.8.8
-# directly instead of going through Tailscale's MagicDNS.
-if ! command -v dig &>/dev/null; then
-    log "Installing dnsutils (required for Funnel verification)..."
-    sudo apt-get install -y -q dnsutils
-fi
+# dnsutils (dig) is required so the Funnel public-path check can query 8.8.8.8
+# directly, bypassing Tailscale's MagicDNS which would return the Tailscale IP
+# (100.x.x.x) instead of the public relay IP, masking Funnel approval failures.
+log "Installing prerequisites (dnsutils)..."
+sudo apt-get install -y -q dnsutils
 
 # ── Step 1: rclone ────────────────────────────────────────────────────────────
 log "--- Step 1: rclone ---"
