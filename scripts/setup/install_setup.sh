@@ -12,6 +12,27 @@ LOG()   { echo "[$(TIMESTAMP)] $*"; }
 ERROR() { echo "[$(TIMESTAMP)] ERROR: $*" >&2; }
 WARN()  { echo "[$(TIMESTAMP)] WARN:  $*"; }
 
+check_service() {
+    local service="$1"
+    if ! systemctl is-active --quiet "$service" 2>/dev/null; then
+        ERROR "$service failed to start — aborting install"
+        systemctl status "$service" --no-pager -l || true
+        journalctl -u "$service" -n 30 --no-pager || true
+        exit 1
+    fi
+    LOG "  ✓ $service is running"
+}
+
+check_cmd() {
+    local label="$1"; shift
+    if ! "$@" >/dev/null 2>&1; then
+        ERROR "$label check failed — aborting install"
+        "$@" 2>&1 || true
+        exit 1
+    fi
+    LOG "  ✓ $label"
+}
+
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SETUP_DIR="${PROJECT_DIR}/scripts/setup"
 SETUP_VENV="${SETUP_DIR}/venv"
@@ -145,6 +166,7 @@ LOG "Systemd daemon reloaded"
 systemctl enable picframe-watchdog
 systemctl start picframe-watchdog
 LOG "picframe-watchdog enabled and started"
+check_service picframe-watchdog
 
 # ── picframe-config bash wrapper ──────────────────────────────────────────────
 
@@ -152,6 +174,7 @@ LOG "Installing picframe-config tool..."
 cp "${SETUP_DIR}/picframe-config" /usr/local/bin/picframe-config
 chmod +x /usr/local/bin/picframe-config
 LOG "picframe-config installed to /usr/local/bin/picframe-config"
+check_cmd "picframe-config" picframe-config --show
 
 # ── Initialize state.yaml ─────────────────────────────────────────────────────
 

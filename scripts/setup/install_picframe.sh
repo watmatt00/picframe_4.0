@@ -66,6 +66,24 @@ as_user() {
     sudo -u "$ACTUAL_USER" "$@"
 }
 
+check_user_service() {
+    local service="$1"
+    local uid; uid=$(id -u "$ACTUAL_USER")
+    local xdg="/run/user/$uid"
+    log "Waiting for $service to start..."
+    for i in $(seq 1 30); do
+        if sudo -u "$ACTUAL_USER" XDG_RUNTIME_DIR="$xdg" systemctl --user is-active --quiet "$service" 2>/dev/null; then
+            log "  ✓ $service is running"
+            return 0
+        fi
+        sleep 1
+    done
+    log "ERROR: $service failed to start after 30s — aborting install"
+    sudo -u "$ACTUAL_USER" XDG_RUNTIME_DIR="$xdg" systemctl --user status "$service" --no-pager -l || true
+    sudo -u "$ACTUAL_USER" XDG_RUNTIME_DIR="$xdg" journalctl --user -u "$service" -n 30 --no-pager || true
+    exit 1
+}
+
 check_internet() {
     log "Checking internet connection..."
     while ! ping -c 1 -W 2 8.8.8.8 &>/dev/null; do
@@ -108,6 +126,16 @@ reboot_and_resume() {
 # ── Main ──────────────────────────────────────────────────────────────────────
 LAST=$(last_step)
 log "=== picframe install | user=$ACTUAL_USER last_step=$LAST samba=$WITH_SAMBA mqtt=$WITH_MQTT ==="
+
+# Check 1: Python 3.11+
+if python3 -c "import sys; sys.exit(0 if (sys.version_info.major, sys.version_info.minor) >= (3, 11) else 1)" 2>/dev/null; then
+    PYTHON_VER=$(python3 -c "import sys; v=sys.version_info; print(f'{v.major}.{v.minor}.{v.micro}')")
+    log "  ✓ Python $PYTHON_VER"
+else
+    PYTHON_VER=$(python3 --version 2>&1 || echo "unknown")
+    log "ERROR: Python 3.11+ required, found $PYTHON_VER — run: sudo apt upgrade python3"
+    exit 1
+fi
 
 # Step 1: OS update
 if [[ "$LAST" -lt 1 ]]; then
@@ -275,5 +303,5 @@ fi
 remove_resume_service
 rm -f "$PROGRESS_FILE"
 log "=== Installation complete! ==="
-log "Verify: systemctl --user status picframe.service"
+check_user_service picframe.service
 log "Full log: $LOG_FILE"

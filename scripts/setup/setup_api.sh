@@ -20,6 +20,74 @@ PROJECT_DIR="$HOME/picframe_4.0"
 
 log() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"; }
 
+# ── Install-time check helpers ────────────────────────────────────────────────
+check_service() {
+    local service="$1"
+    local sc="systemctl --user" jc="journalctl --user -u"
+    if ! $sc is-active --quiet "$service" 2>/dev/null; then
+        log "ERROR: $service failed to start — aborting install"
+        $sc status "$service" --no-pager -l || true
+        $jc "$service" -n 30 --no-pager || true
+        exit 1
+    fi
+    log "  ✓ $service is running"
+}
+
+check_cmd() {
+    local label="$1"; shift
+    if ! "$@" >/dev/null 2>&1; then
+        log "ERROR: $label check failed — aborting install"
+        "$@" 2>&1 || true
+        exit 1
+    fi
+    log "  ✓ $label"
+}
+
+check_path() {
+    local label="$1" path="$2"
+    if [[ ! -e "$path" ]]; then
+        log "ERROR: $label not found at $path — aborting install"
+        exit 1
+    fi
+    log "  ✓ $label"
+}
+
+check_api_local() {
+    log "Waiting for API to be ready..."
+    for i in $(seq 1 20); do
+        if curl -sf http://localhost:8000/health >/dev/null 2>&1; then
+            log "  ✓ API health (local) OK"
+            return 0
+        fi
+        sleep 1
+    done
+    log "ERROR: API health check timed out after 20s — aborting install"
+    systemctl --user status picframe-api.service --no-pager -l || true
+    journalctl --user -u picframe-api.service -n 30 --no-pager || true
+    exit 1
+}
+
+check_funnel() {
+    local funnel_url="$1"
+    local hostname; hostname=$(echo "$funnel_url" | sed 's|https://||' | sed 's|/.*||')
+    # Ensure dig is available to query public DNS (bypasses Tailscale MagicDNS)
+    if ! command -v dig &>/dev/null; then
+        sudo apt-get install -y -q dnsutils
+    fi
+    local public_ip; public_ip=$(dig +short "$hostname" @8.8.8.8 2>/dev/null | grep -v '\.$' | head -1 || true)
+    if [[ -z "$public_ip" ]]; then
+        log "ERROR: Funnel not resolving via public DNS — node may not be approved"
+        log "  Check: https://login.tailscale.com/admin/machines"
+        exit 1
+    fi
+    if ! curl -sf --connect-timeout 10 --resolve "$hostname:443:$public_ip" "https://$hostname/health" >/dev/null 2>&1; then
+        log "ERROR: Funnel public path unreachable ($public_ip) — check Tailscale admin"
+        log "  Check: https://login.tailscale.com/admin/machines"
+        exit 1
+    fi
+    log "  ✓ Funnel reachable via public internet ($public_ip)"
+}
+
 # ── Hostname ──────────────────────────────────────────────────────────────────
 # Set hostname before Tailscale registers so the Funnel URL uses the right name.
 if [[ -z "$FRAME_NAME" ]]; then
@@ -41,6 +109,7 @@ else
     curl https://rclone.org/install.sh | sudo bash
     log "rclone installed."
 fi
+check_cmd "rclone installed" rclone version --no-check-update
 
 # ── Step 2: Tailscale + Funnel ────────────────────────────────────────────────
 log "--- Step 2: Tailscale ---"
@@ -62,6 +131,7 @@ if ! tailscale status &>/dev/null; then
     tailscale status
 fi
 log "Tailscale connected."
+check_cmd "Tailscale connected" tailscale status
 
 log "Enabling Tailscale Funnel on port 8000..."
 FUNNEL_OUTPUT=$(sudo tailscale funnel --bg 8000 2>&1 || true)
@@ -90,6 +160,7 @@ if [[ -z "$FUNNEL_URL" ]]; then
     read -rp "Enter your Funnel URL manually (e.g. https://tkframe.whale-ayu.ts.net): " FUNNEL_URL
 fi
 log "Funnel URL: $FUNNEL_URL"
+check_funnel "$FUNNEL_URL"
 
 # ── Step 3: Clone picframe_4.0 ────────────────────────────────────────────────
 log "--- Step 3: Clone picframe_4.0 ($BRANCH) ---"
@@ -108,6 +179,7 @@ python3 -m venv "$PROJECT_DIR/venv"
 "$PROJECT_DIR/venv/bin/pip" install --upgrade pip -q
 "$PROJECT_DIR/venv/bin/pip" install -e "$PROJECT_DIR" -q
 log "picframe_4.0 installed."
+check_path "Python venv" "$PROJECT_DIR/venv"
 
 # ── Step 4: Generate and configure config.yaml ────────────────────────────────
 log "--- Step 4: Configuration ---"
@@ -138,6 +210,7 @@ with open(path, 'w') as f:
     yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
 print("Config updated.")
 PYEOF
+check_path "config.yaml" "$HOME/.picframe/config.yaml"
 
 # ── Step 5: Deploy systemd services ───────────────────────────────────────────
 log "--- Step 5: Systemd services ---"
@@ -148,6 +221,8 @@ cp "$PROJECT_DIR/systemd/picframe-sync.timer"    "$HOME/.config/systemd/user/"
 systemctl --user daemon-reload
 systemctl --user enable --now picframe-api.service
 systemctl --user enable --now picframe-sync.timer
+check_service picframe-api.service
+check_api_local
 log "API running, sync timer running."
 
 # ── Step 6: Phase 6 WiFi recovery ─────────────────────────────────────────────
@@ -189,8 +264,15 @@ echo "  Funnel URL : $FUNNEL_URL"
 echo "  Dashboard  : http://$(hostname).local:8000"
 echo "============================================="
 echo ""
-echo "Verify:"
-echo "  systemctl --user status picframe-api.service"
-echo "  sudo systemctl status picframe-watchdog"
-echo "  curl http://localhost:8000/health"
-echo "  sudo picframe-config --show"
+echo ""
+log "Running post-install verification..."
+VERIFY_SCRIPT="$PROJECT_DIR/scripts/setup/verify_install.sh"
+if [[ -f "$VERIFY_SCRIPT" ]]; then
+    bash "$VERIFY_SCRIPT" --funnel-url="$FUNNEL_URL" || true
+else
+    echo "Verify:"
+    echo "  systemctl --user status picframe-api.service"
+    echo "  sudo systemctl status picframe-watchdog"
+    echo "  curl http://localhost:8000/health"
+    echo "  sudo picframe-config --show"
+fi
