@@ -128,6 +128,14 @@ log "API running, sync timer running."
 
 # ── Step 6: Phase 6 WiFi recovery ─────────────────────────────────────────────
 log "--- Step 6: Phase 6 WiFi recovery installer ---"
+echo ""
+echo "============================================="
+echo "  NOTE: The next installer will suggest"
+echo "  'sudo reboot' — IGNORE IT."
+echo "  DO NOT reboot until this script finishes"
+echo "  and prints 'PicFrame setup complete!'."
+echo "============================================="
+echo ""
 sudo bash "$PROJECT_DIR/scripts/setup/install_setup.sh"
 
 # ── Step 7: Mark provisioned (WiFi already connected — skip portal) ───────────
