@@ -320,6 +320,17 @@ class SystemdService:
         try:
             logger.info(f"Restarting service: {service_name}")
 
+            if service_name == "picframe-api":
+                # Fire-and-forget: systemd kills this process before systemctl
+                # can report success, so awaiting communicate() always yields a
+                # non-zero exit code and a false error log.
+                await asyncio.create_subprocess_exec(
+                    "systemctl", "--user", "restart", f"{service_name}.service",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                return True
+
             proc = await asyncio.create_subprocess_exec(
                 "systemctl", "--user", "restart", f"{service_name}.service",
                 stdout=asyncio.subprocess.PIPE,
