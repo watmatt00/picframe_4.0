@@ -1120,7 +1120,6 @@ function initSettingsForm() {
             frame_name: document.getElementById('settings-frame-name').value,
             rotation_interval: parseInt(document.getElementById('settings-rotation-interval').value),
             sync_interval: parseInt(document.getElementById('settings-sync-interval').value),
-            log_level: document.getElementById('settings-log-level').value
         };
 
         btn.disabled = true;
@@ -1362,6 +1361,7 @@ function initSettingsLogViewer() {
     const logType = document.getElementById('settings-log-type');
     const logLines = document.getElementById('settings-log-lines');
     const autoRefresh = document.getElementById('settings-auto-refresh');
+    const saveLevelBtn = document.getElementById('btn-save-log-level');
 
     if (refreshBtn) refreshBtn.addEventListener('click', loadSettingsLogs);
     if (logType) logType.addEventListener('change', loadSettingsLogs);
@@ -1374,6 +1374,27 @@ function initSettingsLogViewer() {
             } else {
                 clearInterval(settingsAutoRefreshInterval);
                 settingsAutoRefreshInterval = null;
+            }
+        });
+    }
+
+    if (saveLevelBtn) {
+        saveLevelBtn.addEventListener('click', async function() {
+            const level = document.getElementById('settings-log-level').value;
+            saveLevelBtn.disabled = true;
+            saveLevelBtn.textContent = 'Saving...';
+            try {
+                const resp = await fetch('/api/settings/log-level', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ log_level: level })
+                });
+                const data = await resp.json();
+                saveLevelBtn.textContent = data.ok ? 'Saved' : 'Error';
+                setTimeout(() => { saveLevelBtn.textContent = 'Save Level'; saveLevelBtn.disabled = false; }, 2000);
+            } catch (err) {
+                saveLevelBtn.textContent = 'Error';
+                setTimeout(() => { saveLevelBtn.textContent = 'Save Level'; saveLevelBtn.disabled = false; }, 2000);
             }
         });
     }
