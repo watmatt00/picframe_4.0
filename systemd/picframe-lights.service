@@ -1,0 +1,14 @@
+[Unit]
+Description=PicFrame Indicator Lights Overlay
+After=picframe-api.service
+Wants=picframe-api.service
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+ExecStart=/usr/bin/python3 %h/picframe_4.0/scripts/indicator_lights.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=graphical-session.target
