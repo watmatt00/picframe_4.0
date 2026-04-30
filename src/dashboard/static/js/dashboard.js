@@ -175,7 +175,7 @@ function initAdvancedToggles() {
         koofrSettingsToggle.addEventListener('click', () => {
             koofrSettingsSection.classList.toggle('visible');
             const isOpen = koofrSettingsSection.classList.contains('visible');
-            const baseLabel = koofrSettingsToggle.textContent.includes('Edit') ? 'Edit' : 'Setup';
+            const baseLabel = koofrSettingsToggle.textContent.includes('Show') ? 'Show' : 'Setup';
             koofrSettingsToggle.textContent = isOpen ? '▾ Hide' : `▸ ${baseLabel}`;
         });
     }

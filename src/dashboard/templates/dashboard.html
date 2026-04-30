@@ -310,12 +310,12 @@
                 <div style="margin-top: 0; padding: 0 1.5rem 1rem; border-top: 1px solid rgba(255,255,255,0.08);">
                     <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 1rem;">
                         <div style="display:flex;align-items:center;gap:0.75rem;">
-                            <div style="font-size: 0.95rem; font-weight: 600; color: #cbd5e1;">☁️ Cloud Sync (Koofr)</div>
+                            <div style="font-size: 0.95rem; font-weight: 600; color: #cbd5e1;">☁️ Cloud Sync</div>
                             <span style="font-size:0.75rem;padding:0.15rem 0.5rem;border-radius:4px;font-weight:600;{% if koofr_configured %}background:#14532d;color:#4ade80;{% else %}background:#713f12;color:#fbbf24;{% endif %}">
                                 {% if koofr_configured %}Connected{% else %}Not configured{% endif %}
                             </span>
                         </div>
-                        <button class="advanced-toggle" id="koofr-settings-toggle">▸ {% if koofr_configured %}Edit{% else %}Setup{% endif %}</button>
+                        <button class="advanced-toggle" id="koofr-settings-toggle">▸ {% if koofr_configured %}Show{% else %}Setup{% endif %}</button>
                     </div>
                     {% if koofr_configured and koofr_user %}
                     <div style="font-size:0.82rem;color:#6b7280;padding-top:0.35rem;">{{ koofr_user }}</div>
