@@ -477,10 +477,13 @@ function initStatusDashboard() {
                 if (cycleHint) cycleHint.textContent = '—';
             }
 
-            // Corner indicator lights
+            // Corner indicator lights — both always lit
             const lightSync = document.getElementById('light-sync');
             const lightWifi = document.getElementById('light-wifi');
-            if (lightSync) lightSync.classList.toggle('active', syncStatus !== 'match');
+            if (lightSync) {
+                lightSync.classList.remove('ok', 'active');
+                lightSync.classList.add(syncStatus === 'match' ? 'ok' : 'active');
+            }
             if (lightWifi) {
                 lightWifi.classList.remove('green', 'red');
                 lightWifi.classList.add(data.wifi_connected ? 'green' : 'red');

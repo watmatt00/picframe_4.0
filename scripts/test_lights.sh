@@ -1,61 +1,49 @@
 #!/bin/bash
-# test_lights.sh — Force indicator light states for manual testing.
-# Overrides are in-memory only; cleared on API restart or by running 'reset'.
+# test_lights.sh — Interactive indicator light tester.
+# Overrides are in-memory only; cleared on API restart or by pressing x.
 #
-# Usage: ./scripts/test_lights.sh <command> [host]
-#   Commands:
-#     amber       — amber sync light ON (simulates out-of-sync)
-#     no-amber    — amber sync light OFF (simulates in-sync)
-#     wifi-red    — wifi light RED (simulates disconnected)
-#     wifi-green  — wifi light GREEN (simulates connected)
-#     reset       — clear all overrides, restore real behavior
-#   Host defaults to tkframe LAN IP (192.168.102.210:8000)
-#
-# Examples:
-#   ./scripts/test_lights.sh amber
-#   ./scripts/test_lights.sh wifi-red 192.168.102.210:8000
+# Usage: ./scripts/test_lights.sh [host]
+#   host defaults to 192.168.102.210:8000
 
 set -euo pipefail
 
-CMD="${1:-}"
-HOST="${2:-192.168.102.210:8000}"
+HOST="${1:-192.168.102.210:8000}"
 URL="http://${HOST}/dashboard/test-lights"
 
-usage() {
-    echo "Usage: $0 <amber|no-amber|wifi-red|wifi-green|reset> [host]"
-    exit 1
+post() {
+    curl -sf -X POST "$URL" \
+        -H "Content-Type: application/json" \
+        -d "$1" > /dev/null
 }
 
-case "$CMD" in
-    amber)
-        echo "Setting sync light → AMBER"
-        curl -sf -X POST "$URL" -H "Content-Type: application/json" \
-            -d '{"sync_status": "error"}' | python3 -m json.tool
-        ;;
-    no-amber)
-        echo "Setting sync light → OFF"
-        curl -sf -X POST "$URL" -H "Content-Type: application/json" \
-            -d '{"sync_status": "match"}' | python3 -m json.tool
-        ;;
-    wifi-red)
-        echo "Setting wifi light → RED"
-        curl -sf -X POST "$URL" -H "Content-Type: application/json" \
-            -d '{"wifi_connected": false}' | python3 -m json.tool
-        ;;
-    wifi-green)
-        echo "Setting wifi light → GREEN"
-        curl -sf -X POST "$URL" -H "Content-Type: application/json" \
-            -d '{"wifi_connected": true}' | python3 -m json.tool
-        ;;
-    reset)
-        echo "Clearing all light overrides"
-        curl -sf -X POST "$URL" -H "Content-Type: application/json" \
-            -d '{"sync_status": null, "wifi_connected": null}' | python3 -m json.tool
-        ;;
-    *)
-        usage
-        ;;
-esac
-
+echo "PicFrame Light Tester  (host: ${HOST})"
+echo "  1  →  Amber + Green   (no sync, wifi up)"
+echo "  2  →  Amber + Red     (no sync, wifi down)"
+echo "  x  →  Reset           (restore real behavior)"
+echo "  q  →  Quit"
 echo ""
-echo "Dashboard auto-refreshes every 15s — or hit Refresh to see the change immediately."
+
+while true; do
+    read -rp "> " key
+    case "$key" in
+        1)
+            post '{"sync_status": "error", "wifi_connected": true}'
+            echo "State 1 set — amber + green"
+            ;;
+        2)
+            post '{"sync_status": "error", "wifi_connected": false}'
+            echo "State 2 set — amber + red"
+            ;;
+        x)
+            post '{"sync_status": null, "wifi_connected": null}'
+            echo "Reset — real values restored"
+            ;;
+        q)
+            echo "Quit"
+            exit 0
+            ;;
+        *)
+            echo "  1 / 2 / x / q"
+            ;;
+    esac
+done
