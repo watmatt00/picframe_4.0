@@ -5,29 +5,28 @@ PicFrame indicator light overlay.
 Two small colored dots rendered in the upper-right corner of the frame display
 via a borderless always-on-top Tkinter/XWayland window.
 
-  Top dot    — Sync: green = synced, amber = not synced or wifi down
-  Bottom dot — WiFi: green = connected, red = disconnected
+  Left dot  — Sync: green = synced, amber = not synced or wifi down
+  Right dot — WiFi: green = connected, red = disconnected
 
 Polls /dashboard/status every 10 seconds. Keeps last known state on API error.
 """
 
 import json
-import sys
 import time
 import urllib.request
 import tkinter as tk
 
 API_URL   = "http://localhost:8000/dashboard/status"
 POLL_MS   = 10_000   # 10 s
-DOT_PX    = 8        # ~2 mm at 96 DPI
-GAP_PX    = 4
-PAD_PX    = 2
+DOT_PX    = 12       # ~3 mm at 96 DPI (50% larger than original 8 px)
+GAP_PX    = 5        # horizontal gap between dots
+PAD_PX    = 2        # padding inside canvas
 MARGIN_PX = 38       # ~10 mm at 96 DPI
 
 AMBER = "#fbbf24"
 GREEN = "#22c55e"
 RED   = "#ef4444"
-BG    = "#111111"
+BG    = "black"      # punched out by -transparentcolor on compositing systems
 
 
 def fetch_status():
@@ -45,8 +44,16 @@ class IndicatorOverlay:
         self.root.attributes("-topmost", True)
         self.root.configure(bg=BG)
 
-        cw = DOT_PX + PAD_PX * 2
-        ch = DOT_PX * 2 + GAP_PX + PAD_PX * 2
+        # Make the black background transparent on compositing systems.
+        # Falls back gracefully (visible dark box) if not supported.
+        try:
+            self.root.wm_attributes("-transparentcolor", BG)
+        except Exception:
+            pass
+
+        # Horizontal layout: [sync] [wifi]
+        cw = DOT_PX * 2 + GAP_PX + PAD_PX * 2
+        ch = DOT_PX + PAD_PX * 2
 
         self.canvas = tk.Canvas(
             self.root, width=cw, height=ch, bg=BG, highlightthickness=0
@@ -54,11 +61,15 @@ class IndicatorOverlay:
         self.canvas.pack()
 
         p = PAD_PX
-        self.dot_sync = self.canvas.create_oval(p, p, p + DOT_PX, p + DOT_PX,
-                                                fill=AMBER, outline="")
-        y = p + DOT_PX + GAP_PX
-        self.dot_wifi = self.canvas.create_oval(p, y, p + DOT_PX, y + DOT_PX,
-                                                fill=GREEN, outline="")
+        # Left dot — sync
+        self.dot_sync = self.canvas.create_oval(
+            p, p, p + DOT_PX, p + DOT_PX, fill=AMBER, outline=""
+        )
+        # Right dot — wifi
+        x = p + DOT_PX + GAP_PX
+        self.dot_wifi = self.canvas.create_oval(
+            x, p, x + DOT_PX, p + DOT_PX, fill=GREEN, outline=""
+        )
 
         self.root.update_idletasks()
         sw = self.root.winfo_screenwidth()
