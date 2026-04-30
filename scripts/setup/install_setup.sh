@@ -88,7 +88,8 @@ LOG "Python packages installed"
 
 LOG "Creating /var/lib/picframe/ state directory..."
 mkdir -p /var/lib/picframe
-chmod 755 /var/lib/picframe
+chown root:sudo /var/lib/picframe
+chmod 775 /var/lib/picframe
 
 # ── Write install.conf ────────────────────────────────────────────────────────
 

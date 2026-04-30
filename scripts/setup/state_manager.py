@@ -5,6 +5,7 @@ Manages ~/.picframe/state.yaml with atomic writes and file locking.
 Tracks provisioning state, WiFi status, and setup mode flag.
 """
 
+import grp
 import logging
 import os
 from datetime import datetime
@@ -81,6 +82,15 @@ class StateManager:
                     f.flush()
                     os.fsync(f.fileno())  # Ensure data is on disk before rename
                 temp_path.rename(self._path)
+                # Restore root:sudo 664 — watchdog runs as root and atomic rename
+                # creates a new file with default umask (root:root 644), which
+                # blocks the API user (non-root, sudo group) from writing.
+                try:
+                    sudo_gid = grp.getgrnam("sudo").gr_gid
+                    os.chown(self._path, 0, sudo_gid)
+                    os.chmod(self._path, 0o664)
+                except Exception:
+                    pass
                 logger.debug("state.yaml updated")
             except Exception as e:
                 logger.error(f"Failed to write state.yaml: {e}")

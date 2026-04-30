@@ -238,6 +238,11 @@ def _get_lan_ip() -> str:
     return ""
 
 
+def _is_wifi_connected() -> bool:
+    """Return True if the frame has a non-loopback network connection."""
+    return bool(_get_lan_ip())
+
+
 def _get_wifi_ssid() -> str:
     """Get the currently connected WiFi SSID via nmcli."""
     try:
@@ -340,6 +345,9 @@ async def dashboard_home(request: Request):
         "lan_ip": _get_lan_ip(),
         "wifi_ssid": _get_wifi_ssid(),
         "party_mode": settings.display.party_mode,
+        "sleep_enabled": settings.display.sleep_enabled,
+        "sleep_time": settings.display.sleep_time,
+        "wake_time": settings.display.wake_time,
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
 
@@ -629,6 +637,8 @@ async def get_dashboard_status():
         "last_restart": last_restart,
         "koofr_configured": _is_koofr_configured(),
         "has_sources": len(source_manager.list_sources()) > 0,
+        "rotation_interval": get_settings().display.rotation_interval,
+        "wifi_connected": _is_wifi_connected(),
     }
 
 
@@ -721,7 +731,7 @@ def _set_koofr_configured() -> None:
     except PermissionError:
         logger.error(
             "state.yaml is not writable by the API user — "
-            "fix with: sudo chown matt:matt /var/lib/picframe/state.yaml"
+            "fix with: sudo bash scripts/setup/install_setup.sh"
         )
     except Exception as e:
         logger.warning(f"Could not update state.yaml koofr_configured: {e}")

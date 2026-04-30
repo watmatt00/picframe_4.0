@@ -6,6 +6,7 @@ Wrapper for controlling systemd user services.
 
 import asyncio
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -116,6 +117,122 @@ async def update_sync_timer(interval_seconds: int) -> bool:
 
     except Exception as e:
         logger.error(f"Failed to update sync timer: {e}")
+        return False
+
+
+_SLEEP_TIMER_DIR = Path.home() / ".config" / "systemd" / "user"
+_TIME_RE = re.compile(r'^\d{2}:\d{2}$')
+
+_SLEEP_SERVICE = """\
+[Unit]
+Description=PicFrame Display Sleep
+After=picframe.service
+
+[Service]
+Type=oneshot
+# vcgencmd works on Pi OS Bullseye/Bookworm (legacy + KMS with fkms overlay).
+# If display stays on, ensure the user is in the 'video' group.
+ExecStart=vcgencmd display_power 0
+"""
+
+_WAKE_SERVICE = """\
+[Unit]
+Description=PicFrame Display Wake
+
+[Service]
+Type=oneshot
+ExecStart=vcgencmd display_power 1
+"""
+
+_SLEEP_TIMER_UNIT = """\
+[Unit]
+Description=PicFrame Display Sleep Timer
+
+[Timer]
+OnCalendar=*-*-* {time}:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+"""
+
+_WAKE_TIMER_UNIT = """\
+[Unit]
+Description=PicFrame Display Wake Timer
+
+[Timer]
+OnCalendar=*-*-* {time}:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+"""
+
+
+def _write_unit(path: Path, content: str) -> None:
+    """Atomically write a systemd unit file."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(content)
+    tmp.rename(path)
+
+
+async def update_sleep_timers(enabled: bool, sleep_time: str, wake_time: str) -> bool:
+    """
+    Create or remove picframe-sleep/wake timer pairs.
+
+    If enabled=False, stops and disables both timers.
+    sleep_time and wake_time must be "HH:MM" 24-hour format.
+    Returns True on success.
+    """
+    sleep_svc = _SLEEP_TIMER_DIR / "picframe-sleep.service"
+    wake_svc  = _SLEEP_TIMER_DIR / "picframe-wake.service"
+    sleep_tmr = _SLEEP_TIMER_DIR / "picframe-sleep.timer"
+    wake_tmr  = _SLEEP_TIMER_DIR / "picframe-wake.timer"
+
+    if not enabled:
+        for unit in ("picframe-sleep.timer", "picframe-wake.timer"):
+            proc = await asyncio.create_subprocess_exec(
+                "systemctl", "--user", "disable", "--now", unit,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            await proc.communicate()
+        logger.info("Sleep timers disabled")
+        return True
+
+    if not _TIME_RE.match(sleep_time) or not _TIME_RE.match(wake_time):
+        logger.error(f"Invalid time format: sleep={sleep_time!r} wake={wake_time!r}")
+        return False
+
+    try:
+        _write_unit(sleep_svc, _SLEEP_SERVICE)
+        _write_unit(wake_svc,  _WAKE_SERVICE)
+        _write_unit(sleep_tmr, _SLEEP_TIMER_UNIT.format(time=sleep_time))
+        _write_unit(wake_tmr,  _WAKE_TIMER_UNIT.format(time=wake_time))
+
+        proc = await asyncio.create_subprocess_exec(
+            "systemctl", "--user", "daemon-reload",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            logger.error(f"daemon-reload failed: {stderr.decode()}")
+            return False
+
+        for unit in ("picframe-sleep.timer", "picframe-wake.timer"):
+            proc = await asyncio.create_subprocess_exec(
+                "systemctl", "--user", "enable", "--now", unit,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                logger.error(f"Failed to enable {unit}: {stderr.decode()}")
+                return False
+
+        logger.info(f"Sleep timers enabled: sleep={sleep_time}, wake={wake_time}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to update sleep timers: {e}")
         return False
 
 

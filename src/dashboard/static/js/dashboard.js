@@ -70,16 +70,14 @@ function initAdvancedToggles() {
         header.classList.toggle('card-header--expandable', !section.classList.contains('visible'));
     }
 
-    // Helper: expand a section and show its hide button
     function expandSection(section, btn) {
         section.classList.add('visible');
-        btn.style.display = '';
+        btn.textContent = 'Close';
     }
 
-    // Helper: collapse a section and hide its hide button
     function collapseSection(section, btn) {
         section.classList.remove('visible');
-        btn.style.display = 'none';
+        btn.textContent = 'Show';
     }
 
     // Settings logs toggle
@@ -164,8 +162,8 @@ function initAdvancedToggles() {
         networkInfoToggle.addEventListener('click', () => {
             networkInfoSection.classList.toggle('visible');
             networkInfoToggle.textContent = networkInfoSection.classList.contains('visible')
-                ? '▾ Hide'
-                : '▸ Show';
+                ? 'Close'
+                : 'Show';
         });
     }
 
@@ -174,9 +172,45 @@ function initAdvancedToggles() {
     if (koofrSettingsToggle && koofrSettingsSection) {
         koofrSettingsToggle.addEventListener('click', () => {
             koofrSettingsSection.classList.toggle('visible');
-            const isOpen = koofrSettingsSection.classList.contains('visible');
-            const baseLabel = koofrSettingsToggle.textContent.includes('Show') ? 'Show' : 'Setup';
-            koofrSettingsToggle.textContent = isOpen ? '▾ Hide' : `▸ ${baseLabel}`;
+            koofrSettingsToggle.textContent = koofrSettingsSection.classList.contains('visible')
+                ? 'Close'
+                : 'Show';
+        });
+    }
+
+    // Sleep schedule sub-card toggle
+    const sleepScheduleToggle = document.getElementById('sleep-schedule-toggle');
+    const sleepScheduleSection = document.getElementById('sleep-schedule-section');
+    if (sleepScheduleToggle && sleepScheduleSection) {
+        sleepScheduleToggle.addEventListener('click', () => {
+            sleepScheduleSection.classList.toggle('visible');
+            sleepScheduleToggle.textContent = sleepScheduleSection.classList.contains('visible') ? 'Close' : 'Show';
+        });
+    }
+
+    // Sleep schedule save
+    const btnSaveSleep = document.getElementById('btn-save-sleep');
+    if (btnSaveSleep) {
+        btnSaveSleep.addEventListener('click', async () => {
+            const msg = document.getElementById('sleep-schedule-msg');
+            const enabled = document.getElementById('sleep-enabled-checkbox').checked;
+            const sleepTime = document.getElementById('sleep-time-input').value;
+            const wakeTime = document.getElementById('wake-time-input').value;
+            if (msg) msg.textContent = 'Saving…';
+            try {
+                const resp = await fetch('/api/settings/sleep-schedule', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled, sleep_time: sleepTime, wake_time: wakeTime }),
+                });
+                const data = await resp.json();
+                if (msg) {
+                    msg.textContent = data.message || (data.success ? 'Saved' : 'Error');
+                    msg.style.color = data.success ? '#4ade80' : '#f87171';
+                }
+            } catch (e) {
+                if (msg) { msg.textContent = 'Request failed'; msg.style.color = '#f87171'; }
+            }
         });
     }
 
@@ -425,6 +459,33 @@ function initStatusDashboard() {
             if (nextSyncEl) nextSyncEl.textContent = data.next_sync || "--";
             if (lastRestartEl) lastRestartEl.textContent = data.last_restart || "--";
 
+            // Cycle time
+            const rotInterval = data.rotation_interval || 0;
+            const lc = data.local_count || 0;
+            const cycleEl = document.getElementById('cycle-time-value');
+            const cycleHint = document.getElementById('cycle-time-hint');
+            if (rotInterval > 0 && lc > 0) {
+                const secs = rotInterval * lc;
+                const h = Math.floor(secs / 3600);
+                const m = Math.floor((secs % 3600) / 60);
+                const s = secs % 60;
+                const fmt = h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+                if (cycleEl) cycleEl.textContent = fmt;
+                if (cycleHint) cycleHint.textContent = `Cycles all ${lc} photos in ${fmt}`;
+            } else {
+                if (cycleEl) cycleEl.textContent = '—';
+                if (cycleHint) cycleHint.textContent = '—';
+            }
+
+            // Corner indicator lights
+            const lightSync = document.getElementById('light-sync');
+            const lightWifi = document.getElementById('light-wifi');
+            if (lightSync) lightSync.classList.toggle('active', syncStatus !== 'match');
+            if (lightWifi) {
+                lightWifi.classList.remove('green', 'red');
+                lightWifi.classList.add(data.wifi_connected ? 'green' : 'red');
+            }
+
         } catch (err) {
             console.error("Failed to refresh status", err);
             if (bannerText) bannerText.textContent = "Error fetching status";
@@ -531,8 +592,8 @@ function initStatusDashboard() {
         }, rotationSecs * 1000);
     }
 
-    // Initial load only — use the refresh button for manual updates
     refreshStatus();
+    setInterval(refreshStatus, 15000);
 }
 
 // =============================================================================
@@ -1761,7 +1822,7 @@ async function runCreateBackup() {
                 const toggle = document.getElementById('backup-toggle');
                 if (section && section.classList.contains('visible')) {
                     section.classList.remove('visible');
-                    if (toggle) toggle.textContent = '▸ Show';
+                    if (toggle) toggle.textContent = 'Show';
                 }
                 status.textContent = '';
             }, 2000);

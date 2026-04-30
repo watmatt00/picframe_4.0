@@ -288,6 +288,38 @@ main {
     box-shadow: none;
 }
 
+/* Corner Indicator Lights */
+.corner-lights {
+    position: fixed;
+    top: 10mm;
+    right: 10mm;
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    pointer-events: none;
+}
+.corner-light {
+    width: 7.5px;
+    height: 7.5px;
+    border-radius: 50%;
+    background: #1f2937;
+    box-shadow: none;
+    transition: background 0.4s, box-shadow 0.4s;
+}
+.corner-light--amber.active {
+    background: #fbbf24;
+    box-shadow: 0 0 5px rgba(251, 191, 36, 0.85);
+}
+.corner-light--wifi.green {
+    background: #22c55e;
+    box-shadow: 0 0 5px rgba(34, 197, 94, 0.85);
+}
+.corner-light--wifi.red {
+    background: #ef4444;
+    box-shadow: 0 0 5px rgba(239, 68, 68, 0.85);
+}
+
 /* Tools Card */
 .tools-card-header {
     display: flex;

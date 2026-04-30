@@ -29,6 +29,9 @@ class DisplayConfig(BaseModel):
     current_source: str = Field(default="default", description="Active photo source ID")
     rotation_interval: int = Field(default=30, description="Seconds between images")
     party_mode: bool = Field(default=False, description="Party mode: display only, no sync or WiFi recovery")
+    sleep_enabled: bool = Field(default=False, description="Enable display sleep schedule")
+    sleep_time: str = Field(default="22:00", description="Display off time HH:MM 24-hour")
+    wake_time: str = Field(default="07:00", description="Display on time HH:MM 24-hour")
 
 
 class SyncConfig(BaseModel):

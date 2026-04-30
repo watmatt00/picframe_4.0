@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 from src.api.dependencies import require_admin
 from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
-from src.services.systemd_service import systemd_service, update_sync_timer, VALID_SYNC_INTERVALS
+from src.services.systemd_service import systemd_service, update_sync_timer, update_sleep_timers, VALID_SYNC_INTERVALS
 from src.utils.logging import log_auth_event
 
 PICFRAME_CONFIG_PATH = Path.home() / "picframe_data" / "config" / "configuration.yaml"
@@ -171,3 +171,50 @@ async def update_rotation_interval(
         message += ". Warning: Frame service restart failed — change will apply on next restart."
 
     return UpdateSettingsResponse(success=True, message=message)
+
+
+class UpdateSleepScheduleRequest(BaseModel):
+    """Request to update the display sleep schedule."""
+    enabled: bool = Field(description="Enable sleep schedule")
+    sleep_time: str = Field(
+        pattern=r'^\d{2}:\d{2}$',
+        description="Display off time HH:MM 24-hour",
+    )
+    wake_time: str = Field(
+        pattern=r'^\d{2}:\d{2}$',
+        description="Display on time HH:MM 24-hour",
+    )
+
+
+@router.post("/sleep-schedule", response_model=UpdateSettingsResponse)
+async def update_sleep_schedule(
+    request: UpdateSleepScheduleRequest,
+    admin=Depends(require_admin),
+):
+    """
+    Update the display sleep schedule.
+
+    When enabled, display turns off at sleep_time and on at wake_time daily.
+    Uses vcgencmd display_power via systemd user timers.
+    """
+    config_manager.set("display.sleep_enabled", request.enabled)
+    config_manager.set("display.sleep_time", request.sleep_time)
+    config_manager.set("display.wake_time", request.wake_time)
+    reload_settings()
+
+    success = await update_sleep_timers(request.enabled, request.sleep_time, request.wake_time)
+    if not success:
+        return UpdateSettingsResponse(
+            success=False,
+            message="Settings saved but failed to update systemd timers — check logs",
+        )
+
+    if request.enabled:
+        msg = f"Sleep schedule enabled: off at {request.sleep_time}, on at {request.wake_time}"
+    else:
+        msg = "Sleep schedule disabled"
+
+    log_auth_event("SETTINGS_UPDATE", success=True,
+                   details={"field": "sleep_schedule", "admin": admin.device_name,
+                            "enabled": request.enabled})
+    return UpdateSettingsResponse(success=True, message=msg)
