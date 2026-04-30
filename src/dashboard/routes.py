@@ -718,6 +718,11 @@ def _set_koofr_configured() -> None:
             yaml.safe_dump(state, f, default_flow_style=False)
         tmp.replace(state_path)
         logger.info("state.yaml: koofr_configured set to true")
+    except PermissionError:
+        logger.error(
+            "state.yaml is not writable by the API user — "
+            "fix with: sudo chown matt:matt /var/lib/picframe/state.yaml"
+        )
     except Exception as e:
         logger.warning(f"Could not update state.yaml koofr_configured: {e}")
 
@@ -1609,8 +1614,9 @@ async def test_cloud_connection():
         return {"ok": False, "error": str(e)}
 
     if test_proc.returncode == 0:
-        remotes_after = await rclone_list_remotes()
         sources_with_remote = sum(1 for s in source_manager.list_sources() if s.rclone_remote)
+        _set_koofr_configured()
+        _restore_setup_image()
         return {
             "ok": True,
             "message": f"Connected to Koofr successfully. {sources_with_remote} source(s) ready to sync.",
