@@ -85,6 +85,18 @@ def _get_koofr_user() -> str:
     return ""
 
 
+def _get_koofr_pass() -> str:
+    """Return the stored plain Koofr password, or empty string."""
+    try:
+        if PICFRAME_APP_CONFIG.exists():
+            with open(PICFRAME_APP_CONFIG) as f:
+                config = yaml.safe_load(f) or {}
+            return config.get("sync", {}).get("koofr_pass", "").strip()
+    except Exception:
+        pass
+    return ""
+
+
 def _is_koofr_configured() -> bool:
     """Return True if cloud sync is configured on this frame.
 
@@ -1529,3 +1541,78 @@ async def apply_update_api():
         "output": result.get("output"),
         "error": result.get("error"),
     }
+
+
+@router.post("/api/cloud/test")
+async def test_cloud_connection():
+    """
+    Test the Koofr rclone connection.
+
+    If the rclone remote is missing but credentials are stored in config,
+    auto-creates the remote and backfills sources before testing.
+    LAN-only endpoint, no JWT auth required.
+    """
+    koofr_user = _get_koofr_user()
+    if not koofr_user:
+        return {"ok": False, "error": "Koofr not configured — enter credentials and save first."}
+
+    # Check if rclone remote exists; create it from stored credentials if not
+    remotes = await rclone_list_remotes()
+    if "koofr" not in remotes:
+        koofr_pass = _get_koofr_pass()
+        if not koofr_pass:
+            return {"ok": False, "error": "Koofr password not found in config — re-enter credentials and save."}
+
+        try:
+            obscure_proc = await asyncio.create_subprocess_exec(
+                "rclone", "obscure", koofr_pass,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(obscure_proc.communicate(), timeout=5)
+            if obscure_proc.returncode != 0:
+                return {"ok": False, "error": "Failed to process stored password."}
+            obscured = stdout.decode().strip()
+        except Exception as e:
+            return {"ok": False, "error": f"rclone obscure failed: {e}"}
+
+        try:
+            create_proc = await asyncio.create_subprocess_exec(
+                "rclone", "config", "create", "koofr", "koofr",
+                "user", koofr_user, "password", obscured,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(create_proc.communicate(), timeout=15)
+            if create_proc.returncode != 0:
+                return {"ok": False, "error": f"Failed to create rclone remote: {stderr.decode().strip()}"}
+            logger.info("Koofr rclone remote auto-created during test")
+        except Exception as e:
+            return {"ok": False, "error": f"rclone config create failed: {e}"}
+
+        # Backfill sources now that the remote exists
+        updated = source_manager.backfill_remotes()
+        if updated:
+            logger.info(f"Backfilled sources during test: {updated}")
+
+    # Test the live connection
+    try:
+        test_proc = await asyncio.create_subprocess_exec(
+            "rclone", "lsd", "koofr:",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(test_proc.communicate(), timeout=20)
+    except asyncio.TimeoutError:
+        return {"ok": False, "error": "Connection timed out — check your internet connection."}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+    if test_proc.returncode == 0:
+        remotes_after = await rclone_list_remotes()
+        sources_with_remote = sum(1 for s in source_manager.list_sources() if s.rclone_remote)
+        return {
+            "ok": True,
+            "message": f"Connected to Koofr successfully. {sources_with_remote} source(s) ready to sync.",
+        }
+    return {"ok": False, "error": f"Koofr connection failed: {stderr.decode().strip() or 'unknown error'}"}

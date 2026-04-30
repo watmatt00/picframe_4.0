@@ -2601,6 +2601,36 @@ function toggleKoofrPassword() {
     }
 }
 
+async function testKoofrConnection() {
+    const btn = document.getElementById('btn-test-koofr');
+    const msg = document.getElementById('koofr-test-msg');
+    if (!btn || !msg) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Testing…';
+    msg.style.color = '#94a3b8';
+    msg.textContent = 'Connecting to Koofr…';
+
+    try {
+        const resp = await fetch('/api/cloud/test', { method: 'POST' });
+        const data = await resp.json();
+        if (data.ok) {
+            msg.style.color = '#4ade80';
+            msg.textContent = '✓ ' + data.message;
+            setTimeout(refreshStatus, 1000);
+        } else {
+            msg.style.color = '#f87171';
+            msg.textContent = '✗ ' + data.error;
+        }
+    } catch (err) {
+        msg.style.color = '#f87171';
+        msg.textContent = '✗ Network error — check API is running.';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '⚡ Test Connection';
+    }
+}
+
 async function saveKoofrSetup() {
     const user = document.getElementById('koofr-user-input').value.trim();
     const pass = document.getElementById('koofr-pass-input').value.trim();
