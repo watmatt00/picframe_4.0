@@ -55,6 +55,9 @@ templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 # Log files location
 LOGS_DIR = Path.home() / ".picframe" / "logs"
 
+# In-memory overrides for manual light testing (reset to None to resume normal behavior)
+_light_overrides: dict = {}  # keys: "sync_status", "wifi_connected"
+
 # Picframe config file location
 PICFRAME_CONFIG_PATH = Path.home() / "picframe_data" / "config" / "configuration.yaml"
 
@@ -624,7 +627,7 @@ async def get_dashboard_status():
             pass
 
     return {
-        "sync_status": sync_status,
+        "sync_status": _light_overrides.get("sync_status", sync_status),
         "local_count": local_count,
         "remote_count": remote_count,
         "current_source": current_source.name if current_source else "Unknown",
@@ -638,7 +641,7 @@ async def get_dashboard_status():
         "koofr_configured": _is_koofr_configured(),
         "has_sources": len(source_manager.list_sources()) > 0,
         "rotation_interval": get_settings().display.rotation_interval,
-        "wifi_connected": _is_wifi_connected(),
+        "wifi_connected": _light_overrides.get("wifi_connected", _is_wifi_connected()),
     }
 
 
@@ -1206,6 +1209,29 @@ async def save_log_level(request: LogLevelRequest):
     except Exception as e:
         logger.error(f"Failed to save log level: {e}")
         return {"ok": False, "error": str(e)}
+
+
+@router.post("/dashboard/test-lights")
+async def test_lights(request: Request):
+    """
+    Set in-memory light overrides for manual testing.
+
+    Body: {"sync_status": "error"|"match"|null, "wifi_connected": true|false|null}
+    Passing null removes the override and restores real behavior.
+    LAN-only endpoint, no JWT auth required.
+    """
+    body = await request.json()
+    if "sync_status" in body:
+        if body["sync_status"] is None:
+            _light_overrides.pop("sync_status", None)
+        else:
+            _light_overrides["sync_status"] = body["sync_status"]
+    if "wifi_connected" in body:
+        if body["wifi_connected"] is None:
+            _light_overrides.pop("wifi_connected", None)
+        else:
+            _light_overrides["wifi_connected"] = body["wifi_connected"]
+    return {"ok": True, "overrides": _light_overrides}
 
 
 @router.post("/api/settings/party")
