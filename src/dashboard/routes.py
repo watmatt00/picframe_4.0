@@ -665,13 +665,17 @@ async def koofr_setup(request: Request):
 
     # Create permanent rclone remote using the obscured password from validation
     try:
-        await asyncio.create_subprocess_exec(
+        proc = await asyncio.create_subprocess_exec(
             "rclone", "config", "create", "koofr", "koofr",
-            f"user={koofr_user}", f"password={obscured_pass}",
+            "user", koofr_user, "password", obscured_pass,
             stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
         )
-        logger.info("Koofr rclone remote created")
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=15)
+        if proc.returncode == 0:
+            logger.info("Koofr rclone remote created successfully")
+        else:
+            logger.error(f"rclone config create failed: {stderr.decode().strip()}")
     except Exception as e:
         logger.error(f"Failed to create rclone remote: {e}")
 
