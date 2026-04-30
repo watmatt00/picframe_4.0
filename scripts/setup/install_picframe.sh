@@ -217,6 +217,22 @@ if [[ "$LAST" -lt 5 ]]; then
     if printf '\n\n\n' | as_user "$ACTUAL_HOME/venv_picframe/bin/picframe" -i "$ACTUAL_HOME/" \
             2>&1 | tee -a "$LOG_FILE"; then
         log "Picframe initialized."
+        # Apply required defaults to configuration.yaml
+        PCONF="$ACTUAL_HOME/picframe_data/config/configuration.yaml"
+        as_user python3 - "$PCONF" <<'PYEOF'
+import sys, yaml
+p = sys.argv[1]
+with open(p) as f:
+    cfg = yaml.safe_load(f) or {}
+cfg.setdefault("model", {})
+cfg["model"]["show_text_tm"] = 0
+cfg["model"]["recent_n"] = 7
+cfg["model"]["reshuffle_num"] = 1
+with open(p, "w") as f:
+    yaml.safe_dump(cfg, f, default_flow_style=False)
+print(f"Applied defaults to {p}")
+PYEOF
+        log "Picframe configuration defaults applied."
         save_step 5
     else
         log "ERROR: picframe init failed. Check $LOG_FILE"
