@@ -29,38 +29,6 @@
         <button class="tab-button" data-tab="settings">Settings</button>
     </div>
 
-    <!-- KOOFR SETUP BANNER (first-run step 2) -->
-    <div id="koofr-setup-banner" style="display:{% if not koofr_configured and has_sources %}block{% else %}none{% endif %};background:#2a2a1a;border-bottom:2px solid #c8a000;padding:0.85rem 1.25rem;color:#f0e080;">
-        <strong style="color:#ffd700;">Set up cloud sync for your photos</strong> — connect Koofr to enable syncing.
-        <button onclick="document.getElementById('koofr-setup-form').style.display='block';this.style.display='none';"
-                style="margin-left:1rem;padding:0.25rem 0.85rem;background:#c8a000;color:#111;border:none;border-radius:4px;cursor:pointer;font-weight:600;">
-            Connect Koofr
-        </button>
-        <div id="koofr-setup-form" style="display:none;margin-top:0.85rem;max-width:600px;">
-            <div style="margin-bottom:0.5rem;">
-                <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#ccc;">Koofr email</label>
-                <input type="email" id="koofr-user-input" placeholder="you@example.com"
-                       style="padding:0.35rem 0.5rem;border:1px solid #555;border-radius:4px;width:100%;box-sizing:border-box;background:#1a1a1a;color:#fff;">
-            </div>
-            <div style="margin-bottom:0.5rem;">
-                <label style="display:block;font-size:0.8rem;margin-bottom:3px;color:#ccc;">Koofr password</label>
-                <div style="display:flex;gap:0.4rem;">
-                    <input type="password" id="koofr-pass-input" placeholder="Koofr password"
-                           style="padding:0.35rem 0.5rem;border:1px solid #555;border-radius:4px;flex:1;background:#1a1a1a;color:#fff;">
-                    <button type="button" onclick="toggleKoofrPassword()"
-                            style="padding:0.35rem 0.6rem;background:#333;color:#ccc;border:1px solid #555;border-radius:4px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">
-                        Show
-                    </button>
-                </div>
-            </div>
-            <button id="koofr-save-btn" onclick="saveKoofrSetup()"
-                    style="padding:0.4rem 1.2rem;background:#c8a000;color:#111;border:none;border-radius:4px;cursor:pointer;font-weight:600;">
-                Save &amp; Verify
-            </button>
-            <div id="koofr-setup-msg" style="margin-top:0.5rem;font-size:0.9rem;color:#ccc;"></div>
-        </div>
-    </div>
-
     <!-- STATUS TAB CONTENT -->
     <div id="tab-status" class="tab-content active">
         <main>
@@ -334,6 +302,44 @@
                                 <input type="text" class="form-input" value="{{ wifi_ssid or 'Not connected / unavailable' }}" readonly disabled
                                        style="opacity: 0.6; cursor: not-allowed;">
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cloud Sync Sub-card -->
+                <div style="margin-top: 0; padding: 0 1.5rem 1rem; border-top: 1px solid rgba(255,255,255,0.08);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 1rem;">
+                        <div style="display:flex;align-items:center;gap:0.75rem;">
+                            <div style="font-size: 0.95rem; font-weight: 600; color: #cbd5e1;">☁️ Cloud Sync (Koofr)</div>
+                            <span style="font-size:0.75rem;padding:0.15rem 0.5rem;border-radius:4px;font-weight:600;{% if koofr_configured %}background:#14532d;color:#4ade80;{% else %}background:#713f12;color:#fbbf24;{% endif %}">
+                                {% if koofr_configured %}Connected{% else %}Not configured{% endif %}
+                            </span>
+                        </div>
+                        <button class="advanced-toggle" id="koofr-settings-toggle">▸ {% if koofr_configured %}Edit{% else %}Setup{% endif %}</button>
+                    </div>
+                    {% if koofr_configured and koofr_user %}
+                    <div style="font-size:0.82rem;color:#6b7280;padding-top:0.35rem;">{{ koofr_user }}</div>
+                    {% endif %}
+                    <div class="advanced-section" id="koofr-settings-section" style="border-left-color: #c8a000;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Koofr email</label>
+                                <input type="email" id="koofr-user-input" class="form-input" placeholder="you@example.com" value="{{ koofr_user or '' }}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Koofr password</label>
+                                <div style="display:flex;gap:0.4rem;">
+                                    <input type="password" id="koofr-pass-input" class="form-input" placeholder="Koofr password" style="flex:1;">
+                                    <button type="button" onclick="toggleKoofrPassword()"
+                                            style="padding:0.35rem 0.6rem;background:#333;color:#ccc;border:1px solid #555;border-radius:4px;cursor:pointer;font-size:0.8rem;white-space:nowrap;">
+                                        Show
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="button-row">
+                            <button id="koofr-save-btn" class="btn" onclick="saveKoofrSetup()">Save &amp; Verify</button>
+                            <span id="koofr-setup-msg" style="font-size:0.9rem;color:#94a3b8;align-self:center;"></span>
                         </div>
                     </div>
                 </div>

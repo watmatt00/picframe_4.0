@@ -73,6 +73,18 @@ def _format_last_checked(iso_str: str | None) -> str:
 PICFRAME_APP_CONFIG = Path.home() / ".picframe" / "config.yaml"
 
 
+def _get_koofr_user() -> str:
+    """Return the stored Koofr email, or empty string if not configured."""
+    try:
+        if PICFRAME_APP_CONFIG.exists():
+            with open(PICFRAME_APP_CONFIG) as f:
+                config = yaml.safe_load(f) or {}
+            return config.get("sync", {}).get("koofr_user", "").strip()
+    except Exception:
+        pass
+    return ""
+
+
 def _is_koofr_configured() -> bool:
     """Return True if cloud sync is configured on this frame.
 
@@ -270,6 +282,13 @@ async def dashboard_home(request: Request):
     local_version = await get_local_version()
     update_branch = await get_current_branch()
 
+    # If the frame is already at the "available" commit, the update was applied — clear stale state
+    update_last_result = settings.updates.last_result
+    update_available_commit = settings.updates.available_commit
+    if update_last_result == "update_available" and update_available_commit and update_available_commit == local_commit:
+        update_last_result = "up_to_date"
+        update_available_commit = None
+
     context = {
         "request": request,
         "frame_name": settings.frame.name,
@@ -298,12 +317,13 @@ async def dashboard_home(request: Request):
         "update_day": settings.updates.day,
         "update_check_time": settings.updates.check_time,
         "update_last_checked": _format_last_checked(settings.updates.last_checked),
-        "update_last_result": settings.updates.last_result,
-        "update_available_commit": settings.updates.available_commit,
+        "update_last_result": update_last_result,
+        "update_available_commit": update_available_commit,
         "update_local_commit": local_commit,
         "update_local_version": local_version,
         "update_branch": update_branch,
         "koofr_configured": _is_koofr_configured(),
+        "koofr_user": _get_koofr_user(),
         "has_sources": len(sources) > 0,
         "lan_ip": _get_lan_ip(),
         "wifi_ssid": _get_wifi_ssid(),
@@ -778,8 +798,8 @@ async def list_devices_api():
             "id": device.id,
             "name": device.name,
             "role": device.role,
-            "paired_at": device.paired_at.strftime("%Y-%m-%d %H:%M") if device.paired_at else None,
-            "last_seen": device.last_seen.strftime("%Y-%m-%d %H:%M") if device.last_seen else None,
+            "paired_at": device.paired_at.astimezone().strftime("%Y-%m-%d %H:%M") if device.paired_at else None,
+            "last_seen": device.last_seen.astimezone().strftime("%Y-%m-%d %H:%M") if device.last_seen else None,
         })
 
     return {
