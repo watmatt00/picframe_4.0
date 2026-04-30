@@ -89,16 +89,18 @@ function initAdvancedToggles() {
             e.stopPropagation();
             if (settingsLogsSection.classList.contains('visible')) {
                 collapseSection(settingsLogsSection, settingsLogsToggle);
+                clearInterval(settingsAutoRefreshInterval);
+                settingsAutoRefreshInterval = null;
             } else {
                 expandSection(settingsLogsSection, settingsLogsToggle);
-                loadSettingsLogs();
+                _startLogAutoRefresh();
             }
             updateHeaderCursor(settingsLogsHeader, settingsLogsSection);
         });
         settingsLogsHeader.addEventListener('click', () => {
             if (!settingsLogsSection.classList.contains('visible')) {
                 expandSection(settingsLogsSection, settingsLogsToggle);
-                loadSettingsLogs();
+                _startLogAutoRefresh();
                 updateHeaderCursor(settingsLogsHeader, settingsLogsSection);
             }
         });
@@ -1325,6 +1327,15 @@ async function revokeDevice(deviceId, deviceName) {
 // =============================================================================
 
 let settingsAutoRefreshInterval = null;
+
+function _startLogAutoRefresh() {
+    loadSettingsLogs();
+    if (!settingsAutoRefreshInterval) {
+        settingsAutoRefreshInterval = setInterval(loadSettingsLogs, 5000);
+    }
+    const autoRefresh = document.getElementById('settings-auto-refresh');
+    if (autoRefresh) autoRefresh.checked = true;
+}
 
 async function loadSettingsLogs() {
     const logType = document.getElementById('settings-log-type');
