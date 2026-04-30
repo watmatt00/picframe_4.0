@@ -89,18 +89,16 @@ function initAdvancedToggles() {
             e.stopPropagation();
             if (settingsLogsSection.classList.contains('visible')) {
                 collapseSection(settingsLogsSection, settingsLogsToggle);
-                clearInterval(settingsAutoRefreshInterval);
-                settingsAutoRefreshInterval = null;
             } else {
                 expandSection(settingsLogsSection, settingsLogsToggle);
-                _startLogAutoRefresh();
+                loadSettingsLogs();
             }
             updateHeaderCursor(settingsLogsHeader, settingsLogsSection);
         });
         settingsLogsHeader.addEventListener('click', () => {
             if (!settingsLogsSection.classList.contains('visible')) {
                 expandSection(settingsLogsSection, settingsLogsToggle);
-                _startLogAutoRefresh();
+                loadSettingsLogs();
                 updateHeaderCursor(settingsLogsHeader, settingsLogsSection);
             }
         });
@@ -1328,15 +1326,6 @@ async function revokeDevice(deviceId, deviceName) {
 
 let settingsAutoRefreshInterval = null;
 
-function _startLogAutoRefresh() {
-    loadSettingsLogs();
-    if (!settingsAutoRefreshInterval) {
-        settingsAutoRefreshInterval = setInterval(loadSettingsLogs, 5000);
-    }
-    const autoRefresh = document.getElementById('settings-auto-refresh');
-    if (autoRefresh) autoRefresh.checked = true;
-}
-
 async function loadSettingsLogs() {
     const logType = document.getElementById('settings-log-type');
     const logLines = document.getElementById('settings-log-lines');
@@ -1348,6 +1337,10 @@ async function loadSettingsLogs() {
 
     try {
         const response = await fetch('/api/logs?log_type=' + type + '&lines=' + lines);
+        if (!response.ok) {
+            content.textContent = 'Failed to load logs: HTTP ' + response.status;
+            return;
+        }
         const data = await response.json();
 
         if (data.logs && data.logs.length > 0) {
@@ -1355,6 +1348,10 @@ async function loadSettingsLogs() {
         } else {
             content.textContent = 'No log entries found.';
         }
+        content.scrollTop = 0;
+
+        const ts = document.getElementById('log-last-refreshed');
+        if (ts) ts.textContent = 'refreshed ' + new Date().toLocaleTimeString();
     } catch (err) {
         content.textContent = 'Failed to load logs: ' + err.message;
     }
