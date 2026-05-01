@@ -1214,8 +1214,8 @@ async def save_log_level(request: LogLevelRequest):
 class SleepScheduleRequest(BaseModel):
     """Request to save the display sleep schedule."""
     enabled: bool
-    sleep_time: str = Field(pattern=r'^\d{2}:\d{2}$', description="HH:MM 24-hour")
-    wake_time: str = Field(pattern=r'^\d{2}:\d{2}$', description="HH:MM 24-hour")
+    sleep_time: str
+    wake_time: str
 
 
 @router.post("/api/settings/sleep-schedule")
