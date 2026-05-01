@@ -320,6 +320,32 @@ fi
 # ── Complete ──────────────────────────────────────────────────────────────────
 remove_resume_service
 rm -f "$PROGRESS_FILE"
+
+# Re-apply required config defaults here (after all reboots) to guarantee they
+# stick regardless of whether picframe re-initialised its config during setup.
+PCONF="$ACTUAL_HOME/picframe_data/config/configuration.yaml"
+if [[ -f "$PCONF" ]]; then
+    if as_user python3 -c "
+import sys, yaml
+p='$PCONF'
+with open(p) as f:
+    cfg = yaml.safe_load(f) or {}
+cfg.setdefault('model', {})
+cfg['model']['show_text_tm'] = 0
+cfg['model'].setdefault('recent_n', 7)
+cfg['model'].setdefault('reshuffle_num', 1)
+cfg.setdefault('http', {})['use_http'] = True
+with open(p, 'w') as f:
+    yaml.safe_dump(cfg, f, default_flow_style=False)
+print('Config defaults applied.')
+" 2>&1; then
+        log "Picframe config defaults confirmed."
+    else
+        log "WARNING: Could not apply picframe config defaults — check $PCONF manually."
+        log "  Required: model.show_text_tm=0, http.use_http=true"
+    fi
+fi
+
 log "=== Installation complete! ==="
 check_user_service picframe.service
 log "Full log: $LOG_FILE"
