@@ -99,4 +99,36 @@ for base in "${CHANGED_SERVICES[@]}"; do
     fi
 done
 
+# ── Step 5: picframe config.yaml migrations ───────────────────────────────────
+# Idempotent patches to ~/picframe_data/config/configuration.yaml.
+PCONF="$HOME/picframe_data/config/configuration.yaml"
+if [[ -f "$PCONF" ]]; then
+    python3 - "$PCONF" <<'PYEOF'
+import sys, yaml
+p = sys.argv[1]
+with open(p) as f:
+    cfg = yaml.safe_load(f) or {}
+changed = False
+# Enable Pi3D HTTP API — required for current-image preview and source switching
+if not cfg.get("http", {}).get("use_http", False):
+    cfg.setdefault("http", {})["use_http"] = True
+    changed = True
+if changed:
+    with open(p, "w") as f:
+        yaml.safe_dump(cfg, f, default_flow_style=False)
+    print(f"Config migrations applied to {p}")
+else:
+    print(f"Config migrations: no changes needed.")
+PYEOF
+    # Restart picframe if config changed (python3 above exits 0 regardless)
+    if grep -q "use_http: true" "$PCONF" 2>/dev/null; then
+        if systemctl --user is-active --quiet picframe.service 2>/dev/null; then
+            systemctl --user restart picframe.service
+            LOG "  Restarted picframe.service after config migration."
+        fi
+    fi
+else
+    LOG "picframe config not found at $PCONF — skipping migrations."
+fi
+
 LOG "update_app.sh complete."

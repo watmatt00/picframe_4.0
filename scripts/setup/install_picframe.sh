@@ -229,6 +229,7 @@ cfg.setdefault("model", {})
 cfg["model"]["show_text_tm"] = 0
 cfg["model"]["recent_n"] = 7
 cfg["model"]["reshuffle_num"] = 1
+cfg.setdefault("http", {})["use_http"] = True
 with open(p, "w") as f:
     yaml.safe_dump(cfg, f, default_flow_style=False)
 print(f"Applied defaults to {p}")
