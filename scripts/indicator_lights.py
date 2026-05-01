@@ -83,7 +83,7 @@ class IndicatorOverlay(Gtk.Window):
         x = geo.x + geo.width - self._cw - MARGIN_PX
         self.move(x, geo.y + MARGIN_PX)
 
-        self.show_all()
+        # Don't show_all() here — _poll() decides visibility based on state
         GLib.timeout_add(POLL_MS, self._poll)
 
     def _on_draw(self, widget, cr):
@@ -107,9 +107,13 @@ class IndicatorOverlay(Gtk.Window):
         if data is not None:
             wifi_ok = data.get("wifi_connected", False)
             sync_ok = data.get("sync_status") == "match" and wifi_ok
-            self.sync_color = GREEN if sync_ok else AMBER
-            self.wifi_color = GREEN if wifi_ok else RED
-            self.queue_draw()
+            if wifi_ok and sync_ok:
+                self.hide()
+            else:
+                self.sync_color = AMBER
+                self.wifi_color = GREEN if wifi_ok else RED
+                self.show_all()
+                self.queue_draw()
         return True  # keep GLib timer alive
 
 
