@@ -105,13 +105,13 @@ fi
 # ── Step 1: rclone ────────────────────────────────────────────────────────────
 log "--- Step 1: rclone ---"
 if command -v rclone &>/dev/null; then
-    log "rclone already installed: $(rclone version --no-check-update 2>/dev/null | head -1)"
+    log "rclone already installed: $(rclone version 2>/dev/null | head -1)"
 else
     log "Installing rclone..."
     curl https://rclone.org/install.sh | sudo bash
     log "rclone installed."
 fi
-check_cmd "rclone installed" rclone version --no-check-update
+check_cmd "rclone installed" rclone version
 
 # ── Step 2: Tailscale + Funnel ────────────────────────────────────────────────
 log "--- Step 2: Tailscale ---"
