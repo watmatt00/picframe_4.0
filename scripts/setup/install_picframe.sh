@@ -194,7 +194,8 @@ fi
 if [[ "$LAST" -lt 4 ]]; then
     check_internet
     log "Step 4: Installing core packages..."
-    apt-get install -y git libsdl2-dev xwayland labwc wlr-randr vlc ffmpeg
+    apt-get install -y git libsdl2-dev xwayland labwc wlr-randr vlc ffmpeg \
+        python3-gi python3-gi-cairo gir1.2-gtk-3.0
     if $WITH_MQTT; then
         apt-get install -y mosquitto mosquitto-clients
         log "Mosquitto installed."

@@ -217,15 +217,17 @@ check_path "config.yaml" "$HOME/.picframe/config.yaml"
 # ── Step 5: Deploy systemd services ───────────────────────────────────────────
 log "--- Step 5: Systemd services ---"
 mkdir -p "$HOME/.config/systemd/user"
-cp "$PROJECT_DIR/systemd/picframe-api.service"   "$HOME/.config/systemd/user/"
-cp "$PROJECT_DIR/systemd/picframe-sync.service"  "$HOME/.config/systemd/user/"
-cp "$PROJECT_DIR/systemd/picframe-sync.timer"    "$HOME/.config/systemd/user/"
+cp "$PROJECT_DIR/systemd/picframe-api.service"    "$HOME/.config/systemd/user/"
+cp "$PROJECT_DIR/systemd/picframe-sync.service"   "$HOME/.config/systemd/user/"
+cp "$PROJECT_DIR/systemd/picframe-sync.timer"     "$HOME/.config/systemd/user/"
+cp "$PROJECT_DIR/systemd/picframe-lights.service" "$HOME/.config/systemd/user/"
 systemctl --user daemon-reload
 systemctl --user enable --now picframe-api.service
 systemctl --user enable --now picframe-sync.timer
+systemctl --user enable picframe-lights.service
 check_service picframe-api.service
 check_api_local
-log "API running, sync timer running."
+log "API running, sync timer running, indicator lights enabled."
 
 # ── Step 6: Phase 6 WiFi recovery ─────────────────────────────────────────────
 log "--- Step 6: Phase 6 WiFi recovery installer ---"
