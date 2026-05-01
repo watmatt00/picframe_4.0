@@ -26,7 +26,7 @@ from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
 from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
-from src.services.systemd_service import systemd_service, update_sync_timer, VALID_SYNC_INTERVALS
+from src.services.systemd_service import systemd_service, update_sync_timer, update_sleep_timers, VALID_SYNC_INTERVALS
 from src.services.display_service import display_service
 from src.services.update_service import check_for_updates, save_check_result, get_local_commit, get_local_version, apply_update, get_current_branch
 from src.services.status_service import (
