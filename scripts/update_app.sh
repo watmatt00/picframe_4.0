@@ -73,8 +73,9 @@ for svc in "${MANAGED_SERVICES[@]}"; do
     unit="$svc.service"
     [[ -f "$SYSTEMD_USER_DIR/$unit" ]] || continue
     if ! systemctl --user is-enabled --quiet "$unit" 2>/dev/null; then
-        systemctl --user enable "$unit"
-        LOG "  Enabled: $unit"
+        [[ "$unit" == "picframe-api.service" ]] && continue  # caller handles API start
+        systemctl --user enable --now "$unit"
+        LOG "  Enabled and started: $unit"
     fi
 done
 

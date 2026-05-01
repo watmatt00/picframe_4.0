@@ -8,7 +8,7 @@ Type=simple
 Environment=DISPLAY=:0
 Environment=GDK_BACKEND=x11
 ExecStart=/usr/bin/python3 %h/picframe_4.0/scripts/indicator_lights.py
-Restart=on-failure
+Restart=always
 RestartSec=10
 
 [Install]

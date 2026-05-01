@@ -1211,6 +1211,34 @@ async def save_log_level(request: LogLevelRequest):
         return {"ok": False, "error": str(e)}
 
 
+class SleepScheduleRequest(BaseModel):
+    """Request to save the display sleep schedule."""
+    enabled: bool
+    sleep_time: str = Field(pattern=r'^\d{2}:\d{2}$', description="HH:MM 24-hour")
+    wake_time: str = Field(pattern=r'^\d{2}:\d{2}$', description="HH:MM 24-hour")
+
+
+@router.post("/api/settings/sleep-schedule")
+async def save_sleep_schedule(request: SleepScheduleRequest):
+    """
+    Save display sleep schedule.
+
+    LAN-only endpoint, no JWT auth required.
+    """
+    config_manager.set("display.sleep_enabled", request.enabled)
+    config_manager.set("display.sleep_time", request.sleep_time)
+    config_manager.set("display.wake_time", request.wake_time)
+    reload_settings()
+    success = await update_sleep_timers(request.enabled, request.sleep_time, request.wake_time)
+    if not success:
+        return {"success": False, "message": "Settings saved but failed to update systemd timers"}
+    if request.enabled:
+        msg = f"Sleep schedule enabled: off at {request.sleep_time}, on at {request.wake_time}"
+    else:
+        msg = "Sleep schedule disabled"
+    return {"success": True, "message": msg}
+
+
 @router.post("/dashboard/test-lights")
 async def test_lights(request: Request):
     """
