@@ -239,6 +239,24 @@ async def apply_update(repo_path: Optional[Path] = None) -> dict:
         if proc.returncode == 0:
             output = stdout.decode().strip()
             logger.info(f"git pull succeeded: {output}")
+            # Apply service file changes, new packages, enable new services
+            script = repo_path / "scripts" / "update_app.sh"
+            if script.exists():
+                try:
+                    update_proc = await asyncio.create_subprocess_exec(
+                        "bash", str(script),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.STDOUT,
+                        cwd=str(repo_path),
+                    )
+                    update_out, _ = await asyncio.wait_for(
+                        update_proc.communicate(), timeout=120
+                    )
+                    logger.info(f"update_app.sh:\n{update_out.decode().strip()}")
+                except asyncio.TimeoutError:
+                    logger.warning("update_app.sh timed out — continuing")
+                except Exception as exc:
+                    logger.warning(f"update_app.sh failed: {exc}")
             return {"success": True, "output": output, "error": None}
         else:
             error = stderr.decode().strip() or "git pull failed"
