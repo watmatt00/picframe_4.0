@@ -67,11 +67,10 @@ check_api_local() {
     exit 1
 }
 
-check_funnel() {
+check_funnel_dns() {
     local funnel_url="$1"
     local hostname; hostname=$(echo "$funnel_url" | sed 's|https://||' | sed 's|/.*||')
-    # Use DNS-over-HTTPS to get the public relay IP, bypassing Tailscale MagicDNS
-    # (system DNS returns the Tailscale IP which always succeeds, masking approval failures)
+    # Use DNS-over-HTTPS to bypass Tailscale MagicDNS (system DNS always succeeds, masking approval failures)
     local public_ip; public_ip=$(curl -sf --connect-timeout 5 \
         "https://cloudflare-dns.com/dns-query?name=${hostname}&type=A" \
         -H "accept: application/dns-json" \
@@ -81,12 +80,25 @@ check_funnel() {
         log "  Check: https://login.tailscale.com/admin/machines"
         exit 1
     fi
-    if ! curl -sf --connect-timeout 10 --resolve "$hostname:443:$public_ip" "https://$hostname/health" >/dev/null 2>&1; then
-        log "ERROR: Funnel public path unreachable ($public_ip) — check Tailscale admin"
-        log "  Check: https://login.tailscale.com/admin/machines"
-        exit 1
+    log "  ✓ Funnel DNS resolves ($public_ip) — node approved"
+    FUNNEL_PUBLIC_IP="$public_ip"
+}
+
+check_funnel_health() {
+    local funnel_url="$1"
+    local hostname; hostname=$(echo "$funnel_url" | sed 's|https://||' | sed 's|/.*||')
+    if [[ -z "${FUNNEL_PUBLIC_IP:-}" ]]; then
+        FUNNEL_PUBLIC_IP=$(curl -sf --connect-timeout 5 \
+            "https://cloudflare-dns.com/dns-query?name=${hostname}&type=A" \
+            -H "accept: application/dns-json" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((a['data'] for a in d.get('Answer',[]) if a['type']==1),''))" 2>/dev/null || true)
     fi
-    log "  ✓ Funnel reachable via public internet ($public_ip)"
+    if ! curl -sf --connect-timeout 10 --resolve "$hostname:443:$FUNNEL_PUBLIC_IP" "https://$hostname/health" >/dev/null 2>&1; then
+        log "WARNING: Funnel health check failed ($FUNNEL_PUBLIC_IP) — API may not be reachable externally yet"
+        log "  Check: https://login.tailscale.com/admin/machines"
+    else
+        log "  ✓ Funnel reachable via public internet ($FUNNEL_PUBLIC_IP)"
+    fi
 }
 
 # ── Hostname ──────────────────────────────────────────────────────────────────
@@ -162,7 +174,7 @@ if [[ -z "$FUNNEL_URL" ]]; then
     read -rp "Enter your Funnel URL manually (e.g. https://tkframe.whale-ayu.ts.net): " FUNNEL_URL
 fi
 log "Funnel URL: $FUNNEL_URL"
-check_funnel "$FUNNEL_URL"
+check_funnel_dns "$FUNNEL_URL"
 
 # ── Step 3: Clone picframe_4.0 ────────────────────────────────────────────────
 log "--- Step 3: Clone picframe_4.0 ($BRANCH) ---"
@@ -227,6 +239,7 @@ systemctl --user enable --now picframe-sync.timer
 systemctl --user enable picframe-lights.service
 check_service picframe-api.service
 check_api_local
+check_funnel_health "$FUNNEL_URL"
 log "API running, sync timer running, indicator lights enabled."
 
 # ── Step 6: Phase 6 WiFi recovery ─────────────────────────────────────────────
