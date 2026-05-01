@@ -242,20 +242,10 @@ check_api_local
 check_funnel_health "$FUNNEL_URL"
 log "API running, sync timer running, indicator lights enabled."
 
-# ── Step 6: Phase 6 WiFi recovery ─────────────────────────────────────────────
-log "--- Step 6: Phase 6 WiFi recovery installer ---"
-echo ""
-echo "============================================="
-echo "  NOTE: The next installer will suggest"
-echo "  'sudo reboot' — IGNORE IT."
-echo "  DO NOT reboot until this script finishes"
-echo "  and prints 'PicFrame setup complete!'."
-echo "============================================="
-echo ""
-sudo bash "$PROJECT_DIR/scripts/setup/install_setup.sh"
-
-# ── Step 7: Mark provisioned (WiFi already connected — skip portal) ───────────
-log "--- Step 7: Mark provisioned ---"
+# ── Step 6: Mark provisioned BEFORE install_setup.sh starts the watchdog ──────
+# The watchdog checks provisioned=false immediately on start and triggers AP
+# setup mode. Mark provisioned first so the watchdog sees it right away.
+log "--- Step 6: Mark provisioned ---"
 if ping -c 1 -W 2 8.8.8.8 &>/dev/null; then
     log "WiFi connected — marking frame as provisioned to skip AP portal..."
     sudo "$PROJECT_DIR/venv/bin/python3" - <<PYEOF
@@ -270,6 +260,18 @@ PYEOF
 else
     log "WARNING: No internet — frame will enter setup mode on next boot."
 fi
+
+# ── Step 7: Phase 6 WiFi recovery installer ───────────────────────────────────
+log "--- Step 7: Phase 6 WiFi recovery installer ---"
+echo ""
+echo "============================================="
+echo "  NOTE: The next installer will suggest"
+echo "  'sudo reboot' — IGNORE IT."
+echo "  DO NOT reboot until this script finishes"
+echo "  and prints 'PicFrame setup complete!'."
+echo "============================================="
+echo ""
+sudo bash "$PROJECT_DIR/scripts/setup/install_setup.sh"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
