@@ -97,12 +97,12 @@ See [Pi3D Integration](PI3D_INTEGRATION.md) for more details.
 Run the setup script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/setup_api.sh | bash -s -- --branch=dev --frame-name=tkframe
+curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/setup_api.sh | bash -s -- --branch=dev --frame-name=YOUR_FRAME_NAME
 ```
 
 For `main` branch (production frames):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/setup_api.sh | bash -s -- --branch=main --frame-name=kframe
+curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/setup_api.sh | bash -s -- --branch=main --frame-name=YOUR_FRAME_NAME
 ```
 
 The script handles:
