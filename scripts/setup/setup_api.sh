@@ -238,6 +238,7 @@ systemctl --user enable --now picframe-api.service
 systemctl --user enable --now picframe-sync.timer
 systemctl --user enable --now picframe-lights.service
 check_service picframe-api.service
+check_service picframe-lights.service
 check_api_local
 check_funnel_health "$FUNNEL_URL"
 log "API running, sync timer running, indicator lights enabled."

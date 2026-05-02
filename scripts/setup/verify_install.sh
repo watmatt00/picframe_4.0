@@ -1,5 +1,5 @@
 #!/bin/bash
-# PicFrame post-install verification — re-runs all 11 checks as a final catch-all.
+# PicFrame post-install verification — re-runs all 13 checks as a final catch-all.
 # Called automatically at the end of setup_api.sh, or run standalone anytime:
 #   sudo bash scripts/setup/verify_install.sh [--funnel-url=https://...]
 
@@ -60,50 +60,56 @@ check_user_svc picframe.service
 # 3. picframe-api.service active (user service)
 check_user_svc picframe-api.service
 
-# 4. picframe-watchdog active (system service)
+# 4. picframe-lights.service active (user service)
+check_user_svc picframe-lights.service
+
+# 5. picframe-sync.timer active (user service)
+check_user_svc picframe-sync.timer
+
+# 6. picframe-watchdog active (system service)
 if systemctl is-active --quiet picframe-watchdog 2>/dev/null; then
     ok "picframe-watchdog active"
 else
     fail "picframe-watchdog active" "sudo systemctl start picframe-watchdog"
 fi
 
-# 5. rclone installed
+# 7. rclone installed
 if command -v rclone &>/dev/null; then
-    VER=$(rclone version --no-check-update 2>/dev/null | head -1 | awk '{print $2}')
+    VER=$(rclone version 2>/dev/null | head -1 | awk '{print $2}')
     ok "rclone $VER"
 else
     fail "rclone installed" "curl https://rclone.org/install.sh | sudo bash"
 fi
 
-# 6. Tailscale connected
+# 8. Tailscale connected
 if tailscale status &>/dev/null; then
     ok "Tailscale connected"
 else
     fail "Tailscale connected" "sudo tailscale up"
 fi
 
-# 7. venv exists
+# 9. venv exists
 if [[ -d "$PROJECT_DIR/venv" ]]; then
     ok "venv exists"
 else
     fail "venv exists" "python3 -m venv $PROJECT_DIR/venv && $PROJECT_DIR/venv/bin/pip install -e $PROJECT_DIR"
 fi
 
-# 8. config.yaml exists
+# 10. config.yaml exists
 if [[ -f "$FRAME_HOME/.picframe/config.yaml" ]]; then
     ok "config.yaml exists"
 else
     fail "config.yaml exists" "re-run setup_api.sh Step 4"
 fi
 
-# 9. API health (local)
+# 11. API health (local)
 if curl -sf --connect-timeout 5 http://localhost:8000/health >/dev/null 2>&1; then
     ok "API health (local)"
 else
     fail "API health (local)" "systemctl --user restart picframe-api.service"
 fi
 
-# 10. API health (Funnel public path)
+# 12. API health (Funnel public path)
 if [[ -z "$FUNNEL_URL" ]]; then
     fail "API health (Funnel public)" "Funnel URL unknown — re-run with --funnel-url=https://..."
 else
@@ -121,7 +127,7 @@ else
     fi
 fi
 
-# 11. picframe-config --show
+# 13. picframe-config --show
 if picframe-config --show >/dev/null 2>&1; then
     ok "picframe-config --show"
 else
