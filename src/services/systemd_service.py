@@ -121,7 +121,22 @@ async def update_sync_timer(interval_seconds: int) -> bool:
 
 
 _SLEEP_TIMER_DIR = Path.home() / ".config" / "systemd" / "user"
+_DISPLAY_HELPER_PATH = Path.home() / ".local" / "bin" / "picframe-display"
 _TIME_RE = re.compile(r'^\d{2}:\d{2}$')
+
+# vcgencmd display_power is retired on Pi OS Bookworm / Debian Trixie with KMS.
+# wlr-randr is the correct tool for Wayland (labwc) setups.
+# The helper script discovers the output name at runtime to avoid hardcoding.
+_DISPLAY_HELPER = """\
+#!/bin/bash
+export WAYLAND_DISPLAY=wayland-0
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+OUT=$(wlr-randr 2>/dev/null | awk '/^[A-Za-z]/{print $1; exit}')
+case "$1" in
+    off) exec wlr-randr --output "$OUT" --off ;;
+    on)  exec wlr-randr --output "$OUT" --on  ;;
+esac
+"""
 
 _SLEEP_SERVICE = """\
 [Unit]
@@ -130,9 +145,7 @@ After=picframe.service
 
 [Service]
 Type=oneshot
-# vcgencmd works on Pi OS Bullseye/Bookworm (legacy + KMS with fkms overlay).
-# If display stays on, ensure the user is in the 'video' group.
-ExecStart=vcgencmd display_power 0
+ExecStart=%h/.local/bin/picframe-display off
 """
 
 _WAKE_SERVICE = """\
@@ -141,7 +154,7 @@ Description=PicFrame Display Wake
 
 [Service]
 Type=oneshot
-ExecStart=vcgencmd display_power 1
+ExecStart=%h/.local/bin/picframe-display on
 """
 
 _SLEEP_TIMER_UNIT = """\
@@ -204,6 +217,10 @@ async def update_sleep_timers(enabled: bool, sleep_time: str, wake_time: str) ->
         return False
 
     try:
+        _DISPLAY_HELPER_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _write_unit(_DISPLAY_HELPER_PATH, _DISPLAY_HELPER)
+        _DISPLAY_HELPER_PATH.chmod(0o755)
+
         _write_unit(sleep_svc, _SLEEP_SERVICE)
         _write_unit(wake_svc,  _WAKE_SERVICE)
         _write_unit(sleep_tmr, _SLEEP_TIMER_UNIT.format(time=sleep_time))
