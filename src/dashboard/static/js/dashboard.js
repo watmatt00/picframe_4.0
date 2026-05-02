@@ -1112,6 +1112,7 @@ function initSettingsForm() {
             frame_name: document.getElementById('settings-frame-name').value,
             rotation_interval: parseInt(document.getElementById('settings-rotation-interval').value),
             sync_interval: parseInt(document.getElementById('settings-sync-interval').value),
+            fade_time: parseFloat(document.getElementById('settings-fade-time').value),
         };
 
         btn.disabled = true;

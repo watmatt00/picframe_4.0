@@ -20,7 +20,7 @@ import yaml
 from fastapi import APIRouter, Query, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
@@ -295,6 +295,7 @@ async def dashboard_home(request: Request):
     # Get rotation interval from picframe config
     picframe_config = _get_picframe_config()
     rotation_interval = int(picframe_config.get("model", {}).get("time_delay", 30))
+    fade_time = float(picframe_config.get("model", {}).get("fade_time", 2.0))
     pf_log_level = picframe_config.get("model", {}).get("log_level", "WARNING")
 
     # Get update status for Settings tab card
@@ -325,6 +326,7 @@ async def dashboard_home(request: Request):
         "storage_total": capacity["total_gb"],
         "storage_percent": capacity["percent_used"],
         "rotation_interval": rotation_interval,
+        "fade_time": fade_time,
         "sync_interval": settings.sync.interval,
         "log_level": pf_log_level,
         "funnel_url": settings.frame.funnel_url or "",
@@ -1097,6 +1099,7 @@ class SaveSettingsRequest(BaseModel):
     frame_name: str
     rotation_interval: int
     sync_interval: int
+    fade_time: float = Field(ge=0.5, le=30.0, description="Cross-fade duration in seconds (0.5 to 30)")
 
     @field_validator("sync_interval")
     @classmethod
@@ -1137,20 +1140,23 @@ async def save_settings_api(request: SaveSettingsRequest):
             logger.error(f"Picframe config not found: {PICFRAME_CONFIG_PATH}")
             return {"ok": False, "error": "Picframe config file not found"}
 
-        # Check if rotation interval is changing
+        # Check if rotation interval or fade_time is changing
         current_delay = picframe_config.get("model", {}).get("time_delay", 30)
+        current_fade = picframe_config.get("model", {}).get("fade_time", 2.0)
         rotation_changed = float(current_delay) != float(request.rotation_interval)
+        fade_changed = float(current_fade) != float(request.fade_time)
 
         # Update picframe config
         if "model" not in picframe_config:
             picframe_config["model"] = {}
         picframe_config["model"]["time_delay"] = float(request.rotation_interval)
+        picframe_config["model"]["fade_time"] = float(request.fade_time)
 
         # Write picframe config
         with open(PICFRAME_CONFIG_PATH, "w") as f:
             yaml.safe_dump(picframe_config, f, default_flow_style=False)
 
-        logger.info(f"Picframe config saved: time_delay={request.rotation_interval}")
+        logger.info(f"Picframe config saved: time_delay={request.rotation_interval}, fade_time={request.fade_time}")
 
         # Also save to v4 dashboard config
         settings = get_settings()
@@ -1160,9 +1166,9 @@ async def save_settings_api(request: SaveSettingsRequest):
         config_manager.set("sync.interval", request.sync_interval)
         reload_settings()
 
-        # Restart picframe if rotation interval changed
+        # Restart picframe if rotation interval or fade_time changed
         restarted = False
-        if rotation_changed:
+        if rotation_changed or fade_changed:
             logger.info("Rotation interval changed, restarting picframe service")
             restarted = await systemd_service.restart("picframe")
             if restarted:
