@@ -236,7 +236,7 @@ cp "$PROJECT_DIR/systemd/picframe-lights.service" "$HOME/.config/systemd/user/"
 systemctl --user daemon-reload
 systemctl --user enable --now picframe-api.service
 systemctl --user enable --now picframe-sync.timer
-systemctl --user enable picframe-lights.service
+systemctl --user enable --now picframe-lights.service
 check_service picframe-api.service
 check_api_local
 check_funnel_health "$FUNNEL_URL"
