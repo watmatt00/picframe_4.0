@@ -263,6 +263,7 @@ if [[ "$LAST" -lt 7 ]]; then
     cat > "$ACTUAL_HOME/start_picframe.sh" <<EOF
 #!/bin/bash
 source $ACTUAL_HOME/venv_picframe/bin/activate
+export SDL_VIDEODRIVER=x11
 picframe &
 EOF
     chmod +x "$ACTUAL_HOME/start_picframe.sh"
