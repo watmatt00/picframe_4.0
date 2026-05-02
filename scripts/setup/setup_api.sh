@@ -71,17 +71,26 @@ check_funnel_dns() {
     local funnel_url="$1"
     local hostname; hostname=$(echo "$funnel_url" | sed 's|https://||' | sed 's|/.*||')
     # Use DNS-over-HTTPS to bypass Tailscale MagicDNS (system DNS always succeeds, masking approval failures)
-    local public_ip; public_ip=$(curl -sf --connect-timeout 5 \
-        "https://cloudflare-dns.com/dns-query?name=${hostname}&type=A" \
-        -H "accept: application/dns-json" \
-        | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((a['data'] for a in d.get('Answer',[]) if a['type']==1),''))" 2>/dev/null || true)
-    if [[ -z "$public_ip" ]]; then
-        log "ERROR: Funnel not resolving via public DNS — node may not be approved"
-        log "  Check: https://login.tailscale.com/admin/machines"
-        exit 1
-    fi
-    log "  ✓ Funnel DNS resolves ($public_ip) — node approved"
-    FUNNEL_PUBLIC_IP="$public_ip"
+    local public_ip deadline attempt=0
+    deadline=$(( $(date +%s) + 90 ))
+    log "  Waiting for Funnel DNS to propagate (up to 90s)..."
+    while [[ $(date +%s) -lt $deadline ]]; do
+        public_ip=$(curl -sf --connect-timeout 5 \
+            "https://cloudflare-dns.com/dns-query?name=${hostname}&type=A" \
+            -H "accept: application/dns-json" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((a['data'] for a in d.get('Answer',[]) if a['type']==1),''))" 2>/dev/null || true)
+        if [[ -n "$public_ip" ]]; then
+            log "  ✓ Funnel DNS resolves ($public_ip) — node approved"
+            FUNNEL_PUBLIC_IP="$public_ip"
+            return 0
+        fi
+        attempt=$(( attempt + 1 ))
+        log "  DNS not yet propagated (attempt $attempt) — retrying in 10s..."
+        sleep 10
+    done
+    log "ERROR: Funnel not resolving via public DNS after 90s — node may not be approved"
+    log "  Check: https://login.tailscale.com/admin/machines"
+    exit 1
 }
 
 check_funnel_health() {
