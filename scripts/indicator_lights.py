@@ -76,12 +76,12 @@ class IndicatorOverlay(Gtk.Window):
         # of fullscreen windows (like Pi3D) without WM interference.
         self.get_window().set_override_redirect(True)
 
-        # Position: upper-right corner
+        # Pre-compute upper-right position (applied after show via idle_add)
         display = Gdk.Display.get_default()
         monitor = display.get_monitor(0)
         geo = monitor.get_geometry()
-        x = geo.x + geo.width - self._cw - MARGIN_PX
-        self.move(x, geo.y + MARGIN_PX)
+        self._pos_x = geo.x + geo.width - self._cw - MARGIN_PX
+        self._pos_y = geo.y + MARGIN_PX
 
         # Don't show_all() here — _poll() decides visibility based on state
         GLib.timeout_add(POLL_MS, self._poll)
@@ -102,6 +102,18 @@ class IndicatorOverlay(Gtk.Window):
         cr.arc(cx, cy, DOT_R, 0, 2 * math.pi)
         cr.fill()
 
+    def _fix_window(self):
+        """Move to correct position and raise above all other windows.
+
+        Called via idle_add so it runs after the window is actually mapped,
+        not just queued for mapping.
+        """
+        self.move(self._pos_x, self._pos_y)
+        gdk_win = self.get_window()
+        if gdk_win:
+            gdk_win.raise_()
+        return False  # don't repeat
+
     def _poll(self):
         data = fetch_status()
         if data is not None:
@@ -113,6 +125,8 @@ class IndicatorOverlay(Gtk.Window):
                 self.sync_color = AMBER
                 self.wifi_color = GREEN if wifi_ok else RED
                 self.show_all()
+                # idle_add ensures move+raise runs after the window is mapped
+                GLib.idle_add(self._fix_window)
                 self.queue_draw()
         return True  # keep GLib timer alive
 
