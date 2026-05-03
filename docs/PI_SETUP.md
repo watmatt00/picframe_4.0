@@ -59,68 +59,48 @@ python3 --version
 
 ---
 
-## Step 3: Pi3D PictureFrame (Display Engine)
+## Steps 3–9: Full Install (single command)
 
-**PROMPT USER**: "Now we'll install the Pi3D display engine. This is what actually shows photos on the screen."
+**PROMPT USER**: "Now we'll run the combined installer. It asks a few questions upfront, then handles everything automatically — including multiple reboots."
 
-Install the display engine using our installer (derived from thedigitalpictureframe.com's 2025 guide):
+Before running, generate a **Tailscale pre-auth key** to skip browser auth:
+1. Go to [Tailscale admin → Settings → Keys](https://login.tailscale.com/admin/settings/keys)
+2. Create a one-time, ephemeral auth key
+3. Paste it when the installer prompts (or leave blank to auth via browser)
+
+Run the installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh -o /tmp/install_picframe.sh && sudo bash /tmp/install_picframe.sh
+curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/main/scripts/setup/install.sh \
+  -o /tmp/install.sh && sudo bash /tmp/install.sh
 ```
 
 > **Note:** Use the `curl -o /tmp/... && sudo bash` form — process substitution (`sudo bash <(curl ...)`) fails on Pi OS.
 
-The script handles multiple reboots automatically and resumes where it left off. Total time ~8–12 minutes. It installs: labwc (Wayland compositor), SDL2, VLC, FFmpeg, picframe (via pip), and wires up the systemd user service.
+The installer prompts for:
+- **Frame name** (hostname, e.g. `tkframe`)
+- **Branch** (`main` for production, `dev` for testing)
+- **Tailscale pre-auth key** (leave blank for browser auth)
+- **Koofr email + app password** — generate an app password at [app.koofr.net](https://app.koofr.net) → Preferences → App passwords (use an app password, NOT your main account password)
 
-Optional services (not installed by default):
+Then it runs fully automatically through 4 reboots (~15–20 minutes total). It installs:
+1. **OS update** — packages up to date
+2. **Console mode** — no desktop environment needed
+3. **Core packages** — labwc (Wayland compositor), SDL2, VLC, FFmpeg
+4. **picframe** — display engine via pip, initialized with display defaults
+5. **picframe_4.0** — repo cloned, venv created, API installed
+6. **Config** — `~/.picframe/config.yaml` written with frame name + Funnel URL
+7. **labwc** — Wayland compositor + systemd user service wired up
+8. **API/sync/lights** — `picframe-api`, `picframe-sync`, `picframe-lights` services started
+9. **Koofr** — credentials validated and configured (no dashboard step needed)
+10. **Phase 6** — WiFi watchdog, AP portal, `picframe-config` tool installed
+
+Optional services (pass as flags):
 ```bash
-# Add Samba file sharing and/or Mosquitto MQTT broker:
-curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh -o /tmp/install_picframe.sh && sudo bash /tmp/install_picframe.sh --with-samba --with-mqtt
+sudo bash /tmp/install.sh --with-samba --with-mqtt
 ```
-
-Verify installation after the final reboot:
-```bash
-systemctl --user status picframe.service
-```
-
-**CHECKPOINT**: Ask user to confirm `picframe.service` shows as loaded.
-
-See [Pi3D Integration](PI3D_INTEGRATION.md) for more details.
-
----
-
-## Steps 4–9: API Setup (automated)
-
-**PROMPT USER**: "Now we'll run the API setup script. This handles rclone, Tailscale, the repo clone, config, systemd services, and Phase 6 WiFi recovery in one shot."
-
-Run the setup script:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/setup_api.sh | bash -s -- --branch=dev --frame-name=YOUR_FRAME_NAME
-```
-
-For `main` branch (production frames):
-```bash
-curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/setup_api.sh | bash -s -- --branch=main --frame-name=YOUR_FRAME_NAME
-```
-
-The script handles:
-1. **rclone** — installs if not present
-2. **Tailscale** — installs, authenticates (browser URL printed — follow it), enables Funnel on port 8000
-3. **picframe_4.0** — clones repo, checks out branch, creates venv, pip installs
-4. **Config** — generates `~/.picframe/config.yaml`, writes frame name and Funnel URL
-5. **Systemd** — deploys and starts `picframe-api.service` and `picframe-sync.timer`
-6. **Phase 6** — runs `install_setup.sh` (WiFi watchdog, AP portal, picframe-config)
-7. **Provisioned** — marks `provisioned=true` so frame doesn't enter AP portal on next boot
-
-**Note on Tailscale Funnel**: Before running, approve Funnel for this node in the [Tailscale admin console](https://login.tailscale.com/admin/acls). If not yet approved, the script will print a URL — visit it to approve, then press Enter to continue.
 
 **CHECKPOINT**: Ask user to confirm the script completes successfully and shows the summary banner.
-
----
-
-## Step 10 (was Step 10): Verify Installation
 
 ---
 
@@ -244,14 +224,8 @@ When setting up a new Pi, Claude should follow this sequence:
 1. **Ask**: "Is this a fresh Pi or updating an existing one?"
 2. **Step 1**: "Have you flashed Raspberry Pi OS and can SSH in?"
 3. **Step 2**: "Run system updates. Confirm Python 3.11+?"
-4. **Step 3**: "Install Pi3D display engine. Confirm picframe.service loaded?"
-5. **Step 4**: "Install rclone. Confirm `rclone version` works? Configure a remote now?"
-6. **Step 5**: "Install Tailscale. Confirm connected? Funnel approved in admin console? What's your Funnel URL?"
-7. **Step 6**: "Clone picframe_4.0 repo. Confirm venv created?"
-8. **Step 7**: "Create config. What frame name? Confirm config.yaml exists?"
-9. **Step 8**: "Start API. Any errors?"
-10. **Step 9**: "Run Phase 6 installer. Confirm watchdog active and picframe-config --show works?"
-11. **Step 10**: "Run verification checks. All passing?"
+4. **Steps 3–9**: "Before running the installer, have you generated a Tailscale pre-auth key and a Koofr app password? Run the installer and confirm it completes with the summary banner."
+5. **Step 10**: "Run verification checks. All passing?"
 
 ## Troubleshooting
 

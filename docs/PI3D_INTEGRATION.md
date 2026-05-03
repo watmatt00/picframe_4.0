@@ -17,17 +17,14 @@
 
 Reference: [TheDigitalPictureFrame.com Installation Guide](https://www.thedigitalpictureframe.com/install-the-pi3d-pictureframe-software-with-one-click-2025-edition-raspberry-pi-2-3-4-5/)
 
-The upstream helgeerbe install script no longer exists. We maintain our own at `scripts/setup/install_picframe.sh`, derived from the thedigitalpictureframe.com 2025 installer with these improvements:
-- Username-agnostic (uses `$SUDO_USER` — works with any username, not just `pi`)
-- Samba and Mosquitto/MQTT are optional flags, not installed by default
-- Preserves reboot-resume progress tracking and Wayland/labwc setup
+The upstream helgeerbe install script no longer exists. We maintain a combined installer at `scripts/setup/install.sh` that handles the full stack (display engine + API + Tailscale + Koofr + WiFi recovery) in a single command.
 
 ```bash
-# Default (no Samba, no MQTT):
-curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh -o /tmp/install_picframe.sh && sudo bash /tmp/install_picframe.sh
+curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/main/scripts/setup/install.sh \
+  -o /tmp/install.sh && sudo bash /tmp/install.sh
 
 # With optional services:
-curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install_picframe.sh -o /tmp/install_picframe.sh && sudo bash /tmp/install_picframe.sh --with-samba --with-mqtt
+sudo bash /tmp/install.sh --with-samba --with-mqtt
 ```
 
 > **Note:** Use the `curl -o /tmp/... && sudo bash` form — process substitution (`sudo bash <(curl ...)`) fails on Pi OS.
