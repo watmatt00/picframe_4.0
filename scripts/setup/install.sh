@@ -344,10 +344,16 @@ if [[ "$LAST" -lt 1 ]]; then
     # Tailscale auth
     if ! tailscale status &>/dev/null 2>&1; then
         log "  Authenticating Tailscale..."
+        _ts_authed=false
         if [[ -n "$TS_AUTHKEY" ]]; then
-            tailscale up --authkey="$TS_AUTHKEY" --hostname="$FRAME_NAME"
-            log "  ✓ Tailscale authenticated via auth key"
-        else
+            if tailscale up --authkey="$TS_AUTHKEY" --hostname="$FRAME_NAME" 2>&1 | tee -a "$LOG_FILE"; then
+                log "  ✓ Tailscale authenticated via auth key"
+                _ts_authed=true
+            else
+                log "  WARNING: Auth key rejected — falling back to browser auth"
+            fi
+        fi
+        if [[ "$_ts_authed" == "false" ]]; then
             tailscale up --hostname="$FRAME_NAME"
             echo ""
             echo "============================================="
