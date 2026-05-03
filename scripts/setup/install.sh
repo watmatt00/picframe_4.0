@@ -79,8 +79,9 @@ if [[ "$CURRENT_PATH" != "$PERSISTENT_SCRIPT" ]]; then
     if [[ -f "$CURRENT_PATH" && "$CURRENT_PATH" != */bash && "$CURRENT_PATH" != /bin/bash ]]; then
         cp "$CURRENT_PATH" "$PERSISTENT_SCRIPT"
     else
-        # Fallback: re-download (happens when script is run via pipe)
-        curl -fsSL "https://raw.githubusercontent.com/watmatt00/picframe_4.0/main/scripts/setup/install.sh" \
+        # Fallback: re-download (happens when script is run via pipe).
+        # Update this URL to main when promoting install.sh to main branch.
+        curl -fsSL "https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install.sh" \
             -o "$PERSISTENT_SCRIPT"
     fi
     chown "$ACTUAL_USER:$ACTUAL_USER" "$PERSISTENT_SCRIPT"
