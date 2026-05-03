@@ -692,8 +692,8 @@ PYEOF
         log "  Koofr credentials not provided — configure via dashboard"
     fi
 
-    # Phase 6 WiFi recovery installer (hostapd, dnsmasq, watchdog, picframe-config)
-    log "  Running Phase 6 WiFi recovery installer..."
+    # WiFi recovery installer (hostapd, dnsmasq, watchdog, picframe-config)
+    log "  Running WiFi recovery installer (install_setup.sh)..."
     SUDO_USER="$ACTUAL_USER" bash "$PROJECT_DIR/scripts/setup/install_setup.sh"
 
     save_step 11
