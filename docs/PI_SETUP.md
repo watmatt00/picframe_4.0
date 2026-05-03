@@ -71,11 +71,10 @@ Before running, generate a **Tailscale pre-auth key** to skip browser auth:
 Run the installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/main/scripts/setup/install.sh \
-  -o /tmp/install.sh && sudo bash /tmp/install.sh
+curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/main/scripts/setup/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh
 ```
 
-> **Note:** Use the `curl -o /tmp/... && sudo bash` form — process substitution (`sudo bash <(curl ...)`) fails on Pi OS.
+> **Note:** Keep this as a single line — the `\` line-continuation form breaks when pasted into a terminal. Process substitution (`sudo bash <(curl ...)`) also fails on Pi OS.
 
 The installer prompts for:
 - **Frame name** (hostname, e.g. `tkframe`)
