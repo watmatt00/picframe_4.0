@@ -40,20 +40,16 @@ sudo raspi-config
 
 ---
 
-## Step 2: System Updates
+## Step 2: Verify Python Version
 
-**PROMPT USER**: "Let's update the system and install dependencies. Run these commands on the Pi:"
+**PROMPT USER**: "Confirm Python 3.11+ is available — the installer will fail immediately if not."
 
-```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y git python3-pip python3-venv curl
-```
-
-Verify Python version:
 ```bash
 python3 --version
 # Should be 3.11+
 ```
+
+The installer handles OS updates and all package installs automatically. No manual `apt` steps needed.
 
 **CHECKPOINT**: Ask user to confirm Python version is 3.11+.
 
