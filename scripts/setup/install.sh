@@ -149,12 +149,18 @@ user_systemctl() {
 
 wait_for_user_systemd() {
     local uid; uid=$(id -u "$ACTUAL_USER")
-    log "  Waiting for user systemd instance..."
-    for i in $(seq 1 30); do
-        [[ -d "/run/user/$uid" ]] && return 0
+    local xdg="/run/user/$uid"
+    # Wait for the D-Bus socket, not just the directory — systemctl --user needs
+    # the socket to be ready. The directory appears before D-Bus is accepting connections.
+    log "  Waiting for user systemd D-Bus socket..."
+    for i in $(seq 1 60); do
+        if [[ -S "$xdg/bus" ]]; then
+            log "  ✓ User systemd ready"
+            return 0
+        fi
         sleep 1
     done
-    log "ERROR: User systemd did not start — check loginctl enable-linger"
+    log "ERROR: User systemd D-Bus socket not ready after 60s — check loginctl enable-linger"
     exit 1
 }
 
