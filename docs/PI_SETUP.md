@@ -95,6 +95,11 @@ Optional services (pass as flags):
 sudo bash /tmp/install.sh --with-samba --with-mqtt
 ```
 
+To monitor progress during install (open a second SSH session):
+```bash
+tail -f ~/install_log.txt
+```
+
 **CHECKPOINT**: Ask user to confirm the script completes successfully and shows the summary banner.
 
 ---
