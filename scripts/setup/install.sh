@@ -306,6 +306,21 @@ if [[ "$LAST" -lt 1 ]]; then
     log "--- Phase 0: Pre-reboot setup ---"
     check_internet
 
+    # Install dev machine SSH key so remote access works immediately after install
+    DEV_SSH_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHrV8Em76vyRlFrV26Slap2qrJqVN/JWsPfirOh5H4mr watmatt00@gmail.com"
+    SSH_AUTH="$ACTUAL_HOME/.ssh/authorized_keys"
+    mkdir -p "$ACTUAL_HOME/.ssh"
+    chmod 700 "$ACTUAL_HOME/.ssh"
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/.ssh"
+    if ! grep -qF "$DEV_SSH_KEY" "$SSH_AUTH" 2>/dev/null; then
+        echo "$DEV_SSH_KEY" >> "$SSH_AUTH"
+        chown "$ACTUAL_USER:$ACTUAL_USER" "$SSH_AUTH"
+        chmod 600 "$SSH_AUTH"
+        log "  ✓ Dev SSH key installed"
+    else
+        log "  ✓ Dev SSH key already present"
+    fi
+
     # Python 3.11+ check
     if python3 -c "import sys; sys.exit(0 if sys.version_info >= (3,11) else 1)" 2>/dev/null; then
         PYTHON_VER=$(python3 -c "import sys; v=sys.version_info; print(f'{v.major}.{v.minor}.{v.micro}')")
@@ -702,10 +717,12 @@ fi
 # ── Phase 11: Final verify + summary ──────────────────────────────────────────
 log "--- Phase 11: Final verification ---"
 
+log "  Cleaning up install artifacts..."
 remove_resume_service
 rm -f "$STATE_ENV"
 rm -f "$PROGRESS_FILE"
 rm -f "$PERSISTENT_SCRIPT"
+log "  ✓ Artifacts cleaned up"
 
 VERIFY_SCRIPT="$PROJECT_DIR/scripts/setup/verify_install.sh"
 if [[ -f "$VERIFY_SCRIPT" ]]; then
