@@ -707,10 +707,28 @@ rm -f "$STATE_ENV"
 rm -f "$PROGRESS_FILE"
 rm -f "$PERSISTENT_SCRIPT"
 
-# Apply picframe display defaults one final time (picframe may have written its own on startup)
+VERIFY_SCRIPT="$PROJECT_DIR/scripts/setup/verify_install.sh"
+if [[ -f "$VERIFY_SCRIPT" ]]; then
+    bash "$VERIFY_SCRIPT" --funnel-url="$FUNNEL_URL" 2>&1 | tee -a "$LOG_FILE" || true
+fi
+
+{
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] ============================================="
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] === PICFRAME INSTALLATION COMPLETE ==="
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] ============================================="
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')]   Frame name : $FRAME_NAME"
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')]   Branch     : $BRANCH"
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')]   Funnel URL : $FUNNEL_URL"
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')]   Dashboard  : http://$FRAME_NAME.local:8000"
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')]   Log file   : $LOG_FILE"
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] ============================================="
+} | tee -a "$LOG_FILE"
+echo ""
+
+# Apply picframe display defaults last — after everything else has settled — so
+# nothing started later in the install can overwrite these values.
 PCONF="$ACTUAL_HOME/picframe_data/config/configuration.yaml"
 if [[ -f "$PCONF" ]]; then
-    check_user_service picframe.service
     if apply_picframe_defaults "$PCONF" 2>&1 | tee -a "$LOG_FILE"; then
         ACTUAL_UID=$(id -u "$ACTUAL_USER")
         sudo -u "$ACTUAL_USER" XDG_RUNTIME_DIR="/run/user/$ACTUAL_UID" \
@@ -718,19 +736,3 @@ if [[ -f "$PCONF" ]]; then
         log "  ✓ picframe.service restarted with updated defaults"
     fi
 fi
-
-VERIFY_SCRIPT="$PROJECT_DIR/scripts/setup/verify_install.sh"
-if [[ -f "$VERIFY_SCRIPT" ]]; then
-    bash "$VERIFY_SCRIPT" --funnel-url="$FUNNEL_URL" || true
-fi
-
-echo ""
-echo "============================================="
-log "=== PicFrame installation complete! ==="
-echo "  Frame name : $FRAME_NAME"
-echo "  Branch     : $BRANCH"
-echo "  Funnel URL : $FUNNEL_URL"
-echo "  Dashboard  : http://$FRAME_NAME.local:8000"
-echo "  Log file   : $LOG_FILE"
-echo "============================================="
-echo ""
