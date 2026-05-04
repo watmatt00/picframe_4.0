@@ -173,6 +173,7 @@ Description=Resume picframe install after reboot
 ExecStart=/bin/bash $PERSISTENT_SCRIPT --user=$ACTUAL_USER
 Type=oneshot
 RemainAfterExit=true
+TimeoutStartSec=0
 
 [Install]
 WantedBy=multi-user.target
@@ -726,7 +727,7 @@ log "  ✓ Artifacts cleaned up"
 
 VERIFY_SCRIPT="$PROJECT_DIR/scripts/setup/verify_install.sh"
 if [[ -f "$VERIFY_SCRIPT" ]]; then
-    bash "$VERIFY_SCRIPT" --funnel-url="$FUNNEL_URL" 2>&1 | tee -a "$LOG_FILE" || true
+    timeout 60 bash "$VERIFY_SCRIPT" --funnel-url="$FUNNEL_URL" 2>&1 | tee -a "$LOG_FILE" || true
 fi
 
 {
@@ -753,3 +754,5 @@ if [[ -f "$PCONF" ]]; then
         log "  ✓ picframe.service restarted with updated defaults"
     fi
 fi
+
+log "=== Install script exited cleanly ==="
