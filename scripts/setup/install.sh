@@ -201,12 +201,12 @@ import sys, yaml
 p = sys.argv[1]
 with open(p) as f:
     cfg = yaml.safe_load(f) or {}
-cfg.setdefault("model", {})
-cfg["model"]["show_text_tm"] = 0
-cfg["model"]["time_delay"] = 20
-cfg["model"].setdefault("recent_n", 7)
-cfg["model"].setdefault("reshuffle_num", 1)
-cfg.setdefault("http", {})["use_http"] = True
+cfg["show_text_tm"] = 0
+cfg["show_text"] = ""
+cfg["time_delay"] = 20
+cfg.setdefault("recent_n", 7)
+cfg.setdefault("reshuffle_num", 1)
+cfg.setdefault("use_http", True)
 with open(p, "w") as f:
     yaml.safe_dump(cfg, f, default_flow_style=False)
 print(f"  ✓ Display defaults applied to {p}")
