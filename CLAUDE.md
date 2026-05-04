@@ -21,7 +21,7 @@ Cloud (Koofr) ──────────────────────
 
 | Device | IP (LAN) | IP (VPN) | Dashboard URL | User | Branch | Notes |
 |--------|----------|----------|---------------|------|--------|-------|
-| **tkframe** | 192.168.102.210 | 100.83.164.79 | `http://tkframe.whale-ayu.ts.net:8000` | matt | `dev` | Test frame — tracks dev branch |
+| **tkframe** | 192.168.102.210 | 100.83.164.79 | `http://tkframe.whale-ayu.ts.net:8000` | pi | `dev` | Test frame — tracks dev branch |
 | **kframe** | 192.168.102.200 | 100.69.17.26 | `http://kframe.whale-ayu.ts.net:8000` | pi | `main` | Home frame (production) |
 | **mnbframe** | 192.168.1.154 | 100.125.51.92 | `http://mnbframe.whale-ayu.ts.net:8000` | pi | `main` | Remote only (production) |
 | **fuckms** | 192.168.102.100 | 100.82.140.119 | — | matt | — | Main PC (dev) |
@@ -61,8 +61,8 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 ### Dev Branch (daily work → tkframe)
 1. Work on `dev` branch on PC
 2. `git add && git commit && git push origin dev`
-3. Pull on tkframe: `ssh matt@192.168.102.210 "cd ~/picframe_4.0 && git pull"`
-4. Restart API: `ssh matt@192.168.102.210 "systemctl --user restart picframe-api"`
+3. Pull on tkframe: `ssh pi@192.168.102.210 "cd ~/picframe_4.0 && git pull"`
+4. Restart API: `ssh pi@192.168.102.210 "systemctl --user restart picframe-api"`
 5. Test dashboard: `http://192.168.102.210:8000`
 
 ### Promoting dev → main (kframe, mnbframe)
@@ -76,7 +76,7 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 
 ### One-Time Branch Setup (tkframe)
 ```bash
-ssh matt@192.168.102.210 "cd ~/picframe_4.0 && git fetch origin && git checkout dev"
+ssh pi@192.168.102.210 "cd ~/picframe_4.0 && git fetch origin && git checkout dev"
 ```
 kframe and mnbframe are already on `main` — no action needed.
 
