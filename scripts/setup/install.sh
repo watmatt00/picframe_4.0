@@ -96,7 +96,11 @@ RESUME_SERVICE="picframe-install"
 REPO_URL="https://github.com/watmatt00/picframe_4.0.git"
 PROJECT_DIR="$ACTUAL_HOME/picframe_4.0"
 
-log()       { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
+log() {
+    local msg="[$(date +'%Y-%m-%d %H:%M:%S')] $*"
+    printf '%s\n' "$msg" >> "$LOG_FILE"
+    printf '%s\n' "$msg" || true
+}
 save_step() { echo "$1" > "$PROGRESS_FILE"; chown "$ACTUAL_USER:$ACTUAL_USER" "$PROGRESS_FILE"; }
 last_step() { [[ -f "$PROGRESS_FILE" ]] && cat "$PROGRESS_FILE" || echo "0"; }
 as_user()   { sudo -u "$ACTUAL_USER" "$@"; }
@@ -715,41 +719,33 @@ PYEOF
     save_step 11
 fi
 
-# ── Phase 11: Final verify + summary ──────────────────────────────────────────
-log "--- Phase 11: Final verification ---"
+# ── Phase 11: Final cleanup ────────────────────────────────────────────────────
+log "--- Phase 11: Final cleanup ---"
 
-log "  Cleaning up install artifacts..."
-remove_resume_service
-rm -f "$STATE_ENV"
-rm -f "$PROGRESS_FILE"
-rm -f "$PERSISTENT_SCRIPT"
-log "  ✓ Artifacts cleaned up"
-
-log "  Run verify anytime: sudo bash $PROJECT_DIR/scripts/setup/verify_install.sh"
-
-{
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] ============================================="
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] === PICFRAME INSTALLATION COMPLETE ==="
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] ============================================="
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')]   Frame name : $FRAME_NAME"
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')]   Branch     : $BRANCH"
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')]   Funnel URL : $FUNNEL_URL"
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')]   Dashboard  : http://$FRAME_NAME.local:8000"
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')]   Log file   : $LOG_FILE"
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] ============================================="
-} | tee -a "$LOG_FILE"
-echo ""
-
-# Apply picframe display defaults last — after everything else has settled — so
-# nothing started later in the install can overwrite these values.
+# Apply display defaults first — while script is still intact, before any cleanup
 PCONF="$ACTUAL_HOME/picframe_data/config/configuration.yaml"
 if [[ -f "$PCONF" ]]; then
-    if apply_picframe_defaults "$PCONF" 2>&1 | tee -a "$LOG_FILE"; then
-        ACTUAL_UID=$(id -u "$ACTUAL_USER")
-        sudo -u "$ACTUAL_USER" XDG_RUNTIME_DIR="/run/user/$ACTUAL_UID" \
-            systemctl --user restart picframe.service
-        log "  ✓ picframe.service restarted with updated defaults"
-    fi
+    apply_picframe_defaults "$PCONF" >> "$LOG_FILE" 2>&1 || true
+    ACTUAL_UID=$(id -u "$ACTUAL_USER")
+    timeout 30 sudo -u "$ACTUAL_USER" \
+        XDG_RUNTIME_DIR="/run/user/$ACTUAL_UID" \
+        systemctl --user restart picframe.service 2>/dev/null || true
+    log "  ✓ Display defaults applied; picframe.service restarted"
 fi
 
+# Log everything before touching any cleanup files
+log "  Run verify anytime: sudo bash $PROJECT_DIR/scripts/setup/verify_install.sh"
+log "============================================="
+log "=== PICFRAME INSTALLATION COMPLETE ==="
+log "============================================="
+log "  Frame name : $FRAME_NAME"
+log "  Branch     : $BRANCH"
+log "  Funnel URL : $FUNNEL_URL"
+log "  Dashboard  : http://$FRAME_NAME.local:8000"
+log "  Log file   : $LOG_FILE"
+log "============================================="
 log "=== Install script exited cleanly ==="
+
+# Cleanup last — script exits immediately after. No code runs after this block.
+remove_resume_service
+rm -f "$STATE_ENV" "$PROGRESS_FILE" "$PERSISTENT_SCRIPT"
