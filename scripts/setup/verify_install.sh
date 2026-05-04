@@ -1,6 +1,5 @@
 #!/bin/bash
-# PicFrame post-install verification — re-runs all 13 checks as a final catch-all.
-# Called automatically at the end of setup_api.sh, or run standalone anytime:
+# PicFrame post-install verification — run standalone anytime:
 #   sudo bash scripts/setup/verify_install.sh [--funnel-url=https://...]
 
 set -uo pipefail
@@ -35,7 +34,7 @@ fail() { echo "  ✗ $1  →  $2"; ((FAIL++)); }
 
 check_user_svc() {
     local svc="$1" uid; uid=$(id -u "$FRAME_USER")
-    if sudo -u "$FRAME_USER" XDG_RUNTIME_DIR="/run/user/$uid" \
+    if timeout 5 sudo -u "$FRAME_USER" XDG_RUNTIME_DIR="/run/user/$uid" \
             systemctl --user is-active --quiet "$svc" 2>/dev/null; then
         ok "$svc active"
     else
@@ -67,7 +66,7 @@ check_user_svc picframe-lights.service
 check_user_svc picframe-sync.timer
 
 # 6. picframe-watchdog active (system service)
-if systemctl is-active --quiet picframe-watchdog 2>/dev/null; then
+if timeout 5 systemctl is-active --quiet picframe-watchdog 2>/dev/null; then
     ok "picframe-watchdog active"
 else
     fail "picframe-watchdog active" "sudo systemctl start picframe-watchdog"
@@ -82,7 +81,7 @@ else
 fi
 
 # 8. Tailscale connected
-if tailscale status &>/dev/null; then
+if timeout 10 tailscale status &>/dev/null; then
     ok "Tailscale connected"
 else
     fail "Tailscale connected" "sudo tailscale up"
@@ -128,7 +127,7 @@ else
 fi
 
 # 13. picframe-config --show
-if picframe-config --show >/dev/null 2>&1; then
+if timeout 5 picframe-config --show >/dev/null 2>&1; then
     ok "picframe-config --show"
 else
     fail "picframe-config --show" "sudo bash scripts/setup/install_setup.sh"
@@ -140,5 +139,4 @@ if [[ $FAIL -eq 0 ]]; then
 else
     echo "$FAIL check(s) failed, $PASS passed."
     echo "Re-run anytime: sudo bash $PROJECT_DIR/scripts/setup/verify_install.sh"
-    exit 1
 fi

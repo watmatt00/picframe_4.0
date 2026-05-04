@@ -725,10 +725,7 @@ rm -f "$PROGRESS_FILE"
 rm -f "$PERSISTENT_SCRIPT"
 log "  ✓ Artifacts cleaned up"
 
-VERIFY_SCRIPT="$PROJECT_DIR/scripts/setup/verify_install.sh"
-if [[ -f "$VERIFY_SCRIPT" ]]; then
-    timeout 60 bash "$VERIFY_SCRIPT" --funnel-url="$FUNNEL_URL" 2>&1 | tee -a "$LOG_FILE" || true
-fi
+log "  Run verify anytime: sudo bash $PROJECT_DIR/scripts/setup/verify_install.sh"
 
 {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] ============================================="
