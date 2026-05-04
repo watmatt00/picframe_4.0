@@ -184,7 +184,7 @@ EOF
 remove_resume_service() {
     systemctl disable "$RESUME_SERVICE" 2>/dev/null || true
     rm -f "/etc/systemd/system/$RESUME_SERVICE.service"
-    systemctl daemon-reload
+    timeout 15 systemctl daemon-reload 2>/dev/null || true
 }
 
 reboot_and_resume() {
