@@ -206,12 +206,15 @@ import sys, yaml
 p = sys.argv[1]
 with open(p) as f:
     cfg = yaml.safe_load(f) or {}
-cfg["show_text_tm"] = 0
-cfg["show_text"] = ""
-cfg["time_delay"] = 20
-cfg.setdefault("recent_n", 7)
-cfg.setdefault("reshuffle_num", 1)
-cfg.setdefault("use_http", True)
+# Pi3D reads show_text_tm from viewer:, not model: or root.
+cfg.setdefault("viewer", {})["show_text_tm"] = 0
+# Match production values under model:
+cfg.setdefault("model", {})
+cfg["model"]["time_delay"] = 20
+cfg["model"]["recent_n"] = 7
+cfg["model"]["reshuffle_num"] = 1
+# HTTP API on port 9000 — required for dashboard preview & source switching
+cfg.setdefault("http", {})["use_http"] = True
 with open(p, "w") as f:
     yaml.safe_dump(cfg, f, default_flow_style=False)
 print(f"  ✓ Display defaults applied to {p}")
