@@ -135,18 +135,21 @@ def generate_setup_image(frame_name: str) -> None:
     font_url = _load_font(52)
     font_small = _load_font(32)
 
-    # Left-aligned layout
+    # Layout constants
+    cx = W // 2
     lx = 160   # left margin
     rx = 1760  # right margin (for separator lines)
+    ind = lx + 60  # continuation indent for wrapped lines
     y = 120
 
-    draw.text((lx, y), "Finish Setup", font=font_title, fill=yellow, anchor="lm")
+    # Title — centered
+    draw.text((cx, y), "Finish Setup", font=font_title, fill=yellow, anchor="mm")
     y += 80
     draw.line([(lx, y), (rx, y)], fill=(60, 60, 80), width=2)
     y += 50
 
-    draw.text((lx, y), "WiFi connected!  Now finish setup from your phone or computer:", font=font_body, fill=white, anchor="lm")
-    y += 72
+    draw.text((lx, y), "Pair mobile app or use URL from your PC to finish setup:", font=font_body, fill=white, anchor="lm")
+    y += 90  # extra blank line before Step 1
 
     draw.text((lx, y), "1.  Rejoin your home WiFi network", font=font_body, fill=white, anchor="lm")
     y += 65
@@ -168,12 +171,14 @@ def generate_setup_image(frame_name: str) -> None:
         draw.text((lx, y), fallback_note, font=font_small, fill=gray, anchor="lm")
     y += 58
 
-    draw.text((lx, y), "3.  On Switch Photos tab in dashboard or Manage Photos in mobile app", font=font_body, fill=white, anchor="lm")
+    draw.text((lx, y), "3.  On Switch Photos tab in dashboard or Manage Photos", font=font_body, fill=white, anchor="lm")
     y += 55
-    draw.text((lx + 60, y), "(after pairing), create your first cloud photo source.", font=font_body, fill=white, anchor="lm")
+    draw.text((ind, y), "in mobile app (after pairing), create your first cloud photo source.", font=font_body, fill=white, anchor="lm")
     y += 68
 
-    draw.text((lx, y), "4.  Add pictures to your album from the Upload Photos menu of the mobile app.", font=font_body, fill=white, anchor="lm")
+    draw.text((lx, y), "4.  Add pictures to your album from the Upload Photos", font=font_body, fill=white, anchor="lm")
+    y += 55
+    draw.text((ind, y), "menu of the mobile app.", font=font_body, fill=white, anchor="lm")
     y += 68
 
     draw.line([(lx, y), (rx, y)], fill=(60, 60, 80), width=2)
