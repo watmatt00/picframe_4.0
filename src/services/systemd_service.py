@@ -291,9 +291,12 @@ class SystemdService:
             return None
 
         try:
+            # Preserve existing unit suffix (.timer, .socket, etc.); default to .service
+            unit_name = service_name if "." in service_name else f"{service_name}.service"
+
             # Check if active
             proc = await asyncio.create_subprocess_exec(
-                "systemctl", "--user", "is-active", f"{service_name}.service",
+                "systemctl", "--user", "is-active", unit_name,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -303,12 +306,12 @@ class SystemdService:
 
             # Check if enabled
             proc = await asyncio.create_subprocess_exec(
-                "systemctl", "--user", "is-enabled", f"{service_name}.service",
+                "systemctl", "--user", "is-enabled", unit_name,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, _ = await proc.communicate()
-            enabled = stdout.decode().strip() == "enabled"
+            enabled = stdout.decode().strip() in ("enabled", "static")
 
             return ServiceStatus(
                 name=service_name,
