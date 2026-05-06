@@ -118,7 +118,7 @@ def generate_setup_image(frame_name: str) -> None:
     # Primary URL — Tailscale MagicDNS; LAN IP shown as fallback just below the URL box
     primary_url = f"http://{frame_name}.whale-ayu.ts.net:8000"
     lan_ip = _get_lan_ip()
-    fallback_note = f"No Tailscale?  Try:  http://{lan_ip}:8000" if lan_ip else ""
+    fallback_note = f"Not working?  Try:  http://{lan_ip}:8000" if lan_ip else ""
 
     # Build image: 1920x1080 dark background
     W, H = 1920, 1080
@@ -173,8 +173,10 @@ def generate_setup_image(frame_name: str) -> None:
 
     draw.text((lx, y), "3.  On Switch Photos tab in dashboard or Manage Photos", font=font_body, fill=white, anchor="lm")
     y += 55
-    draw.text((ind, y), "in mobile app (after pairing), create your first cloud photo source.", font=font_body, fill=white, anchor="lm")
-    y += 68
+    draw.text((ind, y), "in mobile app (after pairing), create your first cloud photo", font=font_body, fill=white, anchor="lm")
+    y += 55
+    draw.text((ind, y), "source.", font=font_body, fill=white, anchor="lm")
+    y += 65
 
     draw.text((lx, y), "4.  Add pictures to your album from the Upload Photos", font=font_body, fill=white, anchor="lm")
     y += 55
