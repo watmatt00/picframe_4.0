@@ -15,7 +15,7 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 # Whitelist of services that can be controlled
-ALLOWED_SERVICES = frozenset({"picframe", "picframe-api"})
+ALLOWED_SERVICES = frozenset({"picframe", "picframe-api", "picframe-lights", "picframe-sync.timer"})
 
 # Allowed sync intervals in seconds (0 = disabled)
 VALID_SYNC_INTERVALS = frozenset({0, 300, 600, 900, 1800, 2700, 3600, 7200, 21600, 43200, 86400})

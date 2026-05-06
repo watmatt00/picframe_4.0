@@ -63,6 +63,15 @@
                                 <div class="service-label"><span class="emoji-icon">📸</span>Currently Showing</div>
                                 <div class="service-value remote-label" id="current-remote">{{ current_source }}</div>
 
+                                <div class="service-label"><span class="emoji-icon">🔁</span>Cycle Time</div>
+                                <div class="service-value" id="cycle-time-value">—</div>
+
+                                <div class="service-label"><span class="emoji-icon">💾</span>Storage</div>
+                                <div class="service-value">
+                                    <span class="storage-indicator" id="storage-indicator"></span>
+                                    <span id="storage-text">{{ storage_percent }}% ({{ storage_used }} / {{ storage_total }} GB)</span>
+                                </div>
+
                                 <div class="service-label"><span class="emoji-icon">🖼️</span>Frame Display</div>
                                 <div class="service-value">
                                     <span class="status-dot" id="pf-status-dot"></span>
@@ -75,14 +84,29 @@
                                     <span id="web-status-text">RUNNING</span>
                                 </div>
 
-                                <div class="service-label"><span class="emoji-icon">💾</span>Storage</div>
+                                <div class="service-label"><span class="emoji-icon">⏱️</span>Sync Timer</div>
                                 <div class="service-value">
-                                    <span class="storage-indicator" id="storage-indicator"></span>
-                                    <span id="storage-text">{{ storage_percent }}% ({{ storage_used }} / {{ storage_total }} GB)</span>
+                                    <span class="status-dot" id="sync-timer-dot"></span>
+                                    <span id="sync-timer-text">UNKNOWN</span>
                                 </div>
 
-                                <div class="service-label"><span class="emoji-icon">🔁</span>Cycle Time</div>
-                                <div class="service-value" id="cycle-time-value">—</div>
+                                <div class="service-label"><span class="emoji-icon">💡</span>Lights</div>
+                                <div class="service-value">
+                                    <span class="status-dot" id="lights-dot"></span>
+                                    <span id="lights-text">UNKNOWN</span>
+                                </div>
+
+                                <div class="service-label"><span class="emoji-icon">🔗</span>Tailscale</div>
+                                <div class="service-value">
+                                    <span class="status-dot" id="tailscale-dot"></span>
+                                    <span id="tailscale-text">UNKNOWN</span>
+                                </div>
+
+                                <div class="service-label"><span class="emoji-icon">🛡️</span>API Health</div>
+                                <div class="service-value">
+                                    <span class="status-dot" id="api-health-dot"></span>
+                                    <span id="api-health-text">UNKNOWN</span>
+                                </div>
                             </div>
                         </div>
 
@@ -171,13 +195,15 @@
                                 <th>Name</th>
                                 <th>Remote</th>
                                 <th class="tech-column">Local Path</th>
+                                <th>Cloud</th>
+                                <th>Local</th>
                                 <th>Status</th>
                                 <th class="tech-column">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="sources-tbody">
                             <tr>
-                                <td colspan="6" class="loading-cell">Loading sources...</td>
+                                <td colspan="8" class="loading-cell">Loading sources...</td>
                             </tr>
                         </tbody>
                     </table>

@@ -330,6 +330,15 @@ function initStatusDashboard() {
     const nextSyncEl = document.getElementById("next-sync");
     const lastRestartEl = document.getElementById("last-restart");
 
+    const syncTimerDot  = document.getElementById("sync-timer-dot");
+    const syncTimerText = document.getElementById("sync-timer-text");
+    const lightsDot     = document.getElementById("lights-dot");
+    const lightsText    = document.getElementById("lights-text");
+    const tailscaleDot  = document.getElementById("tailscale-dot");
+    const tailscaleText = document.getElementById("tailscale-text");
+    const apiHealthDot  = document.getElementById("api-health-dot");
+    const apiHealthText = document.getElementById("api-health-text");
+
     const btnRefresh = document.getElementById("btn-refresh");
     const btnSyncNow = document.getElementById("btn-sync-now");
     const btnSyncNowSpinner = document.getElementById("btn-sync-now-spinner");
@@ -446,6 +455,10 @@ function initStatusDashboard() {
 
             setServiceDot(pfDot, pfText, pfService?.active ? "active" : "inactive");
             setServiceDot(webDot, webText, "active"); // Dashboard is always running if we're here
+            setServiceDot(syncTimerDot,  syncTimerText,  data.sync_timer_status);
+            setServiceDot(lightsDot,     lightsText,     data.lights_status);
+            setServiceDot(tailscaleDot,  tailscaleText,  data.tailscale_status);
+            setServiceDot(apiHealthDot,  apiHealthText,  data.api_health_status);
 
             // Current source
             if (currentRemoteEl) currentRemoteEl.textContent = data.current_source || "--";
@@ -639,7 +652,7 @@ async function loadSources() {
         if (sourcesElements.sourcesTbody) {
             sourcesElements.sourcesTbody.innerHTML = `
                 <tr>
-                    <td colspan="6" class="loading-cell" style="color: #fca5a5;">
+                    <td colspan="8" class="loading-cell" style="color: #fca5a5;">
                         Error loading sources: ${escapeHtml(err.message)}
                     </td>
                 </tr>
@@ -648,13 +661,22 @@ async function loadSources() {
     }
 }
 
+function _syncDot(local, remote, hasRemote) {
+    if (!hasRemote) return '';
+    const amberDot = '<span class="status-dot" style="background:#fbbf24;box-shadow:0 0 6px rgba(251,191,36,.75);flex-shrink:0;"></span>';
+    const greenDot = '<span class="status-dot" style="flex-shrink:0;"></span>';
+    if (remote === -1) return amberDot;
+    if (local === remote && remote > 0) return greenDot;
+    return amberDot;
+}
+
 function renderSourcesTable() {
     if (!sourcesElements.sourcesTbody) return;
 
     if (sourcesState.sources.length === 0) {
         sourcesElements.sourcesTbody.innerHTML = `
             <tr>
-                <td colspan="6" class="loading-cell">No sources configured yet</td>
+                <td colspan="8" class="loading-cell">No sources configured yet</td>
             </tr>
         `;
         return;
@@ -675,12 +697,18 @@ function renderSourcesTable() {
             ? ''
             : `<button class="btn-small" onclick="activateSource('${escapeHtml(source.path)}', '${escapeHtml(source.id)}')">Activate</button> `;
 
+        const hasRemote = !!source.remote;
+        const cloudDisplay = !hasRemote ? '—' : source.remote_count === -1 ? '?' : source.remote_count;
+        const dot = _syncDot(source.photo_count, source.remote_count, hasRemote);
+
         return `
             <tr>
                 <td class="tech-column"><strong>${escapeHtml(source.id)}</strong></td>
                 <td>${escapeHtml(source.label)}</td>
                 <td><code>${escapeHtml(source.remote || 'local')}</code></td>
                 <td class="tech-column"><code>${escapeHtml(source.path)}</code></td>
+                <td style="white-space:nowrap;">${dot} ${cloudDisplay}</td>
+                <td>${source.photo_count}</td>
                 <td>${statusBadges.join(' ')}</td>
                 <td class="tech-column" style="white-space: nowrap;">
                     ${activateBtn}<button class="btn-small btn-danger" onclick="deleteSource('${escapeHtml(source.id)}')">Delete</button>

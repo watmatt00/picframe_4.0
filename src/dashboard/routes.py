@@ -39,7 +39,7 @@ from src.services.status_service import (
 from src.storage.devices import device_storage
 from src.auth.pairing import generate_pairing_code
 from src.utils.qr_generator import generate_qr_data_url
-from src.utils.rclone import count_local_files, rclone_list_remotes, _validate_filename_raw
+from src.utils.rclone import count_local_files, rclone_count, rclone_list_remotes, _validate_filename_raw
 from src.services import photo_tools_service as photo_tools
 from src.services import backup_service
 from src.services.party_service import enable_party, disable_party
@@ -587,6 +587,22 @@ async def switch_source(source_id: str = Form(...)):
         return RedirectResponse(url="/?error=switch_failed", status_code=303)
 
 
+async def _check_tailscale() -> str:
+    """Return 'running' if Tailscale is connected, else 'stopped' or 'unknown'."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "tailscale", "status", "--json",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+        import json as _json
+        data = _json.loads(stdout)
+        return "running" if data.get("BackendState") == "Running" else "stopped"
+    except Exception:
+        return "unknown"
+
+
 @router.get("/dashboard/status")
 async def get_dashboard_status():
     """
@@ -609,6 +625,14 @@ async def get_dashboard_status():
         {"name": s.name, "active": s.active, "status": s.status}
         for s in services
     ]
+
+    # Get additional health check statuses in parallel
+    sync_timer_svc, lights_svc, api_svc, tailscale_status = await asyncio.gather(
+        systemd_service.get_status("picframe-sync.timer"),
+        systemd_service.get_status("picframe-lights"),
+        systemd_service.get_status("picframe-api"),
+        _check_tailscale(),
+    )
 
     # Get storage capacity (shared logic)
     capacity = get_disk_capacity(PICTURES_PATH)
@@ -644,6 +668,10 @@ async def get_dashboard_status():
         "has_sources": len(source_manager.list_sources()) > 0,
         "rotation_interval": get_settings().display.rotation_interval,
         "wifi_connected": _light_overrides.get("wifi_connected", _is_wifi_connected()),
+        "sync_timer_status": sync_timer_svc.status if sync_timer_svc else "unknown",
+        "lights_status":     lights_svc.status     if lights_svc     else "unknown",
+        "api_health_status": api_svc.status         if api_svc         else "unknown",
+        "tailscale_status":  tailscale_status,
     }
 
 
@@ -856,9 +884,20 @@ async def list_sources_api():
     current_source_id = settings.display.current_source
     sources = source_manager.list_sources()
 
+    async def _get_counts(source):
+        local = count_local_files(source.local_path)
+        remote = 0
+        if source.rclone_remote:
+            try:
+                remote = await asyncio.wait_for(rclone_count(source.rclone_remote), timeout=10)
+            except (asyncio.TimeoutError, Exception):
+                remote = -1
+        return local, remote
+
+    counts = await asyncio.gather(*[_get_counts(s) for s in sources])
+
     result = []
-    for source in sources:
-        photo_count = count_local_files(source.local_path)
+    for source, (local_count, remote_count) in zip(sources, counts):
         result.append({
             "id": source.id,
             "label": source.name,
@@ -866,7 +905,8 @@ async def list_sources_api():
             "path": source.local_path,
             "enabled": source.enabled,
             "active": source.id == current_source_id,
-            "photo_count": photo_count,
+            "photo_count": local_count,
+            "remote_count": remote_count,
         })
 
     return {"sources": result}
