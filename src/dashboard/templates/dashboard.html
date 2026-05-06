@@ -34,12 +34,15 @@
         <main>
             <!-- Photo Sync Status Card -->
             <section class="card overall-card">
-                <div class="card-header">
-                    <div class="status-label">
-                        <span id="overall-title">Checking status...</span>
-                        <span class="status-chip" id="overall-chip">--</span>
+                <div class="tools-card-header">
+                    <div>
+                        <div class="tools-title">Status</div>
+                        <div class="tools-subtitle">Frame status and health</div>
                     </div>
                 </div>
+                <!-- hidden — JS uses these for banner text and severity class -->
+                <span id="overall-title" style="display:none;"></span>
+                <span id="overall-chip" style="display:none;"></span>
                 <div class="overall-inner">
                     <div class="traffic-rail">
                         <div class="traffic-light off" id="traffic-green"></div>
