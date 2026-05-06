@@ -148,7 +148,7 @@ def generate_setup_image(frame_name: str) -> None:
     draw.line([(lx, y), (rx, y)], fill=(60, 60, 80), width=2)
     y += 50
 
-    draw.text((lx, y), "Use the below instructions to pair mobile app and complete", font=font_body, fill=white, anchor="lm")
+    draw.text((lx, y), "Use these instructions to pair mobile app and complete", font=font_body, fill=white, anchor="lm")
     y += 55
     draw.text((lx, y), "the frame setup:", font=font_body, fill=white, anchor="lm")
     y += 90  # extra blank line before Step 1
