@@ -115,10 +115,10 @@ def generate_setup_image(frame_name: str) -> None:
         shutil.copy2(str(NO_PICTURES_PATH), str(NO_PICTURES_BACKUP))
         logger.info(f"Backed up original no_pictures.jpg to {NO_PICTURES_BACKUP.name}")
 
-    # Primary URL is always mDNS — IP shown as fallback footnote (matches success.html)
-    primary_url = f"http://{frame_name}.local:8000"
+    # Primary URL — Tailscale MagicDNS; LAN IP shown as fallback just below the URL box
+    primary_url = f"http://{frame_name}.whale-ayu.ts.net:8000"
     lan_ip = _get_lan_ip()
-    fallback_note = f"If that doesn't work, try:  http://{lan_ip}:8000" if lan_ip else ""
+    fallback_note = f"No Tailscale?  Try:  http://{lan_ip}:8000" if lan_ip else ""
 
     # Build image: 1920x1080 dark background
     W, H = 1920, 1080
@@ -132,46 +132,54 @@ def generate_setup_image(frame_name: str) -> None:
 
     font_title = _load_font(72)
     font_body = _load_font(48)
-    font_url = _load_font(56)
+    font_url = _load_font(52)
     font_small = _load_font(32)
 
-    cx = W // 2
-    y = 150
+    # Left-aligned layout
+    lx = 160   # left margin
+    rx = 1760  # right margin (for separator lines)
+    y = 120
 
-    draw.text((cx, y), "Step 2 of 2 — Finish Setup", font=font_title, fill=yellow, anchor="mm")
-    y += 90
-    draw.line([(cx - 500, y), (cx + 500, y)], fill=(60, 60, 80), width=2)
-    y += 55
+    draw.text((lx, y), "Finish Setup", font=font_title, fill=yellow, anchor="lm")
+    y += 80
+    draw.line([(lx, y), (rx, y)], fill=(60, 60, 80), width=2)
+    y += 50
 
-    draw.text((cx, y), "WiFi connected!  Now finish setup from your phone or computer:", font=font_body, fill=white, anchor="mm")
-    y += 85
+    draw.text((lx, y), "WiFi connected!  Now finish setup from your phone or computer:", font=font_body, fill=white, anchor="lm")
+    y += 72
 
-    draw.text((cx, y), "1.  Rejoin your home WiFi network", font=font_body, fill=white, anchor="mm")
-    y += 70
-    draw.text((cx, y), "2.  Open a browser and go to:", font=font_body, fill=white, anchor="mm")
-    y += 75
+    draw.text((lx, y), "1.  Rejoin your home WiFi network", font=font_body, fill=white, anchor="lm")
+    y += 65
+    draw.text((lx, y), "2.  Open a browser and go to:", font=font_body, fill=white, anchor="lm")
+    y += 65
 
-    # URL box — primary mDNS address
-    pad = 28
-    url_bbox = draw.textbbox((cx, y), primary_url, font=font_url, anchor="mm")
+    # URL box — Tailscale address
+    pad = 24
+    url_bbox = draw.textbbox((lx, y), primary_url, font=font_url, anchor="lm")
     draw.rounded_rectangle(
         [url_bbox[0] - pad, url_bbox[1] - pad // 2, url_bbox[2] + pad, url_bbox[3] + pad // 2],
         radius=12, fill=(10, 30, 10), outline=green, width=2,
     )
-    draw.text((cx, y), primary_url, font=font_url, fill=green, anchor="mm")
-    y += 85
+    draw.text((lx, y), primary_url, font=font_url, fill=green, anchor="lm")
+    y += 62
 
-    draw.text((cx, y), "3.  Enter your Koofr email and password in the banner", font=font_body, fill=white, anchor="mm")
-    y += 80
-
-    draw.line([(cx - 500, y), (cx + 500, y)], fill=(60, 60, 80), width=2)
-    y += 38
-
-    # Footnote: IP fallback + frame name
+    # Fallback note immediately below URL box
     if fallback_note:
-        draw.text((cx, y), fallback_note, font=font_small, fill=gray, anchor="mm")
-        y += 44
-    draw.text((cx, y), f"Frame: {frame_name}", font=font_small, fill=gray, anchor="mm")
+        draw.text((lx, y), fallback_note, font=font_small, fill=gray, anchor="lm")
+    y += 58
+
+    draw.text((lx, y), "3.  On Switch Photos tab in dashboard or Manage Photos in mobile app", font=font_body, fill=white, anchor="lm")
+    y += 55
+    draw.text((lx + 60, y), "(after pairing), create your first cloud photo source.", font=font_body, fill=white, anchor="lm")
+    y += 68
+
+    draw.text((lx, y), "4.  Add pictures to your album from the Upload Photos menu of the mobile app.", font=font_body, fill=white, anchor="lm")
+    y += 68
+
+    draw.line([(lx, y), (rx, y)], fill=(60, 60, 80), width=2)
+    y += 40
+
+    draw.text((lx, y), f"Frame: {frame_name}", font=font_small, fill=gray, anchor="lm")
 
     try:
         img.save(str(NO_PICTURES_PATH), "JPEG", quality=92)
