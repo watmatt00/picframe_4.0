@@ -148,7 +148,7 @@ def generate_setup_image(frame_name: str) -> None:
     draw.line([(lx, y), (rx, y)], fill=(60, 60, 80), width=2)
     y += 50
 
-    draw.text((lx, y), "Pair mobile app or use URL from your PC to finish setup:", font=font_body, fill=white, anchor="lm")
+    draw.text((lx, y), "Use the below instructions to pair mobile app and complete the frame setup:", font=font_body, fill=white, anchor="lm")
     y += 90  # extra blank line before Step 1
 
     draw.text((lx, y), "1.  Rejoin your home WiFi network", font=font_body, fill=white, anchor="lm")
@@ -156,19 +156,19 @@ def generate_setup_image(frame_name: str) -> None:
     draw.text((lx, y), "2.  Open a browser and go to:", font=font_body, fill=white, anchor="lm")
     y += 65
 
-    # URL box — Tailscale address
+    # URL box — Tailscale address, centered
     pad = 24
-    url_bbox = draw.textbbox((lx, y), primary_url, font=font_url, anchor="lm")
+    url_bbox = draw.textbbox((cx, y), primary_url, font=font_url, anchor="mm")
     draw.rounded_rectangle(
         [url_bbox[0] - pad, url_bbox[1] - pad // 2, url_bbox[2] + pad, url_bbox[3] + pad // 2],
         radius=12, fill=(10, 30, 10), outline=green, width=2,
     )
-    draw.text((lx, y), primary_url, font=font_url, fill=green, anchor="lm")
+    draw.text((cx, y), primary_url, font=font_url, fill=green, anchor="mm")
     y += 62
 
-    # Fallback note immediately below URL box
+    # Fallback note immediately below URL box, centered
     if fallback_note:
-        draw.text((lx, y), fallback_note, font=font_small, fill=gray, anchor="lm")
+        draw.text((cx, y), fallback_note, font=font_small, fill=gray, anchor="mm")
     y += 58
 
     draw.text((lx, y), "3.  On Switch Photos tab in dashboard or Manage Photos", font=font_body, fill=white, anchor="lm")
