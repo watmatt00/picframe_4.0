@@ -120,6 +120,16 @@ App Store Connect configured, signing/provisioning set up, archived and uploaded
 
 ---
 
+## Fleet
+
+### Fleet Health Dashboard
+**Priority:** Medium  
+**Spec:** `docs/FLEET_DASHBOARD.md`
+
+Single `/fleet` route in the existing FastAPI app showing all Pi frames' health at a glance. Server-side httpx polls each Pi's existing `/dashboard/status` in parallel via Tailscale — no CORS issues, no new dependency (httpx already in requirements). Device list configured in `~/.picframe/config.yaml` under a `fleet:` section. Read-only status view initially; card layout built for future per-frame controls (sync/restart buttons).
+
+---
+
 ## Phase 6: WiFi Recovery & Setup Mode
 
 ### ~~Console Setup Prompt~~
