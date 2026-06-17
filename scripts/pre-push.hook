@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Blocks pushing scripts/party_* files to the main branch.
+# party_*.sh scripts are tkframe-only party kiosk scripts.
+# kframe and mnbframe would pull them on their next update if they reach main.
+#
+# Installed by: bash scripts/install_dev_hooks.sh
+
+while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
+    if [[ "$REMOTE_REF" == "refs/heads/main" ]]; then
+        if git ls-tree -r --name-only "$LOCAL_SHA" 2>/dev/null | grep -q "scripts/party_"; then
+            echo ""
+            echo "╔══════════════════════════════════════════════════════════════╗"
+            echo "║  PUSH BLOCKED — party scripts detected in push to main      ║"
+            echo "╚══════════════════════════════════════════════════════════════╝"
+            echo ""
+            echo "  scripts/party_*.sh are tkframe-only kiosk scripts."
+            echo "  kframe and mnbframe would pull them on their next update."
+            echo ""
+            echo "  To release to main: remove or revert the party scripts first."
+            echo "  After the party, delete them on dev, commit, then merge to main."
+            echo ""
+            exit 1
+        fi
+    fi
+done
+exit 0
