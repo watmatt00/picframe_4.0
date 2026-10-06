@@ -22,6 +22,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from state_manager import state_manager
+from wifi_config import write_wifi_credentials
 
 LOG_FORMAT = "[%(asctime)s] %(levelname)-5s %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -133,7 +134,7 @@ def save():
 
     # ── Configure WiFi via NetworkManager ────────────────────────────────────
     try:
-        _write_wifi_credentials(ssid, wifi_password)
+        write_wifi_credentials(ssid, wifi_password)
     except Exception as e:
         logger.error(f"Failed to configure WiFi: {e}")
         template = "index.html" if is_first_run else "reconfigure.html"
@@ -174,52 +175,6 @@ def save():
 
 
 # ── Helper functions ─────────────────────────────────────────────────────────
-
-def _write_wifi_credentials(ssid: str, password: str) -> None:
-    """
-    Configure WiFi credentials using NetworkManager (nmcli).
-
-    Deletes any existing 'picframe-wifi' connection and creates a new one
-    with autoconnect enabled so it persists across reboots.
-
-    Args:
-        ssid: WiFi network name.
-        password: WiFi password (WPA2-PSK), or empty string for open networks.
-    """
-    # Remove old picframe-wifi connection if it exists
-    subprocess.run(
-        ["nmcli", "con", "delete", "picframe-wifi"],
-        capture_output=True, check=False,
-    )
-
-    # Create connection
-    subprocess.run(
-        ["nmcli", "con", "add", "type", "wifi", "ifname", "wlan0",
-         "con-name", "picframe-wifi", "ssid", ssid],
-        capture_output=True, text=True, check=True,
-    )
-
-    if password:
-        # WPA2-PSK secured network
-        subprocess.run(
-            ["nmcli", "con", "modify", "picframe-wifi",
-             "wifi-sec.key-mgmt", "wpa-psk",
-             "wifi-sec.psk", password,
-             "connection.autoconnect", "yes",
-             "connection.autoconnect-priority", "10"],
-            capture_output=True, text=True, check=True,
-        )
-        logger.info(f"NetworkManager 'picframe-wifi' configured (WPA2) for SSID '{ssid}'")
-    else:
-        # Open network — no security settings
-        subprocess.run(
-            ["nmcli", "con", "modify", "picframe-wifi",
-             "connection.autoconnect", "yes",
-             "connection.autoconnect-priority", "10"],
-            capture_output=True, text=True, check=True,
-        )
-        logger.info(f"NetworkManager 'picframe-wifi' configured (open) for SSID '{ssid}'")
-
 
 def _write_picframe_config(frame_name: str) -> None:
     """

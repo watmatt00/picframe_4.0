@@ -3,6 +3,9 @@ Description=PicFrame BLE Setup Service
 After=bluetooth.target
 Requires=bluetooth.target
 # Do not run automatically — started by picframe-watchdog when needs_setup=true
+# Stop retrying after 5 failed starts in 5 min (watchdog runs reset-failed before each start)
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple

@@ -2,7 +2,8 @@
 PicFrame Setup - WiFi Watchdog.
 
 Monitors WiFi association and manages the needs_setup flag in state.yaml.
-Runs as a system-level service (root). Never touches the display process.
+Runs as a system-level service (root). Touches the display process only when
+entering setup mode (stop) or leaving it without a reboot (start).
 
 WiFi check: association only (iw dev wlan0 link).
 Never pings 8.8.8.8 — internet down != WiFi down.
@@ -36,17 +37,31 @@ from state_manager import state_manager
 # Outage threshold before setting needs_setup flag
 WIFI_OUTAGE_THRESHOLD_SECONDS = 600  # 10 minutes
 POLL_INTERVAL_SECONDS = 30
+# How long to give NetworkManager to rejoin home WiFi before (re-)entering setup mode
+WIFI_GRACE_SECONDS = 90
+WIFI_RECHECK_INTERVAL_SECONDS = 5
+# After this long in setup mode with no configuration, check whether home WiFi is back
+SETUP_MODE_RETRY_SECONDS = 900  # 15 minutes
+# Only outage-triggered setup mode may auto-exit; "unprovisioned"/"manual" must be completed
+RETRYABLE_SETUP_REASONS = {"extended_outage"}
+# Max wait for the frame user's systemd manager at boot (display runs as a user service)
+USER_MANAGER_WAIT_SECONDS = 120
+DISPLAY_SERVICE = "picframe"
+SETUP_SERVICES = ["picframe-ble-setup", "picframe-ap-setup"]
 LOG_FORMAT = "[%(asctime)s] %(levelname)-5s %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+_log_handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+try:
+    _log_handlers.append(logging.FileHandler(Path("/var/log/picframe-watchdog.log")))
+except OSError:
+    pass  # Not running as root (e.g. tests) — journal/stdout only
 
 logging.basicConfig(
     level=logging.INFO,
     format=LOG_FORMAT,
     datefmt=LOG_DATE_FORMAT,
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(Path("/var/log/picframe-watchdog.log")),
-    ],
+    handlers=_log_handlers,
 )
 logger = logging.getLogger("watchdog")
 
@@ -324,6 +339,96 @@ def _restore_issue() -> None:
         logger.warning(f"Could not restore /etc/issue: {e}")
 
 
+def wait_for_wifi(timeout: float) -> bool:
+    """
+    Poll WiFi association until associated or the timeout expires.
+
+    Args:
+        timeout: Maximum seconds to wait.
+
+    Returns:
+        True if wlan0 associated within the timeout, False otherwise.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        if is_wifi_associated():
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(WIFI_RECHECK_INTERVAL_SECONDS)
+
+
+def _user_systemctl(*args: str) -> subprocess.CompletedProcess:
+    """
+    Run systemctl against the frame user's service manager.
+
+    The display runs as a user service under FRAME_USER; '-M user@' reaches
+    that user's bus from root.
+
+    Args:
+        *args: systemctl arguments (e.g. "stop", "picframe").
+
+    Returns:
+        Completed process (returncode 1 with stderr on timeout).
+    """
+    cmd = ["systemctl", "--user", "-M", f"{FRAME_USER}@", *args]
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(cmd, 1, "", "timed out")
+
+
+def _wait_for_user_manager(timeout: float) -> bool:
+    """
+    Wait until the frame user's systemd manager has finished starting.
+
+    At boot the watchdog can run before the user manager has started the
+    display; stopping it too early lets it start afterwards anyway.
+
+    Args:
+        timeout: Maximum seconds to wait.
+
+    Returns:
+        True if the user manager is running (or degraded), False on timeout.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        result = _user_systemctl("is-system-running")
+        state = result.stdout.strip()
+        if state in ("running", "degraded"):
+            return True
+        if time.monotonic() >= deadline:
+            detail = state or result.stderr.strip() or "unreachable"
+            logger.warning(f"User service manager for '{FRAME_USER}' not ready: {detail}")
+            return False
+        time.sleep(5)
+
+
+def stop_display() -> None:
+    """Stop the photo display so the setup instructions are visible."""
+    _wait_for_user_manager(USER_MANAGER_WAIT_SECONDS)
+    result = _user_systemctl("stop", DISPLAY_SERVICE)
+    if result.returncode == 0:
+        logger.info(f"Stopped {DISPLAY_SERVICE} display service (user {FRAME_USER})")
+    else:
+        logger.error(
+            f"Failed to stop {DISPLAY_SERVICE} display service (user {FRAME_USER}): "
+            f"{result.stderr.strip()}"
+        )
+
+
+def start_display() -> None:
+    """Restart the photo display after leaving setup mode without a reboot."""
+    result = _user_systemctl("start", DISPLAY_SERVICE)
+    if result.returncode == 0:
+        logger.info(f"Started {DISPLAY_SERVICE} display service (user {FRAME_USER})")
+    else:
+        logger.error(
+            f"Failed to start {DISPLAY_SERVICE} display service (user {FRAME_USER}): "
+            f"{result.stderr.strip()}"
+        )
+
+
 def start_setup_mode() -> None:
     """
     Enter setup mode: stop the photo display, write dnsmasq config,
@@ -337,14 +442,6 @@ def start_setup_mode() -> None:
     # Keep hostapd SSID in sync with current frame name
     _update_hostapd_ssid(frame_name)
 
-    # Stop the photo display — picframe runs as a user service under 'matt'
-    # Use -M matt@ to reach the user session bus from root
-    subprocess.run(
-        ["systemctl", "--user", "-M", "matt@", "stop", "picframe"],
-        check=False,
-    )
-    logger.info("Stopped picframe display service")
-
     # Write dnsmasq config for DNS hijack (any URL → 192.168.4.1)
     dnsmasq_conf = (
         "interface=wlan0\n"
@@ -356,12 +453,10 @@ def start_setup_mode() -> None:
     except Exception as e:
         logger.error(f"Failed to write dnsmasq config: {e}")
 
-    # Start BLE + AP simultaneously
+    # Clear any start-limit-hit state from a previous attempt, then start BLE + AP
+    subprocess.run(["systemctl", "reset-failed", *SETUP_SERVICES], capture_output=True, check=False)
     try:
-        subprocess.run(
-            ["systemctl", "start", "picframe-ble-setup", "picframe-ap-setup"],
-            check=True,
-        )
+        subprocess.run(["systemctl", "start", *SETUP_SERVICES], check=True)
         logger.info("Setup mode services started (BLE + AP)")
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to start setup mode services: {e}")
@@ -369,33 +464,63 @@ def start_setup_mode() -> None:
     # Show instructions in the login header (/etc/issue)
     _write_setup_issue(frame_name)
 
+    # Stop the display last — may wait for the user manager at boot, and the AP
+    # should not be delayed by that
+    stop_display()
+
 
 def stop_setup_mode() -> None:
     """Stop BLE and AP setup services."""
     logger.info("Stopping setup mode services")
-    subprocess.run(
-        ["systemctl", "stop", "picframe-ble-setup", "picframe-ap-setup"],
-        check=False,
-    )
+    subprocess.run(["systemctl", "stop", *SETUP_SERVICES], check=False)
 
 
-def run_monitoring_loop(in_setup_mode: bool = False) -> None:
+def try_leave_setup_mode() -> bool:
+    """
+    Check whether home WiFi is reachable again and, if so, leave setup mode.
+
+    Stopping the AP service returns wlan0 to NetworkManager, which then
+    autoconnects to any saved network. If none associates within the grace
+    period, setup mode is restarted.
+
+    Returns:
+        True if setup mode was left (WiFi associated), False if re-entered.
+    """
+    logger.info("Setup mode not completed — checking whether home WiFi is available")
+    stop_setup_mode()
+    if wait_for_wifi(WIFI_GRACE_SECONDS):
+        state_manager.clear_needs_setup()
+        state_manager.mark_wifi_connected()
+        _restore_issue()
+        start_display()
+        logger.info("Home WiFi available — left setup mode")
+        return True
+    logger.info("Home WiFi still unavailable — re-entering setup mode")
+    start_setup_mode()
+    return False
+
+
+def run_monitoring_loop(in_setup_mode: bool = False, retry_home_wifi: bool = False) -> None:
     """
     Main watchdog loop. Polls WiFi every 30 seconds.
 
     On loss: starts 10-min countdown, sets needs_setup flag at expiry.
     On recovery: clears needs_setup flag.
-    Display is never touched.
+    Display is only touched when leaving setup mode (see try_leave_setup_mode).
 
-    In setup mode: wlan0 is controlled by hostapd (AP mode) and wpa_supplicant
-    may reconnect in the background. Do not poll WiFi — the portal/BLE handler
-    writes new credentials and reboots when the user is done. Just idle.
+    In setup mode: wlan0 is controlled by hostapd (AP mode). Do not poll WiFi —
+    the portal/BLE handler writes new credentials and reboots when the user is
+    done. If retry_home_wifi is set, every SETUP_MODE_RETRY_SECONDS the AP is
+    stopped briefly to see whether home WiFi is back (see try_leave_setup_mode).
 
     Args:
         in_setup_mode: True if setup mode services were started this boot.
+        retry_home_wifi: True if setup mode may exit on its own when home WiFi
+            returns (outage-triggered setup only).
     """
     wifi_down_since: float | None = None
     flag_already_set = False
+    setup_started = time.monotonic()
 
     logger.info("Watchdog monitoring loop started")
 
@@ -403,6 +528,11 @@ def run_monitoring_loop(in_setup_mode: bool = False) -> None:
         # In setup mode, wlan0 is owned by hostapd — don't poll WiFi.
         # The portal handles rebooting when the user submits credentials.
         if in_setup_mode:
+            if retry_home_wifi and time.monotonic() - setup_started >= SETUP_MODE_RETRY_SECONDS:
+                if try_leave_setup_mode():
+                    in_setup_mode = False
+                    continue
+                setup_started = time.monotonic()
             time.sleep(POLL_INTERVAL_SECONDS)
             continue
 
@@ -473,10 +603,19 @@ def main() -> None:
 
     if needs_setup:
         reason = state.get("setup_mode_reason", "unknown")
-        logger.info(f"needs_setup=true (reason: {reason}) — entering setup mode")
-        start_setup_mode()
-        run_monitoring_loop(in_setup_mode=True)
-        return
+        retryable = reason in RETRYABLE_SETUP_REASONS
+        # A stale outage flag must not force setup mode if home WiFi works now
+        if retryable and wait_for_wifi(WIFI_GRACE_SECONDS):
+            logger.info(
+                f"needs_setup=true (reason: {reason}) but WiFi associated — "
+                "clearing flag, normal boot"
+            )
+            state_manager.clear_needs_setup()
+        else:
+            logger.info(f"needs_setup=true (reason: {reason}) — entering setup mode")
+            start_setup_mode()
+            run_monitoring_loop(in_setup_mode=True, retry_home_wifi=retryable)
+            return
 
     # Show setup instruction image if Koofr hasn't been configured yet
     frame_name = state.get("frame_name", "picframe")

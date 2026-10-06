@@ -2,6 +2,9 @@
 Description=PicFrame AP Setup Mode (hotspot + captive portal)
 After=network.target NetworkManager.service
 # Do not run automatically — started by picframe-watchdog when needs_setup=true
+# Stop retrying after 5 failed starts in 5 min (watchdog runs reset-failed before each start)
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -16,7 +19,8 @@ ExecStartPre=/bin/sh -c 'ip addr del 192.168.4.1/24 dev wlan0 2>/dev/null || tru
 ExecStartPre=/bin/sh -c 'nmcli device set wlan0 managed yes 2>/dev/null || true'
 ExecStartPre=/bin/sleep 1
 # ── Hand wlan0 to hostapd ────────────────────────────────────────────────────
-ExecStartPre=/usr/bin/nmcli device disconnect wlan0
+# '-' prefix: nmcli exits non-zero if wlan0 is already disconnected — not an error here
+ExecStartPre=-/usr/bin/nmcli device disconnect wlan0
 ExecStartPre=/usr/bin/nmcli device set wlan0 managed no
 ExecStartPre=/bin/sleep 1
 ExecStartPre=/usr/bin/ip addr flush dev wlan0
