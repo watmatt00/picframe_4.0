@@ -9,9 +9,10 @@
 #       Idempotent; re-run it to pick up a changed filter.
 #
 #   bash ~/picframe_4.0/scripts/setup/install_inspect_key.sh --remove-dev-keys
-#       Also removes the unrestricted dev PC keys. Run this only after you have
-#       confirmed password login works (ssh tkframe-pw). Afterwards the only key
-#       that opens this Pi is the read-only claude-inspect key.
+#       Also removes the unrestricted dev PC keys (no passphrase, so Claude on the
+#       PC can use them). Refuses if that would leave no way in for you: sshd must
+#       accept passwords, or another full-access key (e.g. your own key with a
+#       passphrase) must remain in authorized_keys.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -47,12 +48,6 @@ fi
 for f in "$FILTER_SRC" "$PUBKEY_FILE"; do
     [[ -f "$f" ]] || { ERR "Missing $f — pull the repo first"; exit 1; }
 done
-
-# Removing the dev keys leaves password login as the only way in for you
-if $REMOVE_DEV_KEYS && grep -qsEi '^\s*PasswordAuthentication\s+no' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf; then
-    ERR "PasswordAuthentication is disabled in sshd config — removing the dev keys would lock you out. Aborting."
-    exit 1
-fi
 
 # Fingerprint of one authorized_keys line ("" if it isn't a key)
 fingerprint() {
@@ -100,6 +95,23 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     printf '%s\n' "$line" >> "$TMP_KEYS"
 done < "$AUTH_KEYS"
 printf '%s\n' "$INSPECT_LINE" >> "$TMP_KEYS"
+
+# Never remove the last way in. Ask sshd itself which methods it offers: config
+# files such as sshd_config.d/50-cloud-init.conf (Raspberry Pi Imager's
+# "public-key only") are root-only, so reading them is not reliable.
+if $REMOVE_DEV_KEYS; then
+    full_access_left="$(grep -cvE '^\s*(#|$|restrict,command=)' "$TMP_KEYS" || true)"
+    if [[ "$full_access_left" -eq 0 ]]; then
+        offered="$(ssh -o BatchMode=yes -o PubkeyAuthentication=no -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 "$(whoami)@localhost" true 2>&1 || true)"
+        if [[ "$offered" != *"Permission denied"*password* ]]; then
+            ERR "sshd here does not accept passwords and no other full-access key would remain."
+            ERR "Removing the dev keys would lock you out. Add your own full-access key first. Aborting."
+            ERR "sshd said: ${offered:-no response}"
+            exit 1
+        fi
+    fi
+fi
 
 chmod 600 "$TMP_KEYS"
 mv "$TMP_KEYS" "$AUTH_KEYS"
