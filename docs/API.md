@@ -16,6 +16,10 @@ Authorization: Bearer <token>
 
 Tokens are obtained through the pairing flow (see [Security](SECURITY.md)).
 
+### Network Access
+
+`LANOnlyMiddleware` (`src/api/middleware.py`) is deny-by-default. Callers outside the LAN and tailnet (RFC 1918, loopback, Tailscale `100.64.0.0/10`) can reach only `/api/v1/*`, `/health` and `/version`. Every other route, including the dashboard, `/docs` and `/api/updates/*`, returns `403` to them. The caller address is uvicorn's `request.client.host`, which is rewritten from `X-Forwarded-For` only when the TCP peer is `127.0.0.1` (the Tailscale Funnel/Serve proxy).
+
 ## Endpoints
 
 ### Public Endpoints (No Auth)
@@ -46,6 +50,10 @@ Tokens are obtained through the pairing flow (see [Security](SECURITY.md)).
 | `/api/v1/contributors/invite` | POST | Generate Koofr invite |
 | `/api/v1/sync` | POST | Trigger manual sync |
 | `/api/v1/logs` | GET | Recent log entries |
+| `/api/v1/updates/settings` | GET | Update schedule, last check result, installed version |
+| `/api/v1/updates/check` | POST | Check for available updates now |
+| `/api/v1/updates/schedule` | POST | Save update schedule |
+| `/api/v1/updates/apply` | POST | Apply update (git pull), then restart the API |
 
 ---
 
@@ -419,7 +427,7 @@ All errors follow this format:
 
 ## Dashboard API Endpoints (LAN Only - No Auth)
 
-The web dashboard at `http://<pi-ip>:8000` provides browser-based management accessible only on the local network. These endpoints are used by the dashboard JavaScript.
+The web dashboard at `http://<pi-ip>:8000` provides browser-based management accessible only from the LAN or tailnet (see [Network Access](#network-access)); other callers get `403`. These endpoints are used by the dashboard JavaScript.
 
 ### Dashboard Pages
 

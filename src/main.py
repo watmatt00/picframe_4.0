@@ -29,6 +29,10 @@ def main():
         host="0.0.0.0",
         port=8000,
         reload=False,
+        # Tailscale Funnel/Serve proxies from 127.0.0.1. Trust X-Forwarded-For only
+        # from there so request.client is the real caller; LANOnlyMiddleware relies on it.
+        proxy_headers=True,
+        forwarded_allow_ips="127.0.0.1",
     )
 
 

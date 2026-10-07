@@ -17,13 +17,13 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 # API route imports
-from src.api.routes import pairing, status, devices, services, display, folders, contributors, cloud, settings, logs, photos, contributor, tools
+from src.api.routes import pairing, status, devices, services, display, folders, contributors, cloud, settings, logs, photos, contributor, tools, updates
 
 # Dashboard routes
 from src.dashboard import routes as dashboard_routes
 
 # Middleware
-from src.api.middleware import LANOnlyDashboardMiddleware
+from src.api.middleware import LANOnlyMiddleware
 
 # Update service
 from src.services.update_service import start_update_scheduler
@@ -43,8 +43,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add LAN-only middleware for dashboard routes
-app.add_middleware(LANOnlyDashboardMiddleware)
+# Deny non-local clients everything except /api/v1/*, /health and /version
+app.add_middleware(LANOnlyMiddleware)
 
 
 @app.get("/health")
@@ -57,21 +57,6 @@ async def health():
 async def version():
     """API version endpoint."""
     return {"version": "4.0.0", "api": "picframe"}
-
-
-# DEBUG: Test token generation - REMOVE IN PRODUCTION
-@app.get("/debug/token")
-async def debug_token():
-    """Generate a test token for development. REMOVE IN PRODUCTION."""
-    from src.auth.jwt_handler import create_token
-    import uuid
-    token = create_token(
-        device_id=str(uuid.uuid4()),
-        device_name="Debug Device",
-        role="admin",
-        frame_id="tkframe",
-    )
-    return {"token": token, "warning": "DEBUG ENDPOINT - REMOVE IN PRODUCTION"}
 
 
 # Include dashboard routes (LAN only, no auth)
@@ -91,6 +76,7 @@ app.include_router(logs.router, prefix="/api/v1")
 app.include_router(photos.router, prefix="/api/v1")
 app.include_router(tools.router, prefix="/api/v1")
 app.include_router(contributor.router, prefix="/api/v1")
+app.include_router(updates.router, prefix="/api/v1")
 
 # Mount static files for dashboard
 static_dir = Path(__file__).parent.parent / "dashboard" / "static"

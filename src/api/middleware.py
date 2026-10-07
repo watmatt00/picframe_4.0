@@ -1,89 +1,71 @@
 """
 PicFrame 4.0 - API Middleware.
 
-LAN-only restriction for dashboard routes.
+Deny-by-default restriction for non-local clients.
 """
+
+import ipaddress
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-# Dashboard paths that should only be accessible from LAN
-DASHBOARD_PATHS = ["/", "/settings", "/devices", "/pairing", "/logs"]
+# Paths reachable from the public internet (Tailscale Funnel).
+# Everything under /api/v1/ enforces JWT auth itself (except POST /api/v1/pair,
+# which is the pairing entry point). Everything else is LAN/tailnet only.
+PUBLIC_PREFIXES = ("/api/v1/",)
+PUBLIC_PATHS = {"/health", "/version"}
 
-# Static files for dashboard
-STATIC_PATHS = ["/static/"]
-
-# Local network prefixes
-LOCAL_PREFIXES = [
-    "192.168.",
-    "10.",
-    "172.16.", "172.17.", "172.18.", "172.19.",
-    "172.20.", "172.21.", "172.22.", "172.23.",
-    "172.24.", "172.25.", "172.26.", "172.27.",
-    "172.28.", "172.29.", "172.30.", "172.31.",
-    "127.",
-    # Tailscale CGNAT range — allows direct VPN peer connections (e.g. fuckms →
-    # mnbframe over WireGuard). Funnel traffic is still blocked because the
-    # middleware reads X-Forwarded-For first, which contains the real public IP.
-    "100.",
+# Local networks: RFC 1918, loopback, and Tailscale peers (direct WireGuard or
+# tailnet Serve). Funnel traffic is not local: uvicorn rewrites request.client
+# from the proxy's X-Forwarded-For only when the TCP peer is 127.0.0.1 (see
+# forwarded_allow_ips in src/main.py), so it holds the real public caller IP.
+LOCAL_NETWORKS = [
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("100.64.0.0/10"),  # Tailscale CGNAT range
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fd7a:115c:a1e0::/48"),  # Tailscale IPv6 range
 ]
 
 
 def is_local_ip(ip: str) -> bool:
-    """Check if an IP address is from a local network or Tailscale VPN peer."""
-    if not ip:
+    """Check if an IP address is from a local network or Tailscale peer."""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
         return False
-    return any(ip.startswith(prefix) for prefix in LOCAL_PREFIXES)
+    return any(addr in network for network in LOCAL_NETWORKS)
 
 
-def is_dashboard_path(path: str) -> bool:
-    """Check if the path is a dashboard route."""
-    # Exact match for root
-    if path == "/":
-        return True
-    # Check other dashboard paths
-    for dashboard_path in DASHBOARD_PATHS[1:]:
-        if path.startswith(dashboard_path):
-            return True
-    # Check static files
-    for static_path in STATIC_PATHS:
-        if path.startswith(static_path):
-            return True
-    return False
+def is_public_path(path: str) -> bool:
+    """Check if the path may be reached from the public internet."""
+    return path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES)
 
 
-class LANOnlyDashboardMiddleware(BaseHTTPMiddleware):
+class LANOnlyMiddleware(BaseHTTPMiddleware):
     """
-    Middleware to restrict dashboard access to LAN and Tailscale VPN peers.
+    Restrict everything except the JWT-protected API to LAN and Tailscale peers.
 
     - LAN users (192.168.x.x, 10.x.x.x, etc.) can access everything
-    - Tailscale VPN peers (100.x.x.x, direct WireGuard) can access dashboard
-    - Funnel/public internet users can only access API endpoints
+    - Tailscale peers (100.64.0.0/10) can access everything
+    - Funnel/public internet users can only reach /api/v1/*, /health, /version
     """
 
     async def dispatch(self, request: Request, call_next):
+        """Reject non-local requests to non-public paths with 403."""
         path = request.url.path
-        
-        # Only check dashboard paths
-        if is_dashboard_path(path):
-            client_ip = ""
-            if request.client:
-                client_ip = request.client.host
-            
-            # Check for X-Forwarded-For header (in case of proxy)
-            forwarded_for = request.headers.get("X-Forwarded-For")
-            if forwarded_for:
-                # Take the first IP in the chain
-                client_ip = forwarded_for.split(",")[0].strip()
-            
+
+        if not is_public_path(path):
+            client_ip = request.client.host if request.client else ""
             if not is_local_ip(client_ip):
                 return JSONResponse(
                     status_code=403,
                     content={
-                        "detail": "Dashboard only available on local network. Use the mobile app for remote access.",
-                        "client_ip": client_ip,
+                        "detail": "Only available on local network. Use the mobile app for remote access.",
                     }
                 )
-        
+
         return await call_next(request)

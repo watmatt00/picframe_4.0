@@ -8,9 +8,12 @@ Provides a background scheduler for automatic periodic checks.
 import asyncio
 import calendar
 import logging
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
+
+from pydantic import BaseModel
 
 from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
@@ -428,3 +431,144 @@ async def get_local_version(repo_path: Optional[Path] = None) -> str:
         repo_path = get_repo_path()
     count = await _get_commit_count(repo_path, "HEAD")
     return _format_version(count)
+
+
+# =============================================================================
+# Request handlers shared by the LAN dashboard and the /api/v1 updates routes
+# =============================================================================
+
+
+class SaveUpdateScheduleRequest(BaseModel):
+    """Request to save update schedule settings."""
+    auto_check: bool
+    auto_apply: bool
+    frequency: str
+    day: int
+    check_time: str
+
+
+async def get_update_status() -> dict:
+    """
+    Get current update configuration, last check result, and installed version.
+
+    Returns:
+        Dict with schedule settings, last check info, local version/commit and branch
+    """
+    settings = get_settings()
+    local_commit = await get_local_commit()
+    local_version = await get_local_version()
+    branch = await get_current_branch()
+    return {
+        "auto_check": settings.updates.auto_check,
+        "auto_apply": settings.updates.auto_apply,
+        "frequency": settings.updates.frequency,
+        "day": settings.updates.day,
+        "check_time": settings.updates.check_time,
+        "last_checked": settings.updates.last_checked,
+        "last_result": settings.updates.last_result,
+        "local_version": local_version,
+        "local_commit": local_commit,
+        "branch": branch,
+    }
+
+
+async def run_update_check() -> dict:
+    """
+    Run an immediate update check and persist the result.
+
+    Returns:
+        Dict describing whether the frame is up to date
+    """
+    result = await check_for_updates()
+    save_check_result(result)
+
+    return {
+        "ok": result.get("error") is None,
+        "up_to_date": result.get("up_to_date"),
+        "local_commit": result.get("local_commit"),
+        "remote_commit": result.get("remote_commit"),
+        "local_version": result.get("local_version"),
+        "remote_version": result.get("remote_version"),
+        "checked_at": result.get("checked_at"),
+        "branch": result.get("branch"),
+        "error": result.get("error"),
+    }
+
+
+def save_update_schedule(request: SaveUpdateScheduleRequest) -> dict:
+    """
+    Validate and save update schedule configuration.
+
+    Args:
+        request: Schedule settings to save
+
+    Returns:
+        {"ok": True} on success, or {"ok": False, "error": ...}
+    """
+    # Validate frequency
+    if request.frequency not in ("daily", "weekly", "monthly"):
+        return {"ok": False, "error": "frequency must be 'daily', 'weekly', or 'monthly'"}
+
+    # Validate day (only relevant for non-daily)
+    if request.frequency == "monthly" and not (1 <= request.day <= 28):
+        return {"ok": False, "error": "day must be 1-28 for monthly frequency"}
+    if request.frequency == "weekly" and not (0 <= request.day <= 6):
+        return {"ok": False, "error": "day must be 0-6 for weekly frequency"}
+
+    # Validate check_time
+    if not re.match(r"^\d{2}:\d{2}$", request.check_time):
+        return {"ok": False, "error": "check_time must be HH:MM format"}
+    hour, minute = int(request.check_time[:2]), int(request.check_time[3:])
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return {"ok": False, "error": "check_time has invalid hour or minute"}
+
+    try:
+        config_manager.set("updates.auto_check", request.auto_check)
+        config_manager.set("updates.auto_apply", request.auto_apply)
+        config_manager.set("updates.frequency", request.frequency)
+        config_manager.set("updates.day", request.day)
+        config_manager.set("updates.check_time", request.check_time)
+        reload_settings()
+
+        logger.info(
+            f"Update schedule saved: auto_check={request.auto_check}, auto_apply={request.auto_apply}, "
+            f"frequency={request.frequency}, day={request.day}, time={request.check_time}"
+        )
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"Failed to save update schedule: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+async def apply_update_and_restart(source: str) -> dict:
+    """
+    Apply available updates (git pull) and restart the API service on success.
+
+    Args:
+        source: Who triggered the update, for the log ("dashboard" or "app")
+
+    Returns:
+        Dict with ok flag, git output and error
+    """
+    result = await apply_update()
+
+    if result["success"]:
+        logger.info(f"Update applied via {source} — restarting API")
+        async def _restart_after_response():
+            await asyncio.sleep(1)
+            # Fire and forget — systemd kills this process before systemctl
+            # can report success, so we never await the result (false errors otherwise).
+            await asyncio.create_subprocess_exec(
+                "systemctl", "--user", "restart", "picframe-api.service",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+        asyncio.create_task(_restart_after_response())
+    else:
+        logger.error(f"Update apply failed via {source}: {result['error']}")
+
+    return {
+        "ok": result["success"],
+        "output": result.get("output"),
+        "error": result.get("error"),
+    }

@@ -28,7 +28,16 @@ from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
 from src.services.systemd_service import systemd_service, update_sync_timer, update_sleep_timers, VALID_SYNC_INTERVALS
 from src.services.display_service import display_service
-from src.services.update_service import check_for_updates, save_check_result, get_local_commit, get_local_version, apply_update, get_current_branch
+from src.services.update_service import (
+    SaveUpdateScheduleRequest,
+    apply_update_and_restart,
+    get_current_branch,
+    get_local_commit,
+    get_local_version,
+    get_update_status,
+    run_update_check,
+    save_update_schedule,
+)
 from src.services.status_service import (
     get_current_source,
     get_photo_counts,
@@ -1154,15 +1163,6 @@ class PartyModeRequest(BaseModel):
     enabled: bool
 
 
-class SaveUpdateScheduleRequest(BaseModel):
-    """Request to save update schedule settings."""
-    auto_check: bool
-    auto_apply: bool
-    frequency: str
-    day: int
-    check_time: str
-
-
 @router.post("/api/settings")
 async def save_settings_api(request: SaveSettingsRequest):
     """
@@ -1341,22 +1341,7 @@ async def get_update_settings():
 
     LAN-only endpoint, no JWT auth required.
     """
-    settings = get_settings()
-    local_commit = await get_local_commit()
-    local_version = await get_local_version()
-    branch = await get_current_branch()
-    return {
-        "auto_check": settings.updates.auto_check,
-        "auto_apply": settings.updates.auto_apply,
-        "frequency": settings.updates.frequency,
-        "day": settings.updates.day,
-        "check_time": settings.updates.check_time,
-        "last_checked": settings.updates.last_checked,
-        "last_result": settings.updates.last_result,
-        "local_version": local_version,
-        "local_commit": local_commit,
-        "branch": branch,
-    }
+    return await get_update_status()
 
 
 @router.post("/api/updates/check")
@@ -1366,62 +1351,17 @@ async def check_for_updates_api():
 
     LAN-only endpoint, no JWT auth required.
     """
-    result = await check_for_updates()
-    save_check_result(result)
-
-    return {
-        "ok": result.get("error") is None,
-        "up_to_date": result.get("up_to_date"),
-        "local_commit": result.get("local_commit"),
-        "remote_commit": result.get("remote_commit"),
-        "local_version": result.get("local_version"),
-        "remote_version": result.get("remote_version"),
-        "checked_at": result.get("checked_at"),
-        "branch": result.get("branch"),
-        "error": result.get("error"),
-    }
+    return await run_update_check()
 
 
 @router.post("/api/updates/schedule")
-async def save_update_schedule(request: SaveUpdateScheduleRequest):
+async def save_update_schedule_api(request: SaveUpdateScheduleRequest):
     """
     Save update schedule configuration.
 
     LAN-only endpoint, no JWT auth required.
     """
-    # Validate frequency
-    if request.frequency not in ("daily", "weekly", "monthly"):
-        return {"ok": False, "error": "frequency must be 'daily', 'weekly', or 'monthly'"}
-
-    # Validate day (only relevant for non-daily)
-    if request.frequency == "monthly" and not (1 <= request.day <= 28):
-        return {"ok": False, "error": "day must be 1-28 for monthly frequency"}
-    if request.frequency == "weekly" and not (0 <= request.day <= 6):
-        return {"ok": False, "error": "day must be 0-6 for weekly frequency"}
-
-    # Validate check_time
-    if not re.match(r"^\d{2}:\d{2}$", request.check_time):
-        return {"ok": False, "error": "check_time must be HH:MM format"}
-    hour, minute = int(request.check_time[:2]), int(request.check_time[3:])
-    if not (0 <= hour <= 23 and 0 <= minute <= 59):
-        return {"ok": False, "error": "check_time has invalid hour or minute"}
-
-    try:
-        config_manager.set("updates.auto_check", request.auto_check)
-        config_manager.set("updates.auto_apply", request.auto_apply)
-        config_manager.set("updates.frequency", request.frequency)
-        config_manager.set("updates.day", request.day)
-        config_manager.set("updates.check_time", request.check_time)
-        reload_settings()
-
-        logger.info(
-            f"Update schedule saved: auto_check={request.auto_check}, auto_apply={request.auto_apply}, "
-            f"frequency={request.frequency}, day={request.day}, time={request.check_time}"
-        )
-        return {"ok": True}
-    except Exception as e:
-        logger.error(f"Failed to save update schedule: {e}")
-        return {"ok": False, "error": str(e)}
+    return save_update_schedule(request)
 
 
 # =============================================================================
@@ -1668,28 +1608,7 @@ async def apply_update_api():
 
     LAN-only endpoint, no JWT auth required.
     """
-    result = await apply_update()
-
-    if result["success"]:
-        logger.info("Update applied via dashboard — restarting API")
-        async def _restart_after_response():
-            await asyncio.sleep(1)
-            # Fire and forget — systemd kills this process before systemctl
-            # can report success, so we never await the result (false errors otherwise).
-            await asyncio.create_subprocess_exec(
-                "systemctl", "--user", "restart", "picframe-api.service",
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-        asyncio.create_task(_restart_after_response())
-    else:
-        logger.error(f"Update apply failed via dashboard: {result['error']}")
-
-    return {
-        "ok": result["success"],
-        "output": result.get("output"),
-        "error": result.get("error"),
-    }
+    return await apply_update_and_restart("dashboard")
 
 
 @router.post("/api/cloud/test")
