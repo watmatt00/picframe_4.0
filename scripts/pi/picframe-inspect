@@ -1,0 +1,177 @@
+#!/usr/bin/python3
+"""
+PicFrame - read-only SSH command filter for the claude-inspect key.
+
+Installed by scripts/setup/install_inspect_key.sh as the forced command for one
+key in ~/.ssh/authorized_keys:
+
+    restrict,command="/home/pi/.local/bin/picframe-inspect" ssh-ed25519 ... claude-inspect
+
+sshd puts the requested command in SSH_ORIGINAL_COMMAND. This script splits it
+with shlex (no shell is ever run, so ; | & $() and redirects cannot chain
+commands), checks it against a per-command allowlist, and execs it directly.
+Anything else is refused. There is no interactive shell for this key.
+"""
+
+import os
+import re
+import shlex
+import sys
+from datetime import datetime
+
+SAFE_PATH = "/usr/local/bin:/usr/bin:/bin"
+
+# Characters that only mean something to a shell. Rejected outright so a
+# command that would chain or redirect in a shell is never half-run here.
+SHELL_METACHARS = re.compile(r"[;&|`$<>(){}\n\r\\]")
+
+# Commands whose arguments are all read-only, whatever they are
+READ_ONLY = {"cat", "head", "tail", "ls", "grep", "wc", "stat", "du", "df", "free", "ps", "uptime", "uname", "id", "whoami"}
+
+# Commands that must be called with no arguments (with arguments they change state)
+NO_ARGS = {"hostname", "date"}
+
+GIT_SUBCOMMANDS = {"log", "status", "diff", "show", "rev-parse", "describe", "shortlog"}
+GIT_BRANCH_FLAGS = {"-a", "-r", "-v", "-vv", "--all", "--remotes", "--list", "--show-current"}
+GIT_BLOCKED_PREFIXES = ("--output", "--ext-diff", "--textconv", "--exec", "--upload-pack", "--receive-pack")
+
+SYSTEMCTL_VERBS = {"status", "is-active", "is-enabled", "is-failed", "cat", "show", "list-timers", "list-units"}
+SYSTEMCTL_OPTIONS = {"--user", "--no-pager", "--all", "-a", "--full", "-l"}
+
+JOURNALCTL_BLOCKED_PREFIXES = (
+    "--vacuum", "--rotate", "--flush", "--sync", "--relinquish", "--smart-relinquish",
+    "--setup-keys", "--update-catalog", "--cursor-file",
+)
+
+TAILSCALE_ALLOWED = [
+    ["status"], ["status", "--json"], ["version"], ["ip"], ["ip", "-4"], ["ip", "-6"],
+    ["funnel", "status"], ["serve", "status"], ["netcheck"],
+]
+
+SS_FLAGS = re.compile(r"^-[ltnupasx4H6]+$")
+
+
+def refuse(reason: str) -> None:
+    """Print why the command was refused and exit with status 1."""
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{stamp}] ERROR: Command not permitted: {reason}", file=sys.stderr)
+    sys.exit(1)
+
+
+def expand_home(args: list[str]) -> list[str]:
+    """Expand a leading ~/ in arguments, since no shell does it for us."""
+    home = os.path.expanduser("~")
+    return [home + a[1:] if a == "~" or a.startswith("~/") else a for a in args]
+
+
+def check_git(args: list[str]) -> None:
+    """Allow read-only git subcommands, optionally preceded by -C <path>."""
+    rest = list(args)
+    while rest and rest[0] == "-C":
+        if len(rest) < 2:
+            refuse("git -C needs a path")
+        rest = rest[2:]
+    if not rest:
+        refuse("git needs a subcommand")
+    sub, sub_args = rest[0], rest[1:]
+    if sub.startswith("-"):
+        refuse(f"git option {sub} not allowed before the subcommand")
+    for a in sub_args:
+        if a.startswith(GIT_BLOCKED_PREFIXES):
+            refuse(f"git option {a} not allowed")
+    if sub in GIT_SUBCOMMANDS:
+        return
+    if sub == "branch" and all(a in GIT_BRANCH_FLAGS for a in sub_args):
+        return
+    if sub == "remote" and sub_args in ([], ["-v"]):
+        return
+    refuse(f"git {sub} {' '.join(sub_args)}".strip())
+
+
+def check_systemctl(args: list[str]) -> None:
+    """Allow read-only systemctl verbs."""
+    verbs = [a for a in args if not a.startswith("-")]
+    options = [a for a in args if a.startswith("-")]
+    if not verbs or verbs[0] not in SYSTEMCTL_VERBS:
+        refuse(f"systemctl {' '.join(args)}")
+    for o in options:
+        if o not in SYSTEMCTL_OPTIONS:
+            refuse(f"systemctl option {o} not allowed")
+
+
+def check_journalctl(args: list[str]) -> None:
+    """Allow journalctl except options that rotate, vacuum or write files."""
+    for a in args:
+        if a.startswith(JOURNALCTL_BLOCKED_PREFIXES):
+            refuse(f"journalctl option {a} not allowed")
+
+
+def check_tailscale(args: list[str]) -> None:
+    """Allow only exact read-only tailscale invocations."""
+    if args not in TAILSCALE_ALLOWED:
+        refuse(f"tailscale {' '.join(args)}")
+
+
+def check_ss(args: list[str]) -> None:
+    """Allow ss listing flags only (-K would kill sockets)."""
+    for a in args:
+        if not SS_FLAGS.match(a):
+            refuse(f"ss option {a} not allowed")
+
+
+CHECKS = {
+    "git": check_git,
+    "systemctl": check_systemctl,
+    "journalctl": check_journalctl,
+    "tailscale": check_tailscale,
+    "ss": check_ss,
+}
+
+
+def main() -> None:
+    """Validate SSH_ORIGINAL_COMMAND and exec it, or refuse."""
+    command = os.environ.get("SSH_ORIGINAL_COMMAND", "").strip()
+    if not command:
+        refuse("interactive shell is not available for this key")
+    if SHELL_METACHARS.search(command):
+        refuse("shell operators (; | & $ ` < > ( ) { } \\) are not supported")
+    try:
+        argv = shlex.split(command)
+    except ValueError as exc:
+        refuse(f"could not parse command: {exc}")
+
+    name, args = argv[0], expand_home(argv[1:])
+    if "/" in name:
+        refuse("use a bare command name, not a path")
+
+    if name in READ_ONLY:
+        pass
+    elif name in NO_ARGS:
+        if args:
+            refuse(f"{name} takes no arguments here")
+    elif name in CHECKS:
+        CHECKS[name](args)
+    else:
+        refuse(name)
+
+    if name in ("journalctl", "systemctl") and "--no-pager" not in args:
+        args = ["--no-pager"] + args
+
+    env = {
+        "PATH": SAFE_PATH,
+        "HOME": os.path.expanduser("~"),
+        "LANG": os.environ.get("LANG", "C.UTF-8"),
+        "PAGER": "cat",
+        "GIT_PAGER": "cat",
+        "SYSTEMD_PAGER": "",
+        # systemctl --user needs the user bus
+        "XDG_RUNTIME_DIR": os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"),
+    }
+    try:
+        os.execvpe(name, [name] + args, env)
+    except FileNotFoundError:
+        refuse(f"{name} is not installed")
+
+
+if __name__ == "__main__":
+    main()

@@ -55,7 +55,9 @@ PicFrame 4.0 prioritizes security with:
 | **Algorithm** | HS256 |
 | **Secret** | 256-bit random, unique per Pi |
 | **Secret Location** | `~/.picframe/jwt_secret` (600 permissions) |
-| **Expiry** | 1 year with refresh capability |
+| **Expiry** | 90 days; the app refreshes via `POST /api/v1/auth/refresh` when under 30 days remain |
+| **Rotation** | A refresh records the new token's issue time on the device (`token_not_before`); older tokens stop working 2 minutes later |
+| **Revocation** | Removing a device (dashboard Devices list or `DELETE /api/v1/devices/{id}`) rejects its tokens immediately |
 | **Claims** | `device_id`, `device_name`, `role`, `frame_id`, `iat`, `exp` |
 
 ### Roles
@@ -91,7 +93,20 @@ PAIR_CODE_GENERATE_SUCCESS ip=100.64.1.5 admin=Matt's iPhone expires=2026-02-02T
 PAIR_ATTEMPT_SUCCESS ip=100.64.1.5 code=A3B*** device_name=New Device
 PAIR_SUCCESS ip=100.64.1.5 device_id=abc123 device_name=New Device
 PAIR_FAILURE ip=100.64.1.5 reason=invalid_or_expired_code
+TOKEN_REFRESH_SUCCESS ip=64.98.52.132 device_id=abc123 device_name=Matt's iPhone
+CLOUD_CREDENTIALS_FETCH_SUCCESS ip=64.98.52.132 device_id=abc123 device_name=Matt's iPhone
 ```
+
+## Cloud Storage Credential
+
+Admin phones upload, list and delete photos directly with Koofr, so `GET /api/v1/cloud/credentials` gives them the frame's Koofr **app password** (never the Koofr account password). Each hand-out is written to `security.log` as `CLOUD_CREDENTIALS_FETCH`, and the response is sent with `Cache-Control: no-store`. The phone keeps it in the iOS Keychain. If Koofr rejects the stored app password, the app fetches the current one from the frame and retries.
+
+### Lost or stolen phone
+
+1. **Revoke the phone** in the dashboard's Devices list. Its frame token stops working immediately.
+2. **Revoke the Koofr app password** at app.koofr.net → Preferences → App passwords, and create a new one. The old one stops working for Koofr at once.
+3. **Give the frame the new app password** via the dashboard's Koofr setup.
+4. Your other phones pick up the new app password automatically the next time Koofr rejects the old one.
 
 ## Security Checklist
 

@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 # API route imports
-from src.api.routes import pairing, status, devices, services, display, folders, contributors, cloud, settings, logs, photos, contributor, tools, updates
+from src.api.routes import auth, pairing, status, devices, services, display, folders, contributors, cloud, settings, logs, photos, contributor, tools, updates
 
 # Dashboard routes
 from src.dashboard import routes as dashboard_routes
@@ -64,6 +64,7 @@ app.include_router(dashboard_routes.router)
 
 # Include API routes with /api/v1 prefix (JWT authenticated via mobile app)
 app.include_router(pairing.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="/api/v1")
 app.include_router(status.router, prefix="/api/v1")
 app.include_router(devices.router, prefix="/api/v1")
 app.include_router(services.router, prefix="/api/v1")

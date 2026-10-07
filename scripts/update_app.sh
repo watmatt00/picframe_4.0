@@ -12,6 +12,18 @@ WARN() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] WARNING: $*" >&2; }
 
 LOG "update_app.sh starting (project: $PROJECT_DIR)"
 
+# ── Step 0: git remote over HTTPS ──────────────────────────────────────────────
+# The repo is public; frames pull anonymously over HTTPS and hold no GitHub key.
+# Older installs may still use an SSH remote tied to an account-wide GitHub key.
+HTTPS_REMOTE="https://github.com/watmatt00/picframe_4.0.git"
+CURRENT_REMOTE="$(git -C "$PROJECT_DIR" remote get-url origin 2>/dev/null || true)"
+if [[ "$CURRENT_REMOTE" == git@github.com:* || "$CURRENT_REMOTE" == ssh://* ]]; then
+    git -C "$PROJECT_DIR" remote set-url origin "$HTTPS_REMOTE"
+    LOG "Git remote switched to HTTPS: $HTTPS_REMOTE (was $CURRENT_REMOTE)"
+else
+    LOG "Git remote: ${CURRENT_REMOTE:-none} (no change)"
+fi
+
 # ── Step 1: APT packages ───────────────────────────────────────────────────────
 # Add packages here as new features require them.
 APT_PACKAGES=(

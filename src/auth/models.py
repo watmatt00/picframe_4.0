@@ -19,8 +19,11 @@ class Device(BaseModel):
     role: str = Field(default="admin", description="Device role")
     paired_at: datetime = Field(..., description="When device was paired")
     last_seen: Optional[datetime] = Field(None, description="Last API activity")
+    token_not_before: Optional[datetime] = Field(
+        None, description="Issue time of the newest token; older tokens expire after a short grace"
+    )
 
-    @field_serializer("paired_at", "last_seen")
+    @field_serializer("paired_at", "last_seen", "token_not_before")
     def serialize_dt(self, v: Optional[datetime]) -> Optional[str]:
         return v.isoformat() if v is not None else None
 

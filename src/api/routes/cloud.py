@@ -8,10 +8,12 @@ Provides cloud storage credentials to mobile clients:
 import asyncio
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
 
 from src.api.dependencies import require_admin
+from src.auth.jwt_handler import TokenClaims
+from src.utils.logging import log_auth_event
 
 router = APIRouter(tags=["cloud"])
 
@@ -80,13 +82,24 @@ async def _get_rclone_koofr_credentials() -> Optional[CloudCredentials]:
 
 
 @router.get("/cloud/credentials", response_model=CloudCredentialsResponse)
-async def get_cloud_credentials(admin=Depends(require_admin)):
+async def get_cloud_credentials(
+    request: Request,
+    response: Response,
+    admin: TokenClaims = Depends(require_admin),
+):
     """Get cloud storage credentials for mobile upload.
 
-    Returns Koofr credentials extracted from the frame's rclone config.
-    Admin only — credentials are sensitive.
+    Returns the Koofr app password from the frame's rclone config.
+    Admin only — credentials are sensitive. Every hand-out goes to the security log.
     """
+    response.headers["Cache-Control"] = "no-store"
     credentials = await _get_rclone_koofr_credentials()
+    log_auth_event(
+        "CLOUD_CREDENTIALS_FETCH",
+        success=credentials is not None,
+        details={"device_id": admin.device_id, "device_name": admin.device_name},
+        ip=request.client.host if request.client else None,
+    )
 
     if credentials:
         return CloudCredentialsResponse(

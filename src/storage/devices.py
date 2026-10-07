@@ -159,6 +159,28 @@ class DeviceStorage:
 
             self._save(devices)
 
+    def set_token_not_before(self, device_id: str, issued_at: datetime) -> bool:
+        """
+        Record the issue time of a device's newest token.
+
+        Args:
+            device_id: Device to update
+            issued_at: Issue time of the token just handed to the device
+
+        Returns:
+            True if the device was found and updated
+        """
+        with self._lock:
+            devices = self._load()
+
+            for device in devices:
+                if device.id == device_id:
+                    device.token_not_before = issued_at
+                    self._save(devices)
+                    return True
+
+            return False
+
     def count_admins(self) -> int:
         """Count the number of admin devices."""
         with self._lock:

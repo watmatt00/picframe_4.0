@@ -14,8 +14,8 @@ from typing import Optional
 import jwt
 from pydantic import BaseModel
 
-# Default token expiry: 1 year
-DEFAULT_EXPIRY_DAYS = 365
+# Default token expiry: 90 days (the app refreshes tokens before they expire)
+DEFAULT_EXPIRY_DAYS = 90
 
 # Secret file location
 SECRET_PATH = Path.home() / ".picframe" / "jwt_secret"
@@ -112,21 +112,3 @@ def verify_token(token: str) -> Optional[TokenClaims]:
     except jwt.InvalidTokenError:
         return None
 
-
-def revoke_token(device_id: str) -> bool:
-    """
-    Revoke all tokens for a device.
-
-    Note: With HS256, we can't truly revoke tokens. Instead, we maintain
-    a revocation list that is checked during verification.
-
-    Args:
-        device_id: Device to revoke
-
-    Returns:
-        True if device was found and revoked
-    """
-    # TODO: Implement revocation list
-    # Store revoked device_ids in ~/.picframe/revoked_devices.json
-    # Check this list in verify_token()
-    return False

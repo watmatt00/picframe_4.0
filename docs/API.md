@@ -54,6 +54,7 @@ Tokens are obtained through the pairing flow (see [Security](SECURITY.md)).
 | `/api/v1/updates/check` | POST | Check for available updates now |
 | `/api/v1/updates/schedule` | POST | Save update schedule |
 | `/api/v1/updates/apply` | POST | Apply update (git pull), then restart the API |
+| `/api/v1/auth/refresh` | POST | Swap the caller's token for a new 90-day token (any paired role); the old one stops working 2 minutes later |
 
 ---
 
