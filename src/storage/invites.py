@@ -121,6 +121,16 @@ class InviteStorage:
         with self._lock:
             return self._load()
 
+    def is_valid_invite(self, code: str) -> bool:
+        """Return True if *code* is an unclaimed, unexpired invite. Does not claim it."""
+        normalized = code.upper().strip()
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            return any(
+                i.code.upper() == normalized and not i.claimed and now <= i.expires_at
+                for i in self._load()
+            )
+
     def verify_and_claim(self, code: str, device_name: str) -> Optional[Invite]:
         """
         Verify a contributor invite code and mark it as claimed.

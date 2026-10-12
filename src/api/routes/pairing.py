@@ -70,6 +70,30 @@ async def pair_device(request: PairRequest, http_request: Request):
     # Validate the pairing code — check admin codes first, then contributor invites
     role = "admin"
     if not verify_pairing_code(request.code):
+        # The Manager (admin) app asks for admin: an invite code is for the Contributor
+        # app, so refuse it without claiming it (invites are single-use)
+        if request.requested_role == "admin":
+            if invite_storage.is_valid_invite(request.code):
+                log_auth_event(
+                    "PAIR",
+                    success=False,
+                    details={"reason": "invite_code_in_admin_app"},
+                    ip=client_ip,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="This is an invite code. Use the PicFrame Contributor app to pair with it.",
+                )
+            log_auth_event(
+                "PAIR",
+                success=False,
+                details={"reason": "invalid_or_expired_code"},
+                ip=client_ip,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired pairing code",
+            )
         # Not an admin code — check contributor invite codes
         invite = invite_storage.verify_and_claim(request.code, request.device_name)
         if not invite:
