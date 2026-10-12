@@ -8,6 +8,7 @@ Provides per-source photo listing, thumbnail generation, and deletion:
 """
 
 import asyncio
+import glob
 import io
 import logging
 from pathlib import Path
@@ -18,7 +19,20 @@ from pydantic import BaseModel
 
 from src.api.dependencies import require_admin
 from src.services.source_manager import source_manager
-from src.utils.rclone import rclone_deletefile, rclone_movefile, _validate_filename, _validate_relative_path, IMAGE_EXTENSIONS
+from src.utils.rclone import (
+    rclone_deletefile_raw,
+    rclone_movefile,
+    _validate_filename,
+    _validate_filename_raw,
+    _validate_relative_path,
+    IMAGE_EXTENSIONS,
+)
+
+_RENAME_SOURCE_HELP = (
+    "This filename has characters that can't be renamed here. "
+    "Use the frame dashboard: Tools → Filename Cleaner."
+)
+_RENAME_TARGET_HELP = "Use only letters, numbers, spaces, - _ . and keep the extension."
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sources", tags=["photos"])
@@ -143,8 +157,11 @@ async def delete_photo(source_id: str, filename: str, admin=Depends(require_admi
 
     Cloud deletion MUST succeed before local deletion to prevent sync restoring
     the file on the next sync cycle.
+
+    Any existing image name is accepted (e.g. "Mom & Dad + #1.jpg" from an upload
+    link); the file must exist in the source folder, which blocks anything else.
     """
-    if not _validate_filename(filename):
+    if not _validate_filename_raw(filename) or Path(filename).suffix.lower() not in IMAGE_EXTENSIONS:
         raise HTTPException(400, "Invalid filename")
     source = source_manager.get_source(source_id)
     if not source:
@@ -159,7 +176,7 @@ async def delete_photo(source_id: str, filename: str, admin=Depends(require_admi
 
     # STEP 1: delete from cloud (must succeed first)
     if source.rclone_remote:
-        result = await rclone_deletefile(source.rclone_remote, filename)
+        result = await rclone_deletefile_raw(source.rclone_remote, filename)
         if not result.success:
             raise HTTPException(
                 502,
@@ -171,7 +188,7 @@ async def delete_photo(source_id: str, filename: str, admin=Depends(require_admi
     logger.info(f"Deleted photo '{filename}' from source '{source_id}'")
 
     # Evict thumbnail cache entries for this file
-    for stale in THUMB_CACHE_DIR.glob(f"{source_id}_{filename}_*.jpg"):
+    for stale in THUMB_CACHE_DIR.glob(f"{glob.escape(source_id)}_{glob.escape(filename)}_*.jpg"):
         stale.unlink(missing_ok=True)
 
     return DeletePhotoResponse(
@@ -188,10 +205,10 @@ async def rename_photo(source_id: str, filename: str, body: RenamePhotoRequest, 
     Cloud rename MUST succeed before local rename to prevent sync divergence.
     """
     if not _validate_filename(filename):
-        raise HTTPException(400, "Invalid filename")
+        raise HTTPException(400, _RENAME_SOURCE_HELP)
     new_filename = body.new_filename.strip()
     if not _validate_filename(new_filename):
-        raise HTTPException(400, "Invalid new filename")
+        raise HTTPException(400, _RENAME_TARGET_HELP)
     if new_filename == filename:
         raise HTTPException(400, "New filename must differ from current filename")
     source = source_manager.get_source(source_id)
@@ -222,7 +239,7 @@ async def rename_photo(source_id: str, filename: str, body: RenamePhotoRequest, 
     logger.info(f"Renamed photo '{filename}' -> '{new_filename}' in source '{source_id}'")
 
     # Evict old thumbnail cache entries
-    for stale in THUMB_CACHE_DIR.glob(f"{source_id}_{filename}_*.jpg"):
+    for stale in THUMB_CACHE_DIR.glob(f"{glob.escape(source_id)}_{glob.escape(filename)}_*.jpg"):
         stale.unlink(missing_ok=True)
 
     return RenamePhotoResponse(

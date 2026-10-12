@@ -40,6 +40,7 @@ THUMB_CACHE_DIR = Path("/tmp/pfthumb")
 # Regex patterns for filename issues
 _RE_GOOGLE_ID = re.compile(r"\s*\{[^}]+\}")      # " {AByz57...}"
 _RE_NUMBERED_SUFFIX = re.compile(r"\s*\(\d+\)$")  # " (0)", " (54)"
+_RE_SPECIAL_CHARS = re.compile(r"[^A-Za-z0-9_.\-]")  # anything the strict rename rule rejects
 
 # Stems longer than this are considered machine-generated and renamed to YYYYMMDD_HHMMSS
 _LONG_NAME_THRESHOLD = 20
@@ -340,6 +341,12 @@ def _clean_stem(stem: str) -> tuple[str, list[str]]:
         cleaned = re.sub(r' +', '_', cleaned)
         reasons.append("spaces")
 
+    # e.g. "Mom_&_Dad_+_#1" -> "Mom_Dad_1"; may leave "" (caller falls back to a date stem)
+    if _RE_SPECIAL_CHARS.search(cleaned):
+        cleaned = _RE_SPECIAL_CHARS.sub("_", cleaned)
+        cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+        reasons.append("special_chars")
+
     return cleaned, reasons
 
 
@@ -391,12 +398,17 @@ def _proposed_filename(original: str, local_path: Path) -> Optional[FilenameFix]
     if not reasons:
         return None  # nothing to fix
 
+    if not cleaned_stem:
+        # Nothing usable left (e.g. "&&&.jpg"): name it by date like long names
+        cleaned_stem, needs_review = _date_stem_from_file(local_path / original)
+
     proposed = _unique_name(cleaned_stem, new_ext, original, local_path)
     exif_date, exif_orientation = _read_exif_display(local_path / original)
     return FilenameFix(
         original=original,
         proposed=proposed,
         reasons=reasons,
+        needs_review=needs_review,
         exif_date=exif_date,
         exif_orientation=exif_orientation,
     )

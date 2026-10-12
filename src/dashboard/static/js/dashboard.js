@@ -1930,6 +1930,7 @@ function reasonLabel(r) {
         long_name: 'Long name',
         spaces: 'Spaces',
         wrong_ext: 'Wrong ext',
+        special_chars: 'Special chars',
     }[r] || r;
 }
 
@@ -2023,6 +2024,7 @@ function _buildFilterBar() {
         long_name:      'Filename stem is over 20 characters — likely machine-generated; will be renamed to YYYYMMDD_HHMMSS',
         spaces:         'Filename contains spaces — will be replaced with underscores',
         wrong_ext:      'File bytes don\'t match declared extension — e.g. a JPEG file saved as .heic',
+        special_chars:  'Characters like & + # \' that the frame can\'t rename — replaced with underscores',
         needs_review:   'Proposed name uses file modification time (no EXIF date found) — review before applying',
     };
 
