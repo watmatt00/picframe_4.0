@@ -22,6 +22,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 
+from src.utils.network import get_lan_ip, get_tailscale_ip
 from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
 from src.services.source_manager import source_manager
@@ -223,31 +224,9 @@ def _get_picframe_config() -> dict:
     return {}
 
 
-def _get_tailscale_ip() -> str:
-    """Get the Tailscale IPv4 address."""
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["tailscale", "ip", "-4"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except Exception as e:
-        logger.warning(f"Failed to get Tailscale IP: {e}")
-    return ""
-
-
-def _get_lan_ip() -> str:
-    """Get the LAN IP address of the primary network interface."""
-    try:
-        import socket
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.connect(("8.8.8.8", 80))
-            return s.getsockname()[0]
-    except Exception as e:
-        logger.warning(f"Failed to get LAN IP: {e}")
-    return ""
+# Kept under the old names; the shared versions live in src/utils/network.py
+_get_tailscale_ip = get_tailscale_ip
+_get_lan_ip = get_lan_ip
 
 
 def _is_wifi_connected() -> bool:

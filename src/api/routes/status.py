@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from src.api.dependencies import require_admin
 from src.config.settings import get_settings
 from src.services.sync_service import sync_service
+from src.utils.network import get_lan_ip, get_tailscale_ip
 from src.services.status_service import (
     get_current_source,
     get_photo_counts,
@@ -56,6 +57,13 @@ class CapacityInfo(BaseModel):
     free_bytes: int
 
 
+class NetworkInfo(BaseModel):
+    """How the frame can be reached (empty string when unknown)."""
+    lan_ip: str
+    tailscale_ip: str
+    funnel_url: str
+
+
 class FrameStatus(BaseModel):
     """Complete frame status response."""
     frame_id: str
@@ -65,6 +73,7 @@ class FrameStatus(BaseModel):
     services: list[ServiceStatus]
     sync: SyncStatusInfo
     capacity: CapacityInfo
+    network: Optional[NetworkInfo] = None
 
 
 SERVICE_DISPLAY_NAMES = {
@@ -138,6 +147,17 @@ async def get_status(admin=Depends(require_admin)):
     capacity_data = get_disk_capacity(PICTURES_PATH)
     capacity = CapacityInfo(**capacity_data)
 
+    # Addresses for the app's connection info (tailscale call is a blocking subprocess)
+    lan_ip, tailscale_ip = await asyncio.gather(
+        asyncio.to_thread(get_lan_ip),
+        asyncio.to_thread(get_tailscale_ip),
+    )
+    network = NetworkInfo(
+        lan_ip=lan_ip,
+        tailscale_ip=tailscale_ip,
+        funnel_url=settings.frame.funnel_url or "",
+    )
+
     return FrameStatus(
         frame_id=settings.frame.id,
         frame_name=settings.frame.name,
@@ -153,4 +173,5 @@ async def get_status(admin=Depends(require_admin)):
             current_source=sync_service._current_source,
         ),
         capacity=capacity,
+        network=network,
     )
