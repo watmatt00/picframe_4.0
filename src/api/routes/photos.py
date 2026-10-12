@@ -21,18 +21,21 @@ from src.api.dependencies import require_admin
 from src.services.source_manager import source_manager
 from src.utils.rclone import (
     rclone_deletefile_raw,
-    rclone_movefile,
+    rclone_movefile_raw,
     _validate_filename,
     _validate_filename_raw,
     _validate_relative_path,
     IMAGE_EXTENSIONS,
 )
 
-_RENAME_SOURCE_HELP = (
-    "This filename has characters that can't be renamed here. "
-    "Use the frame dashboard: Tools → Filename Cleaner."
-)
 _RENAME_TARGET_HELP = "Use only letters, numbers, spaces, - _ . and keep the extension."
+
+
+def _valid_existing_name(filename: str) -> bool:
+    """Name of a photo already in a source: any characters (e.g. "Mom & Dad + #1.jpg"
+    from an upload link) except path separators and "..". Callers must also check the
+    file exists inside the source folder, which is the real guard."""
+    return _validate_filename_raw(filename) and Path(filename).suffix.lower() in IMAGE_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sources", tags=["photos"])
@@ -158,10 +161,9 @@ async def delete_photo(source_id: str, filename: str, admin=Depends(require_admi
     Cloud deletion MUST succeed before local deletion to prevent sync restoring
     the file on the next sync cycle.
 
-    Any existing image name is accepted (e.g. "Mom & Dad + #1.jpg" from an upload
-    link); the file must exist in the source folder, which blocks anything else.
+    Any existing image name is accepted (see _valid_existing_name).
     """
-    if not _validate_filename_raw(filename) or Path(filename).suffix.lower() not in IMAGE_EXTENSIONS:
+    if not _valid_existing_name(filename):
         raise HTTPException(400, "Invalid filename")
     source = source_manager.get_source(source_id)
     if not source:
@@ -203,9 +205,10 @@ async def rename_photo(source_id: str, filename: str, body: RenamePhotoRequest, 
     Rename a photo on cloud storage first, then locally.
 
     Cloud rename MUST succeed before local rename to prevent sync divergence.
+    The current name may contain any characters (see delete); the new name is strict.
     """
-    if not _validate_filename(filename):
-        raise HTTPException(400, _RENAME_SOURCE_HELP)
+    if not _valid_existing_name(filename):
+        raise HTTPException(400, "Invalid filename")
     new_filename = body.new_filename.strip()
     if not _validate_filename(new_filename):
         raise HTTPException(400, _RENAME_TARGET_HELP)
@@ -227,7 +230,7 @@ async def rename_photo(source_id: str, filename: str, body: RenamePhotoRequest, 
 
     # STEP 1: rename on cloud (must succeed first)
     if source.rclone_remote:
-        result = await rclone_movefile(source.rclone_remote, filename, new_filename)
+        result = await rclone_movefile_raw(source.rclone_remote, filename, new_filename)
         if not result.success:
             detail = result.error or "unknown error"
             if result.output and result.output.strip():

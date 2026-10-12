@@ -38,7 +38,7 @@ def source_dir(tmp_path, monkeypatch):
         return RcloneResult(success=True)
 
     monkeypatch.setattr(photos, "rclone_deletefile_raw", fake_delete)
-    monkeypatch.setattr(photos, "rclone_movefile", fake_move)
+    monkeypatch.setattr(photos, "rclone_movefile_raw", fake_move)
     app.dependency_overrides[require_admin] = lambda: {"role": "admin"}
     yield folder, calls
     app.dependency_overrides.pop(require_admin, None)
@@ -72,12 +72,21 @@ def test_delete_rejects_bad_names(client, source_dir, name):
     assert calls == []
 
 
-def test_rename_special_name_points_to_cleaner(client, source_dir):
+def test_rename_special_name_to_valid_name(client, source_dir):
     folder, calls = source_dir
     (folder / SPECIAL).write_bytes(b"x")
     r = client.patch(_url(SPECIAL), json={"new_filename": "Mom_Dad_1.jpg"})
-    assert r.status_code == 400
-    assert "Filename Cleaner" in r.json()["detail"]
+    assert r.status_code == 200, r.text
+    assert (folder / "Mom_Dad_1.jpg").exists() and not (folder / SPECIAL).exists()
+    assert calls == [("move", "koofr:test", SPECIAL, "Mom_Dad_1.jpg")]
+
+
+@pytest.mark.parametrize("name", ["../x.jpg", "x.txt", "missing.jpg"])
+def test_rename_rejects_bad_current_names(client, source_dir, name):
+    folder, calls = source_dir
+    (folder / "x.txt").write_bytes(b"x")
+    r = client.patch(_url(name), json={"new_filename": "fine.jpg"})
+    assert r.status_code in (400, 404), r.text
     assert calls == []
 
 
