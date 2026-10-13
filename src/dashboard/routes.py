@@ -521,7 +521,7 @@ async def trigger_sync():
         sources = source_manager.list_sources()
         syncable = [s for s in sources if s.enabled and s.rclone_remote]
         if not syncable:
-            return {"error": "No sources have cloud sync configured. Complete Koofr setup first."}
+            return {"error": "No albums have cloud sync configured. Complete Koofr setup first."}
         source = syncable[0]
 
     if sync_service._is_syncing:
@@ -935,7 +935,7 @@ async def delete_source_api(request: DeleteSourceRequest):
         logger.info(f"Deleted source '{request.source_id}' via dashboard")
         return {"ok": True}
     else:
-        return {"ok": False, "error": f"Source '{request.source_id}' not found"}
+        return {"ok": False, "error": f"Album '{request.source_id}' not found"}
 
 
 @router.get("/api/rclone/remotes")
@@ -1053,7 +1053,7 @@ async def frame_live(request: FrameLiveRequest):
             break
 
     if not target_source:
-        return {"ok": False, "error": "Source not found for path"}
+        return {"ok": False, "error": "Album not found for path"}
 
     target_path = Path(request.target_dir)
     if not target_path.exists():
@@ -1517,7 +1517,7 @@ async def list_source_backups(source_id: str):
     """List existing tar.gz backups for a source. LAN-only, no JWT."""
     source = source_manager.get_source(source_id)
     if not source:
-        return {"ok": False, "error": "Source not found"}
+        return {"ok": False, "error": "Album not found"}
     try:
         backups = backup_service.list_backups(source_id)
         return {"ok": True, "backups": backups}
@@ -1531,7 +1531,7 @@ async def create_source_backup(source_id: str):
     """Create a tar.gz backup of the source's local photos. LAN-only, no JWT."""
     source = source_manager.get_source(source_id)
     if not source:
-        return {"ok": False, "error": "Source not found"}
+        return {"ok": False, "error": "Album not found"}
     try:
         result = await backup_service.create_backup(source_id, source.local_path)
         return {"ok": True, **result}
@@ -1545,7 +1545,7 @@ async def delete_source_backup(source_id: str, body: DeleteBackupRequest):
     """Delete a backup archive. LAN-only, no JWT."""
     source = source_manager.get_source(source_id)
     if not source:
-        return {"ok": False, "error": "Source not found"}
+        return {"ok": False, "error": "Album not found"}
     try:
         backup_service.delete_backup(source_id, body.filename)
         return {"ok": True}
@@ -1637,6 +1637,6 @@ async def test_cloud_connection():
         _restore_setup_image()
         return {
             "ok": True,
-            "message": f"Connected to Koofr successfully. {sources_with_remote} source(s) ready to sync.",
+            "message": f"Connected to Koofr successfully. {sources_with_remote} album(s) ready to sync.",
         }
     return {"ok": False, "error": f"Koofr connection failed: {stderr.decode().strip() or 'unknown error'}"}

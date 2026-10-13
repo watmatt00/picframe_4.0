@@ -24,7 +24,7 @@
     <!-- Tab Navigation -->
     <div class="tab-bar">
         <button class="tab-button active" data-tab="status">Frame Status</button>
-        <button class="tab-button" data-tab="sources">Switch Photos</button>
+        <button class="tab-button" data-tab="sources">Albums</button>
         <button class="tab-button" data-tab="tools">Tools</button>
         <button class="tab-button" data-tab="settings">Settings</button>
     </div>
@@ -184,8 +184,8 @@
             <section class="card">
                 <div class="card-header">
                     <div>
-                        <div class="card-title">☁️ Photo Sources</div>
-                        <div class="card-subtitle">Your configured cloud photo libraries</div>
+                        <div class="card-title">☁️ Albums</div>
+                        <div class="card-subtitle">Cloud photo folders this frame can show</div>
                     </div>
                     <button class="advanced-toggle" id="sources-table-advanced-toggle">▸ Show technical columns</button>
                 </div>
@@ -206,7 +206,7 @@
                         </thead>
                         <tbody id="sources-tbody">
                             <tr>
-                                <td colspan="8" class="loading-cell">Loading sources...</td>
+                                <td colspan="8" class="loading-cell">Loading albums...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -217,7 +217,7 @@
             <section class="card" style="margin-top: 1.5rem;">
                 <div class="card-header">
                     <div>
-                        <div class="card-title">➕ Add New Photo Source</div>
+                        <div class="card-title">➕ Add Album</div>
                         <div class="card-subtitle">Connect a cloud folder to your frame</div>
                     </div>
                 </div>
@@ -226,14 +226,14 @@
                     <div class="form-group">
                         <label class="form-label">Display Name</label>
                         <input type="text" id="input-label" class="form-input" placeholder="e.g. Family Photos" required>
-                        <div class="form-hint">Source ID, local folder, and cloud folder are auto-generated from this name</div>
+                        <div class="form-hint">Album ID, local folder, and cloud folder are auto-generated from this name</div>
                     </div>
 
                     <!-- Status Message -->
                     <div id="status-message" class="status-message" style="display: none;"></div>
 
                     <div class="button-row" style="margin-top: 1.5rem;">
-                        <button type="submit" id="btn-save-source" class="btn btn-primary">Add Source</button>
+                        <button type="submit" id="btn-save-source" class="btn btn-primary">Add Album</button>
                     </div>
                 </form>
             </section>
@@ -691,7 +691,7 @@
                 <div class="advanced-section" id="party-section">
                 <div style="padding: 0 1.5rem 1.5rem;">
                     <p style="color:#94a3b8;font-size:0.9rem;margin:0 0 1rem;">
-                        When enabled, cloud sync and WiFi recovery are disabled. The frame displays photos from the current source only. Dashboard remains accessible to turn party mode off.
+                        When enabled, cloud sync and WiFi recovery are disabled. The frame displays photos from the current album only. Dashboard remains accessible to turn party mode off.
                     </p>
                     <div class="form-row" style="margin-bottom:1rem;">
                         <div class="form-group">
@@ -742,9 +742,9 @@
                     </div>
                 </div>
                 <div style="padding:0 1.5rem 1.5rem;">
-                    <label class="form-label" for="tools-source-select">Photo Source</label>
+                    <label class="form-label" for="tools-source-select">Album</label>
                     <select id="tools-source-select" class="form-input" style="max-width:320px;">
-                        <option value="">Loading sources…</option>
+                        <option value="">Loading albums…</option>
                     </select>
                 </div>
             </section>
@@ -924,7 +924,7 @@
                             <button class="btn" id="btn-create-backup">Create Backup</button>
                             <span id="backup-create-status" style="font-size:0.85rem;color:#94a3b8;align-self:center;"></span>
                         </div>
-                        <div id="backup-list-empty" style="color:#94a3b8;font-size:0.9rem;display:none;">No backups for this source.</div>
+                        <div id="backup-list-empty" style="color:#94a3b8;font-size:0.9rem;display:none;">No backups for this album.</div>
                         <table class="sources-table" id="backup-table" style="display:none;">
                             <thead>
                                 <tr>

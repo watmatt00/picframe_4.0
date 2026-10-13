@@ -653,7 +653,7 @@ async function loadSources() {
             sourcesElements.sourcesTbody.innerHTML = `
                 <tr>
                     <td colspan="8" class="loading-cell" style="color: #fca5a5;">
-                        Error loading sources: ${escapeHtml(err.message)}
+                        Error loading albums: ${escapeHtml(err.message)}
                     </td>
                 </tr>
             `;
@@ -676,7 +676,7 @@ function renderSourcesTable() {
     if (sourcesState.sources.length === 0) {
         sourcesElements.sourcesTbody.innerHTML = `
             <tr>
-                <td colspan="8" class="loading-cell">No sources configured yet</td>
+                <td colspan="8" class="loading-cell">No albums yet</td>
             </tr>
         `;
         return;
@@ -1005,7 +1005,7 @@ async function onFormSubmit(event) {
 
     sourcesElements.btnSave.disabled = true;
     sourcesElements.btnSave.textContent = 'Saving...';
-    showSourcesStatus('info', 'Creating new source...');
+    showSourcesStatus('info', 'Creating album...');
 
     try {
         const response = await fetch('/api/sources/create', {
@@ -1021,13 +1021,13 @@ async function onFormSubmit(event) {
             sourcesElements.form.reset();
             await loadSources();
         } else {
-            showSourcesStatus('error', `Failed to create source: ${data.error}`);
+            showSourcesStatus('error', `Failed to create album: ${data.error}`);
         }
     } catch (err) {
         showSourcesStatus('error', `Error: ${err.message}`);
     } finally {
         sourcesElements.btnSave.disabled = false;
-        sourcesElements.btnSave.textContent = 'Add Source';
+        sourcesElements.btnSave.textContent = 'Add Album';
     }
 }
 
@@ -1084,16 +1084,16 @@ async function activateSource(targetPath, sourceId) {
             showSourcesStatus('error', `Failed to activate: ${data.error}`);
         }
     } catch (err) {
-        showSourcesStatus('error', `Error activating source: ${err.message}`);
+        showSourcesStatus('error', `Error showing album: ${err.message}`);
     }
 }
 
 async function deleteSource(sourceId) {
-    if (!confirm(`Are you sure you want to delete source "${sourceId}"?\n\nThis will remove it from the configuration but will NOT delete any files.`)) {
+    if (!confirm(`Are you sure you want to delete album "${sourceId}"?\n\nThis will remove it from the configuration but will NOT delete any files.`)) {
         return;
     }
 
-    showSourcesStatus('info', `Deleting source "${sourceId}"...`);
+    showSourcesStatus('info', `Deleting album "${sourceId}"...`);
 
     try {
         const response = await fetch('/api/sources/delete', {
@@ -1105,13 +1105,13 @@ async function deleteSource(sourceId) {
         const data = await response.json();
 
         if (data.ok) {
-            showSourcesStatus('success', `Source "${sourceId}" deleted successfully!`);
+            showSourcesStatus('success', `Album "${sourceId}" deleted successfully!`);
             await loadSources();
         } else {
-            showSourcesStatus('error', `Failed to delete source: ${data.error}`);
+            showSourcesStatus('error', `Failed to delete album: ${data.error}`);
         }
     } catch (err) {
-        showSourcesStatus('error', `Error deleting source: ${err.message}`);
+        showSourcesStatus('error', `Error deleting album: ${err.message}`);
     }
 }
 
@@ -1801,7 +1801,7 @@ async function loadToolsSources() {
             sel.appendChild(opt);
         });
     } catch (e) {
-        sel.innerHTML = '<option value="">Error loading sources</option>';
+        sel.innerHTML = '<option value="">Error loading albums</option>';
     }
 }
 
@@ -1853,7 +1853,7 @@ async function loadBackupList() {
 
 async function runCreateBackup() {
     const sourceId = toolsSourceId();
-    if (!sourceId) { alert('Select a photo source first.'); return; }
+    if (!sourceId) { alert('Select an album first.'); return; }
     const btn = document.getElementById('btn-create-backup');
     const status = document.getElementById('backup-create-status');
     btn.disabled = true;
@@ -1938,7 +1938,7 @@ function reasonLabel(r) {
 
 async function runFilenameScan() {
     const src = toolsSourceId();
-    if (!src) { alert('Select a source first'); return; }
+    if (!src) { alert('Select an album first'); return; }
     const header = document.getElementById('filenames-card-header');
     const statusEl = document.getElementById('filenames-scan-status');
     header.dataset.scanning = 'true';
@@ -2242,7 +2242,7 @@ async function runFilenameApply() {
 
 async function runDupScan() {
     const src = toolsSourceId();
-    if (!src) { alert('Select a source first'); return; }
+    if (!src) { alert('Select an album first'); return; }
     const header = document.getElementById('duplicates-card-header');
     const statusEl = document.getElementById('duplicates-scan-status');
     header.dataset.scanning = 'true';
@@ -2408,7 +2408,7 @@ async function runDupApply() {
 
 async function runVideoScan() {
     const src = toolsSourceId();
-    if (!src) { alert('Select a source first'); return; }
+    if (!src) { alert('Select an album first'); return; }
     const header = document.getElementById('videos-card-header');
     const statusEl = document.getElementById('videos-scan-status');
     header.dataset.scanning = 'true';
@@ -2435,7 +2435,7 @@ function renderVideoResults(src, data) {
     const resultDiv = document.getElementById('videos-result');
 
     summary.textContent = videos.length === 0
-        ? '✅ No video files found in this source.'
+        ? '✅ No video files found in this album.'
         : `Found ${videos.length} video file(s) · ${fmtBytes(data.total_size_bytes)} total.`;
 
     tbody.innerHTML = '';
@@ -2544,7 +2544,7 @@ let _renameFileSet = new Set();
 
 async function runRenameScan() {
     const srcId = toolsSourceId();
-    if (!srcId) { alert('Select a source first.'); return; }
+    if (!srcId) { alert('Select an album first.'); return; }
     const header = document.getElementById('rename-card-header');
     const statusEl = document.getElementById('rename-scan-status');
     const summaryEl = document.getElementById('rename-summary');
@@ -2637,7 +2637,7 @@ function validateRenameInputs() {
         if ((proposedCounts.get(proposed) || 0) > 1) {
             conflict = `"${proposed}" is queued for multiple files`;
         } else if (_renameFileSet.has(proposed)) {
-            conflict = `"${proposed}" already exists in this source`;
+            conflict = `"${proposed}" already exists in this album`;
         }
 
         if (conflict) {
@@ -2874,7 +2874,7 @@ async function saveKoofrSetup() {
         if (wantEnabled) {
             // Show type-to-confirm modal
             if (modalSource) modalSource.textContent = document.querySelector('#party-mode-checkbox')
-                ?.closest('section')?.querySelector('.form-input[disabled]')?.value || 'current source';
+                ?.closest('section')?.querySelector('.form-input[disabled]')?.value || 'current album';
             enableModal.style.display = 'flex';
             confirmInput.value = '';
             confirmBtn.disabled = true;
