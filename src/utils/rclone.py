@@ -305,6 +305,44 @@ async def rclone_count(remote: str) -> int:
         return 0
 
 
+async def rclone_list_md5(remote: str) -> list[tuple[str, int, str]] | None:
+    """
+    List the files directly in a remote folder with their size and MD5.
+
+    Koofr stores MD5 natively, so this is one listing call (no downloads).
+
+    Args:
+        remote: Remote folder, e.g. "kfr_frame:KFR_frame"
+
+    Returns:
+        (name, size, md5) per file (md5 may be "" if unknown), or None on failure.
+    """
+    if not _validate_remote(remote):
+        raise ValueError(f"Invalid remote: {remote}")
+
+    cmd = ["rclone", "lsjson", remote, "--files-only", "--hash", "--hash-type", "md5"]
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+        if proc.returncode != 0:
+            logger.warning(f"rclone lsjson failed for {remote}: {stderr.decode().strip()[:200]}")
+            return None
+        import json
+        items = json.loads(stdout.decode() or "[]")
+        return [
+            (i.get("Name", ""), int(i.get("Size", -1)), (i.get("Hashes") or {}).get("md5", "").lower())
+            for i in items
+        ]
+    except Exception as e:
+        logger.error(f"Failed to list remote hashes: {e}")
+        return None
+
+
 async def rclone_check(remote: str) -> bool:
     """
     Check if an rclone remote is accessible.

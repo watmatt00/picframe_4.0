@@ -6,6 +6,7 @@ Endpoints accessible to both admin and contributor tokens:
 - POST /contributor/upload/{source_id}   — upload a photo to cloud storage
 """
 
+import hashlib
 import logging
 import time
 import uuid
@@ -16,7 +17,13 @@ from pydantic import BaseModel
 
 from src.api.dependencies import require_contributor
 from src.services.source_manager import source_manager
-from src.utils.rclone import IMAGE_EXTENSIONS, _validate_filename, count_local_files, rclone_copyto
+from src.utils.rclone import (
+    IMAGE_EXTENSIONS,
+    _validate_filename,
+    count_local_files,
+    rclone_copyto,
+    rclone_list_md5,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +47,9 @@ class ContributorUploadResponse(BaseModel):
     file_name: str
     source_id: str
     message: str
+    # True when an identical photo (same size and MD5) is already in the album's
+    # cloud folder; nothing was uploaded and file_name is the existing file (PL-129).
+    skipped: bool = False
 
 
 @router.get("/folders", response_model=ContributorFoldersResponse)
@@ -108,6 +118,26 @@ async def contributor_upload(
             status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             "File too large (max 50 MB)",
         )
+
+    # Skip exact copies already in the album's cloud folder (PL-129). Size first, so the
+    # listing is only consulted for a hash match; a failed listing never blocks an upload.
+    existing = await rclone_list_md5(source.rclone_remote)
+    if existing:
+        size = len(contents)
+        digest = hashlib.md5(contents, usedforsecurity=False).hexdigest()
+        for name, existing_size, existing_md5 in existing:
+            if existing_size == size and existing_md5 == digest:
+                logger.info(
+                    f"Contributor upload skipped: '{filename}' matches '{name}' in source "
+                    f"'{source_id}' (by '{device.device_name}')"
+                )
+                return ContributorUploadResponse(
+                    success=True,
+                    file_name=name,
+                    source_id=source_id,
+                    message=f"Already in '{source.name}' as '{name}'. Not uploaded again.",
+                    skipped=True,
+                )
 
     # Use a timestamp suffix to avoid collisions (same logic as before)
     stem = Path(filename).stem
