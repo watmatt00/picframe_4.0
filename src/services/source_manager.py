@@ -58,8 +58,11 @@ class SourceManager:
 
         data = {"sources": [s.model_dump() for s in sources]}
 
-        with open(self._path, "w") as f:
+        # Atomic write: a crash mid-write can't leave a truncated sources file
+        temp_path = self._path.with_suffix(".tmp")
+        with open(temp_path, "w") as f:
             yaml.safe_dump(data, f, default_flow_style=False)
+        temp_path.replace(self._path)
 
     def list_sources(self) -> list[PhotoSource]:
         """

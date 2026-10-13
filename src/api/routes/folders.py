@@ -5,6 +5,7 @@ Manages photo sources/folders:
 - GET /folders: List all photo sources
 - POST /folders: Create a new photo source
 - GET /folders/{id}: Get folder details
+- PATCH /folders/{id}: Rename a folder (display name only)
 - DELETE /folders/{id}: Delete a folder
 - POST /folders/{id}/sync: Trigger sync for a folder
 - GET /folders/{id}/sync/status: Get sync status for a folder
@@ -12,10 +13,11 @@ Manages photo sources/folders:
 - GET /folders/remotes: List available rclone remotes
 """
 
+import unicodedata
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 
 from src.api.dependencies import require_admin
@@ -57,6 +59,22 @@ class CreateFolderRequest(BaseModel):
     """Request to create a new photo source."""
     name: str
     rclone_remote: Optional[str] = None
+
+
+class RenameFolderRequest(BaseModel):
+    """Request to rename a photo source. Only the display name changes."""
+    name: str = Field(..., max_length=50)
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, v: str) -> str:
+        """Trim and reject empty names or control characters."""
+        v = v.strip()
+        if not v:
+            raise ValueError("Name can't be empty")
+        if any(unicodedata.category(c).startswith("C") for c in v):
+            raise ValueError("Name can't contain control characters")
+        return v
 
 
 class SyncStatusResponse(BaseModel):
@@ -150,6 +168,40 @@ async def get_folder(source_id: str, admin=Depends(require_admin)):
         rclone_remote=source.rclone_remote,
         enabled=source.enabled,
         photo_count=photo_count,
+    )
+
+
+@router.patch("/{source_id}", response_model=PhotoSourceResponse)
+async def rename_folder(
+    source_id: str, request: RenameFolderRequest, admin=Depends(require_admin)
+):
+    """
+    Rename a photo source.
+
+    Only the display name changes. The source id, local folder and cloud
+    folder stay the same, so syncing and the current display are unaffected.
+    """
+    source = source_manager.get_source(source_id)
+    if not source:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Source '{source_id}' not found",
+        )
+
+    renamed = source.model_copy(update={"name": request.name})
+    if not source_manager.update_source(renamed):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to rename source '{source_id}'",
+        )
+
+    return PhotoSourceResponse(
+        id=renamed.id,
+        name=renamed.name,
+        local_path=renamed.local_path,
+        rclone_remote=renamed.rclone_remote,
+        enabled=renamed.enabled,
+        photo_count=count_local_files(renamed.local_path),
     )
 
 
