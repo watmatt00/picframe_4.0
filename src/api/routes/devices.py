@@ -4,6 +4,7 @@ PicFrame 4.0 API - Device Management Routes.
 Manages paired devices:
 - GET /devices: List all paired devices
 - GET /devices/{id}: Get a specific device
+- DELETE /devices/me: Unpair the calling device (any role)
 - DELETE /devices/{id}: Revoke a device
 """
 
@@ -11,8 +12,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import Optional
 
-from src.api.dependencies import require_admin
+from src.api.dependencies import get_current_device, require_admin
+from src.auth.jwt_handler import TokenClaims
 from src.storage.devices import device_storage
+from src.utils.logging import log_auth_event
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 
@@ -60,6 +63,34 @@ async def get_device_count(admin=Depends(require_admin)):
     devices = device_storage.list_devices()
     admin_count = device_storage.count_admins()
     return DeviceCountResponse(total=len(devices), admins=admin_count)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def unpair_self(device: TokenClaims = Depends(get_current_device)):
+    """
+    Unpair the calling device (admin or contributor).
+
+    Called by the apps when the user unpairs, so the device leaves the
+    frame's Paired Devices list. Cannot remove the last admin device.
+    Declared before /{device_id} so "me" isn't taken as a device id.
+    """
+    if device.role == "admin" and device_storage.count_admins() <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot remove the last admin device. Add another admin first.",
+        )
+
+    if not device_storage.remove_device(device.device_id):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to unpair this device",
+        )
+
+    log_auth_event(
+        "DEVICE_UNPAIR",
+        success=True,
+        details={"device": device.device_name, "role": device.role},
+    )
 
 
 @router.get("/{device_id}", response_model=PairedDeviceResponse)
