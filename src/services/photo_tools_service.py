@@ -26,6 +26,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from src.services.source_manager import source_manager
+from src.utils import thumbnails
 from src.utils.rclone import (
     IMAGE_EXTENSIONS,
     VIDEO_EXTENSIONS,
@@ -35,7 +36,6 @@ from src.utils.rclone import (
 
 logger = logging.getLogger(__name__)
 
-THUMB_CACHE_DIR = Path("/tmp/pfthumb")
 
 # Regex patterns for filename issues
 _RE_GOOGLE_ID = re.compile(r"\s*\{[^}]+\}")      # " {AByz57...}"
@@ -515,8 +515,7 @@ async def apply_filenames(source_id: str, fixes: list[FilenameFix]) -> BatchResu
             continue
 
         # Evict thumbnail cache
-        for stale in THUMB_CACHE_DIR.glob(f"{source_id}_{fix.original}_*.jpg"):
-            stale.unlink(missing_ok=True)
+        thumbnails.evict(source_id, fix.original)
 
         logger.info(f"Renamed '{fix.original}' -> '{fix.proposed}' in source '{source_id}'")
         result.succeeded.append(fix.original)
@@ -673,8 +672,7 @@ async def apply_duplicates(source_id: str, to_delete: list[str]) -> BatchResult:
             result.failed.append({"filename": filename, "error": f"Local delete failed: {exc}"})
             continue
 
-        for stale in THUMB_CACHE_DIR.glob(f"{source_id}_{filename}_*.jpg"):
-            stale.unlink(missing_ok=True)
+        thumbnails.evict(source_id, filename)
 
         logger.info(f"Deleted duplicate '{filename}' from source '{source_id}'")
         result.succeeded.append(filename)

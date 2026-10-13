@@ -25,7 +25,7 @@ def source_dir(tmp_path, monkeypatch):
     folder.mkdir()
     source = SimpleNamespace(id="test", local_path=str(folder), rclone_remote="koofr:test")
     monkeypatch.setattr(photos.source_manager, "get_source", lambda sid: source if sid == "test" else None)
-    monkeypatch.setattr(photos, "THUMB_CACHE_DIR", tmp_path / "thumbs")
+    monkeypatch.setattr(photos.thumbnails, "THUMB_CACHE_DIR", tmp_path / "thumbs")
 
     calls = []
 

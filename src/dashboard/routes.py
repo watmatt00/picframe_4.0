@@ -6,7 +6,6 @@ Uses Jinja2 templates.
 """
 
 import asyncio
-import io
 import logging
 import os
 import re
@@ -23,6 +22,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 
 from src.utils.network import get_lan_ip, get_tailscale_ip
+from src.utils import thumbnails
 from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
 from src.services.source_manager import source_manager
@@ -1349,8 +1349,7 @@ async def save_update_schedule_api(request: SaveUpdateScheduleRequest):
 # (Google Photos IDs, spaces) that the JWT thumbnail endpoint rejects.
 # =============================================================================
 
-THUMB_CACHE_DIR = Path("/tmp/pfthumb")
-THUMB_SIZE = (128, 128)
+DASH_THUMB_SIZE = (128, 128)
 
 
 @router.get("/api/thumbnail/{source_id}")
@@ -1369,34 +1368,11 @@ async def dashboard_thumbnail(source_id: str, filename: str = Query(...)):
     except ValueError:
         return Response(status_code=400)
 
-    mtime = int(local_file.stat().st_mtime)
-    cache_path = THUMB_CACHE_DIR / f"dash_{source_id}_{filename}_{mtime}.jpg"
-    if cache_path.exists():
-        return Response(content=cache_path.read_bytes(), media_type="image/jpeg")
-
     try:
-        from PIL import Image  # noqa: PLC0415
-
-        # Register HEIC opener if available
-        try:
-            import pillow_heif  # noqa: PLC0415
-            pillow_heif.register_heif_opener()
-        except ImportError:
-            pass
-
-        THUMB_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        with Image.open(local_file) as img:
-            img = img.convert("RGB")
-            img.thumbnail(THUMB_SIZE, Image.LANCZOS)
-            buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=70, optimize=True)
-            jpeg_bytes = buf.getvalue()
-
-        tmp = cache_path.with_suffix(".tmp")
-        tmp.write_bytes(jpeg_bytes)
-        tmp.rename(cache_path)
+        jpeg_bytes = await thumbnails.get_thumbnail(
+            local_file, source_id, filename, DASH_THUMB_SIZE, quality=70, prefix="dash_"
+        )
         return Response(content=jpeg_bytes, media_type="image/jpeg")
-
     except Exception as exc:
         logger.warning(f"Thumbnail failed for {filename}: {exc}")
         return Response(status_code=500)
