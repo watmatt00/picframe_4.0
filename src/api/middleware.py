@@ -1,14 +1,16 @@
 """
 PicFrame 4.0 - API Middleware.
 
-Deny-by-default restriction for non-local clients.
+Deny-by-default restriction for non-local clients, and a request body cap
+for upload routes.
 """
 
 import ipaddress
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 # Paths reachable from the public internet (Tailscale Funnel).
 # Everything under /api/v1/ enforces JWT auth itself (except POST /api/v1/pair,
@@ -101,3 +103,64 @@ class LANOnlyMiddleware(BaseHTTPMiddleware):
                 return JSONResponse(status_code=403, content={"detail": BLOCKED_MESSAGE})
 
         return await call_next(request)
+
+
+class UploadSizeLimitMiddleware:
+    """
+    Reject upload request bodies over a byte cap before they are parsed (PL-060).
+
+    Without this, Starlette receives and spools the whole multipart body before
+    the route can check the file size. A Content-Length over the cap gets 413
+    immediately; a body without Content-Length (chunked) is counted as it
+    arrives and fails with 413 once it passes the cap.
+    """
+
+    def __init__(self, app: ASGIApp, path_prefix: str, max_body_bytes: int) -> None:
+        """
+        Args:
+            app: The wrapped ASGI app.
+            path_prefix: Only POST requests under this path are limited.
+            max_body_bytes: Largest request body accepted, in bytes.
+        """
+        self.app = app
+        self.path_prefix = path_prefix
+        self.max_body_bytes = max_body_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Apply the cap to matching requests; pass everything else through."""
+        if (
+            scope["type"] != "http"
+            or scope["method"] != "POST"
+            or not scope["path"].startswith(self.path_prefix)
+        ):
+            await self.app(scope, receive, send)
+            return
+
+        too_large = {"detail": f"Upload too large (max {self.max_body_bytes // (1024 * 1024)} MB)"}
+        headers = dict(scope["headers"])
+        content_length = headers.get(b"content-length")
+        if content_length is not None:
+            try:
+                declared = int(content_length)
+            except ValueError:
+                await JSONResponse(status_code=400, content={"detail": "Invalid Content-Length"})(
+                    scope, receive, send
+                )
+                return
+            if declared > self.max_body_bytes:
+                await JSONResponse(status_code=413, content=too_large)(scope, receive, send)
+                return
+
+        received = 0
+
+        async def limited_receive() -> Message:
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > self.max_body_bytes:
+                    # Raised while FastAPI reads the body; it re-raises HTTPException
+                    raise HTTPException(status_code=413, detail=too_large["detail"])
+            return message
+
+        await self.app(scope, limited_receive, send)

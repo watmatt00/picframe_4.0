@@ -23,7 +23,8 @@ from src.api.routes import auth, pairing, status, devices, services, display, fo
 from src.dashboard import routes as dashboard_routes
 
 # Middleware
-from src.api.middleware import LANOnlyMiddleware
+from src.api.middleware import LANOnlyMiddleware, UploadSizeLimitMiddleware
+from src.api.routes.contributor import MAX_UPLOAD_BYTES
 
 # Update service
 from src.services.update_service import start_update_scheduler
@@ -45,6 +46,14 @@ app = FastAPI(
 
 # Deny non-local clients everything except /api/v1/*, /health and /version
 app.add_middleware(LANOnlyMiddleware)
+
+# Refuse oversized contributor uploads before the body is spooled (PL-060).
+# 1 MB on top of the file limit covers the multipart framing.
+app.add_middleware(
+    UploadSizeLimitMiddleware,
+    path_prefix="/api/v1/contributor/upload/",
+    max_body_bytes=MAX_UPLOAD_BYTES + 1024 * 1024,
+)
 
 
 @app.get("/health")

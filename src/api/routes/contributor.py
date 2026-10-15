@@ -8,6 +8,8 @@ Endpoints accessible to both admin and contributor tokens:
 
 import hashlib
 import logging
+import os
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -29,7 +31,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/contributor", tags=["contributor"])
 
-_MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+_CHUNK_BYTES = 1024 * 1024
 
 
 class ContributorFolder(BaseModel):
@@ -73,6 +76,44 @@ async def list_contributor_folders(device=Depends(require_contributor)):
     return ContributorFoldersResponse(folders=folders)
 
 
+async def _spool_upload(file: UploadFile, suffix: str) -> tuple[Path, int, str]:
+    """
+    Copy an upload to a temp file in 1 MB chunks, never holding it all in memory (PL-060).
+
+    The temp file goes in tempfile.gettempdir(), which main() points at disk
+    rather than the RAM-backed /tmp.
+
+    Args:
+        file: The uploaded file.
+        suffix: File extension for the temp file (e.g. ".jpg").
+
+    Returns:
+        (temp file path, size in bytes, md5 hex digest). The caller deletes the file.
+
+    Raises:
+        HTTPException: 413 once the upload passes MAX_UPLOAD_BYTES.
+    """
+    fd, name = tempfile.mkstemp(prefix="picframe_upload_", suffix=suffix)
+    tmp = Path(name)
+    size = 0
+    md5 = hashlib.md5(usedforsecurity=False)
+    try:
+        with os.fdopen(fd, "wb") as out:
+            while chunk := await file.read(_CHUNK_BYTES):
+                size += len(chunk)
+                if size > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        "File too large (max 50 MB)",
+                    )
+                md5.update(chunk)
+                out.write(chunk)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    return tmp, size, md5.hexdigest()
+
+
 @router.post("/upload/{source_id}", response_model=ContributorUploadResponse)
 async def contributor_upload(
     source_id: str,
@@ -112,20 +153,12 @@ async def contributor_upload(
             f"File type '{suffix}' not allowed. Accepted: {', '.join(sorted(IMAGE_EXTENSIONS))}",
         )
 
-    contents = await file.read()
-    if len(contents) > _MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            "File too large (max 50 MB)",
-        )
-
-    # Skip exact copies already in the album's cloud folder (PL-129). Size first, so the
-    # listing is only consulted for a hash match; a failed listing never blocks an upload.
-    existing = await rclone_list_md5(source.rclone_remote)
-    if existing:
-        size = len(contents)
-        digest = hashlib.md5(contents, usedforsecurity=False).hexdigest()
-        for name, existing_size, existing_md5 in existing:
+    tmp, size, digest = await _spool_upload(file, suffix)
+    try:
+        # Skip exact copies already in the album's cloud folder (PL-129). Size first, so the
+        # listing is only consulted for a hash match; a failed listing never blocks an upload.
+        existing = await rclone_list_md5(source.rclone_remote)
+        for name, existing_size, existing_md5 in existing or []:
             if existing_size == size and existing_md5 == digest:
                 logger.info(
                     f"Contributor upload skipped: '{filename}' matches '{name}' in source "
@@ -139,13 +172,9 @@ async def contributor_upload(
                     skipped=True,
                 )
 
-    # Use a timestamp suffix to avoid collisions (same logic as before)
-    stem = Path(filename).stem
-    unique_filename = f"{stem}_{int(time.time())}_{uuid.uuid4().hex[:6]}{suffix}"
-    tmp = Path(f"/tmp/picframe_upload_{uuid.uuid4().hex}{suffix}")
-
-    try:
-        tmp.write_bytes(contents)
+        # Use a timestamp suffix to avoid collisions (same logic as before)
+        stem = Path(filename).stem
+        unique_filename = f"{stem}_{int(time.time())}_{uuid.uuid4().hex[:6]}{suffix}"
         result = await rclone_copyto(tmp, f"{source.rclone_remote}/{unique_filename}")
     finally:
         tmp.unlink(missing_ok=True)
