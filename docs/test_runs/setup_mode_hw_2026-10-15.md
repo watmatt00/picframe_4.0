@@ -13,7 +13,7 @@ Mark each step `- [x]`, and add `<!-- FAIL: ... -->` notes for failures.
 
 - [ ] tkframe is on the latest `dev`: Manager app → frame → Software Update → Check, then Apply.
 - [ ] Power-cycle tkframe once (unplug, wait 10 s, plug in). The watchdog only runs its boot checks at boot.
-- [ ] Phone with **nRF Connect** (free, App Store) installed, for round B.
+- [ ] (Optional, round B only) Phone with **nRF Connect** (free, App Store) installed.
 - [ ] Know how to block tkframe's WiFi client in the router app. Find tkframe by name or by its MAC address.
 
 ## 1. PL-063: Koofr flag corrects itself at boot
@@ -26,7 +26,7 @@ After the power cycle in step 0, Claude checks (read-only):
 
 Without SSH, the only way into setup mode is a real outage. The watchdog sets a flag after **10 min** without WiFi, and setup mode starts on the **next boot** (after a 90 s wait for WiFi). The router block must **disconnect tkframe from WiFi** (deauthenticate it, or deny it). A block that only pauses internet access is not enough: the watchdog checks whether WiFi is connected (`iw dev wlan0 link`), not whether the internet works.
 
-BLE and the portal clear the flag and reboot as soon as they save credentials, so the recovery test (round A) and the BLE test (round B) each need their own outage. Allow about 30 min per round.
+BLE and the portal clear the flag and reboot as soon as they save credentials, so the optional BLE test (round B) would need its own outage. Allow about 30 min per round.
 
 ## 2. Round A: outage → setup mode → automatic recovery (PL-062)
 
@@ -40,7 +40,10 @@ BLE and the portal clear the flag and reboot as soon as they save credentials, s
 
 Claude checks afterwards (`/var/log/picframe-watchdog.log`): outage countdown, "needs_setup flag set", boot into setup mode, then "Home WiFi available — left setup mode" and `needs_setup: false`.
 
-## 3. Round B: BLE setup path (PL-062)
+## 3. Round B: BLE setup path (OPTIONAL, skipped by decision)
+
+Skipped 2026-10-15 (Matt): no PicFrame app can send WiFi details over Bluetooth, so users rely on the AP portal. BLE advertising itself was confirmed working on tkframe on 2026-10-06 (`/var/log/picframe-ble-setup.log`). Whether to add BLE setup to the Manager app or remove it from the frame is tracked as PL-137. Run this round only if you want to test the frame side with nRF Connect.
+
 
 - [ ] Block tkframe, wait 11 min, power-cycle while still blocked, and confirm setup mode (PicFrame-tkframe visible), as in round A.
 - [ ] **Unblock** tkframe in the router now, so it can connect once BLE saves the credentials.
@@ -77,6 +80,6 @@ Claude checks from the PC: a 60 MB POST to `/api/v1/contributor/upload/…` gets
 |---|---|---|
 | 1 PL-063 | | |
 | 2 Round A: outage → setup → recovery (+ portal) | | |
-| 3 Round B: BLE | | |
+| 3 Round B: BLE (optional) | skipped | PL-137 |
 | 4 PL-128 | | |
 | 5 PL-060 | | |
