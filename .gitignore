@@ -62,3 +62,7 @@ jwt_secret
 # OS
 .DS_Store
 Thumbs.db
+
+# Local-only notes and Claude settings (public repo, PL-066)
+.claude/
+docs/session_*.md

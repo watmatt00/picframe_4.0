@@ -55,6 +55,7 @@ Tokens are obtained through the pairing flow (see [Security](SECURITY.md)).
 | `/api/v1/updates/schedule` | POST | Save update schedule |
 | `/api/v1/updates/apply` | POST | Apply update (git pull), then restart the API |
 | `/api/v1/auth/refresh` | POST | Swap the caller's token for a new 90-day token (any paired role); the old one stops working 2 minutes later |
+| `/api/v1/sleep-schedule` | POST | Update display sleep schedule (JWT required) |
 
 ---
 
@@ -423,6 +424,7 @@ All errors follow this format:
 | `/contributors` | Stub only |
 | `/sync` | ✅ Implemented |
 | `/logs` | ✅ Implemented |
+| `/sleep-schedule` | ✅ Implemented |
 
 ---
 
@@ -445,11 +447,19 @@ The web dashboard at `http://<pi-ip>:8000` provides browser-based management acc
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/dashboard/status` | GET | Dashboard status JSON (sync state, counts, services) |
-| `/current-image` | GET | Proxy current image from Pi3D |
+| `/current-image` | GET | Proxy current image from Pi3D (port 9000) |
 | `/sync` | POST | Trigger manual sync |
 | `/switch-source` | POST | Switch display source |
 | `/services/{name}/restart` | POST | Restart service (picframe, picframe-api) |
-| `/api/v1/settings` | POST | Save frame settings |
+| `/api/settings` | POST | Save frame settings |
+| `/api/settings/log-level` | POST | Set log level |
+| `/api/settings/sleep-schedule` | POST | Save display sleep schedule (on/off times, systemd timers) |
+| `/api/settings/party` | POST | Enable or disable party mode |
+| `/dashboard/test-lights` | POST | Override indicator light state for manual testing |
+| `/api/updates/settings` | GET | Get update check schedule settings |
+| `/api/updates/check` | POST | Check for available updates |
+| `/api/updates/schedule` | POST | Save auto-check schedule |
+| `/api/updates/apply` | POST | Apply available update (git pull + update_app.sh, then restarts API) |
 
 ### Source Management API
 

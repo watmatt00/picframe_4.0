@@ -43,9 +43,10 @@ WiFi lost ──────────────────────> Ho
 
 ### Web Dashboard Features
 - **Frame Status Tab**: Photo sync status, cloud/local photo counts, traffic light indicator, current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API)
-- **Switch Photos Tab**: Source management, add new sources with rclone folder browser
+- **Switch Photos Tab**: Source management, add new sources with rclone folder browser, Test Connection with auto-repair
 - **Tools Tab**: Filename Cleaner (spaces→underscores, long-name detection, Google ID tokens, ext case), Duplicate Finder, Video File Manager, Rename File (file browser with scan + batch rename), Photo Backups (tar.gz backup/list/delete to `~/Pictures/backups/`)
-- **Settings Tab**: Frame settings (name, rotation interval, sync interval, log level), device pairing (QR code + instructions), manage paired devices (inline table with revoke), log viewer (ops/security with auto-refresh), software updates
+- **Settings Tab**: Frame settings (name, rotation interval, sync interval), Koofr setup sub-card, sleep schedule (display on/off at set times via systemd timers), device pairing (QR code + instructions), manage paired devices (inline table with revoke), log viewer (ops/security with auto-refresh, log level control), software updates, party mode
+- **Indicator Lights**: GTK3 RGBA overlay on the frame display — small colored dots (hidden when sync + WiFi are healthy); manual test override via `POST /dashboard/test-lights`
 - **OpenAPI Docs**: Auto-generated at `/docs` and `/openapi.json`
 
 ### WiFi Recovery (Phase 6)

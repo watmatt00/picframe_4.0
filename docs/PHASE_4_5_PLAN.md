@@ -184,18 +184,16 @@ picframe-config --clear-setup   # manually clear flag
 picframe-config --force-setup   # manually trigger setup mode on next boot
 ```
 
-### 6.6 Status Overlay (Deferred — after core logic)
+### 6.6 ~~Status Overlay~~ — DONE
 
-Small dots, upper right corner, hidden during healthy operation.
+GTK3 RGBA overlay on the frame display. Small colored dots, horizontal layout, 50% alpha, hidden when sync and WiFi are both healthy. Manual test override: `POST /dashboard/test-lights` and `scripts/test_lights.sh`.
 
 | State | Overlay |
 |-------|---------|
-| Normal, WiFi + internet | Hidden |
-| WiFi associated, no internet | Grey dot |
-| WiFi down < 10 min | Yellow dot |
-| WiFi down > 10 min | Red dot |
-| Setup mode active | Orange pulse + blue pulse (BLE) |
-| First run syncing | Spinner |
+| Normal, WiFi + sync OK | Hidden |
+| Sync error | Error dot |
+| WiFi down | WiFi dot |
+| Both | Both dots |
 
 ### Rejected Approaches
 

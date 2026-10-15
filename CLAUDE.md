@@ -124,7 +124,7 @@ The iOS app has been built in Xcode and tested on simulator against live tkframe
 | `picframe_4.0` (this) | Pi backend + dashboard | Defines API |
 | `picframe_mgr` | Mobile app (iOS only) | Consumes API |
 
-Known issues tracked in `docs/PARKING_LOT.md`.
+Known issues and parking lot for BOTH repos: `picframe_mgr/docs/PARKING_LOT.md` (single source of truth; frame items tagged `frame`). Do not add items to `docs/PARKING_LOT.md` here — it is only a pointer.
 Phase 4, 5 & 6 plan in `docs/PHASE_4_5_PLAN.md` - **always reference this for next steps**.
 Test plan in `docs/TEST_PLAN.md` - covers backend, dashboard, and iOS app. Test runs stored in `docs/test_runs/`.
 Phase 6 setup guide in `docs/PI_SETUP.md` — includes WiFi recovery usage guide and troubleshooting.

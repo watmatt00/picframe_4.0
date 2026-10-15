@@ -485,12 +485,15 @@ ContentView
   - Frame ID - read-only input (unique identifier)
   - Funnel URL - read-only input (Tailscale Funnel URL)
   - Sync Interval - number input (1-1440 minutes, converted to seconds for API)
-  - Log Level - dropdown (DEBUG, INFO, WARNING, ERROR)
   - Save Settings button (shows "Saving...", updates header frame name on success)
   - Status message (success may include "Frame display restarted")
   - **Network sub-card** (collapsible ▸ Show / ✕ Close, nested inside Frame Settings):
     - LAN IP Address - read-only
     - WiFi Network (SSID) - read-only
+  - **Koofr Setup sub-card** (collapsible, nested inside Frame Settings):
+    - Koofr email and password inputs
+    - Test Connection button (live rclone validation before saving)
+    - Save button; shown when `koofr_configured=false`
 
   **Mobile App Pairing Card:**
   - "Generate Pairing QR Code" button
@@ -518,16 +521,28 @@ ContentView
   **Log Viewer Card** (expandable via "Show logs" toggle):
   - Log type dropdown: Operations Log / Security Log
   - Line count dropdown: Last 50 lines / Last 100 lines (default) / Last 500 lines
+  - Log Level dropdown: DEBUG / INFO / WARNING / ERROR (saved immediately via `POST /api/settings/log-level`)
   - Refresh button
   - Auto-refresh checkbox (5-second interval)
   - Log content: `<pre>` block with monospaced text
   - Loads via AJAX: `GET /api/logs?log_type={ops|security}&lines={50|100|500}`
   - Loads on first expand, reloads on type/count change
 
+  **Sleep Schedule Card** (collapsible):
+  - Enable/disable toggle
+  - Sleep Time input (HH:MM 24-hour) — display turns off at this time
+  - Wake Time input (HH:MM 24-hour) — display turns on at this time
+  - Save button; writes to config and updates systemd user timers via `POST /api/settings/sleep-schedule`
+
+  **Party Mode Card** (collapsible, bottom of Settings tab):
+  - Enable/disable toggle
+  - When enabled: stops cloud sync and WiFi watchdog; frame runs as standalone local slideshow
+  - Saved via `POST /api/settings/party`
+
   **Updates Card** (collapsible):
   - Branch badge: **DEV** (blue) or **MAIN** (green) — shows which git branch the frame is tracking
   - Check for Updates button
-  - Apply Updates button (shown when update is available)
+  - Apply Updates button (shown when update is available; runs git pull + `update_app.sh`, then restarts API)
   - Auto-check schedule info
 
 ---
@@ -548,11 +563,14 @@ Dashboard (single-page, dashboard.html)
   │     └── Photo Backups card [collapsible]
   └── Tab 4: Settings (DASH-SETTINGS)
         ├── Frame Settings card [collapsible]
-        │     └── Network sub-card [collapsible, nested]
+        │     ├── Network sub-card [collapsible, nested]
+        │     └── Koofr Setup sub-card [collapsible, nested; shown when koofr_configured=false]
         ├── Mobile App Pairing card [collapsible]
         ├── Manage Devices card [toggled via button]
-        ├── Log Viewer card [collapsible]
-        └── Updates card [collapsible, branch badge DEV/MAIN]
+        ├── Log Viewer card [collapsible, includes Log Level control]
+        ├── Sleep Schedule card [collapsible]
+        ├── Updates card [collapsible, branch badge DEV/MAIN]
+        └── Party Mode card [collapsible, bottom]
 ```
 
 ---
@@ -585,6 +603,10 @@ Dashboard (single-page, dashboard.html)
 | Manage paired devices | IOS-DEVICES | DASH-SETTINGS (inline device table) |
 | Revoke device access | IOS-DEVICES | DASH-SETTINGS (inline revoke) |
 | Software updates | -- | DASH-SETTINGS (Updates card) |
+| Sleep schedule (display on/off times) | -- | DASH-SETTINGS (Sleep Schedule card) |
+| Party mode | -- | DASH-SETTINGS (Party Mode card) |
+| Koofr setup | -- | DASH-SETTINGS (Koofr Setup sub-card) |
+| Indicator lights (frame display overlay) | -- | Physical frame display (GTK3 RGBA overlay) |
 | Koofr storage quota | IOS-MENU, IOS-SETTINGS | -- |
 | Frame storage capacity | IOS-MENU, IOS-DETAIL | DASH-STATUS |
 | Current image preview | -- | DASH-STATUS (thumbnail) |
