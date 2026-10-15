@@ -178,6 +178,31 @@ class TestBootDecision:
         boot_env["start_setup"].assert_called_once()
 
 
+class TestMissingStateFile:
+    """A recreated state.yaml must not force the portal when WiFi works (PL-064)."""
+
+    def test_missing_state_with_wifi_marks_provisioned(self, boot_env):
+        boot_env["sm"]._path.exists.return_value = False
+        boot_env["sm"].read.return_value = _state(None, needs_setup=False, provisioned=False)
+        boot_env["wait"].return_value = True
+
+        watchdog.main()
+
+        boot_env["sm"].set.assert_any_call("provisioned", True)
+        boot_env["start_setup"].assert_not_called()
+        boot_env["loop"].assert_called_once_with()
+
+    def test_missing_state_without_wifi_enters_setup(self, boot_env):
+        boot_env["sm"]._path.exists.return_value = False
+        boot_env["sm"].read.return_value = _state(None, needs_setup=False, provisioned=False)
+        boot_env["wait"].return_value = False
+
+        watchdog.main()
+
+        boot_env["sm"].mark_needs_setup.assert_called_once_with("unprovisioned")
+        boot_env["start_setup"].assert_called_once()
+
+
 class TestKoofrFlagAtBoot:
     """A stale koofr_configured=false must not bring back the setup image (PL-063)."""
 

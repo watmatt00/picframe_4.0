@@ -188,6 +188,21 @@ from state_manager import state_manager
 state_manager.initialize()
 PYEOF
     LOG "state.yaml initialized at ${STATE_FILE}"
+
+    # A new state file starts unprovisioned, which forces the setup portal on
+    # the next boot. If this frame is already online, skip that (PL-064).
+    if iw dev wlan0 link 2>/dev/null | grep -q "Connected to" \
+        || nmcli -t -f TYPE,STATE device 2>/dev/null | grep -qx "ethernet:connected"; then
+        "${SETUP_PYTHON}" - <<PYEOF
+import sys
+sys.path.insert(0, '${SETUP_DIR}')
+from state_manager import state_manager
+state_manager.set('provisioned', True)
+PYEOF
+        LOG "Network already connected — marked frame as provisioned"
+    else
+        WARN "No network connection — frame will start the setup portal on next boot"
+    fi
 else
     LOG "state.yaml already exists — not overwriting"
 fi

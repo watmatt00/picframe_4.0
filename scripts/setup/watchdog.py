@@ -582,10 +582,18 @@ def main() -> None:
     _restore_issue()
 
     # Ensure state file exists
+    state_existed = state_manager._path.exists()
     state_manager.initialize()
 
     state = state_manager.read()
     provisioned = state.get("provisioned", False)
+
+    # A missing state file (rebuild, deleted file) starts as provisioned=false.
+    # If home WiFi already works, don't force the portal (PL-064).
+    if not provisioned and not state_existed and wait_for_wifi(WIFI_GRACE_SECONDS):
+        logger.info("state.yaml was missing; WiFi associated, marking provisioned")
+        state_manager.set("provisioned", True)
+        provisioned = True
     needs_setup = state.get("needs_setup", False)
     reason = state.get("setup_mode_reason", "none")
 
