@@ -92,6 +92,27 @@ class TestPublicClient:
         response = client.get("/")
         assert "client_ip" not in response.json()
 
+    def test_browser_gets_html_page(self, client):
+        """A browser opening the Funnel URL gets a readable page, not JSON (PL-128)."""
+        accept = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        response = client.get("/", headers={"Accept": accept})
+        assert response.status_code == 403
+        assert response.headers["content-type"].startswith("text/html")
+        assert "PicFrame Manager app" in response.text
+        assert PUBLIC[0] not in response.text
+
+    def test_api_client_still_gets_json(self, client):
+        """Non-browser callers keep the JSON 403."""
+        response = client.get("/", headers={"Accept": "application/json"})
+        assert response.status_code == 403
+        assert response.headers["content-type"].startswith("application/json")
+        assert "detail" in response.json()
+
+    def test_browser_spoofed_forwarded_for_blocked(self, client):
+        """The HTML path doesn't change who is allowed."""
+        response = client.get("/", headers={"Accept": "text/html", "X-Forwarded-For": "192.168.1.1"})
+        assert response.status_code == 403
+
     @pytest.mark.parametrize("path", ["/health", "/version"])
     def test_health_and_version_allowed(self, client, path):
         """Health and version stay public."""

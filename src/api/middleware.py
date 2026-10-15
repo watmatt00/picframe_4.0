@@ -7,7 +7,7 @@ Deny-by-default restriction for non-local clients.
 import ipaddress
 
 from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # Paths reachable from the public internet (Tailscale Funnel).
@@ -15,6 +15,41 @@ from starlette.middleware.base import BaseHTTPMiddleware
 # which is the pairing entry point). Everything else is LAN/tailnet only.
 PUBLIC_PREFIXES = ("/api/v1/",)
 PUBLIC_PATHS = {"/health", "/version"}
+
+BLOCKED_MESSAGE = "Only available on local network. Use the mobile app for remote access."
+
+# Shown instead of JSON when a browser opens the Funnel URL (PL-128).
+# Self-contained: no external assets, nothing about the caller or the frame.
+BLOCKED_HTML = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PicFrame</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         background: #f4f4f5; color: #18181b; }
+  main { max-width: 26rem; margin: 1rem; padding: 2rem; border-radius: 12px; background: #fff;
+         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); text-align: center; }
+  h1 { font-size: 1.25rem; margin: 0 0 0.75rem; }
+  p { margin: 0; line-height: 1.5; color: #52525b; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #18181b; color: #f4f4f5; }
+    main { background: #27272a; box-shadow: none; }
+    p { color: #a1a1aa; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>PicFrame</h1>
+  <p>This frame's dashboard is only available on its home network.
+     To manage it from anywhere, use the PicFrame Manager app.</p>
+</main>
+</body>
+</html>
+"""
 
 # Local networks: RFC 1918, loopback, and Tailscale peers (direct WireGuard or
 # tailnet Serve). Funnel traffic is not local: uvicorn rewrites request.client
@@ -55,17 +90,14 @@ class LANOnlyMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
-        """Reject non-local requests to non-public paths with 403."""
+        """Reject non-local requests to non-public paths with 403 (HTML for browsers)."""
         path = request.url.path
 
         if not is_public_path(path):
             client_ip = request.client.host if request.client else ""
             if not is_local_ip(client_ip):
-                return JSONResponse(
-                    status_code=403,
-                    content={
-                        "detail": "Only available on local network. Use the mobile app for remote access.",
-                    }
-                )
+                if "text/html" in request.headers.get("accept", ""):
+                    return HTMLResponse(BLOCKED_HTML, status_code=403)
+                return JSONResponse(status_code=403, content={"detail": BLOCKED_MESSAGE})
 
         return await call_next(request)
