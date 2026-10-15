@@ -237,6 +237,7 @@ class TestLeaveSetupMode:
         sm = MagicMock()
         with patch.object(watchdog, "state_manager", sm), \
                 patch.object(watchdog, "stop_setup_mode") as stop_setup, \
+                patch.object(watchdog, "_reenable_wifi_autoconnect"), \
                 patch.object(watchdog, "wait_for_wifi", return_value=True), \
                 patch.object(watchdog, "_restore_issue"), \
                 patch.object(watchdog, "start_display") as start_display, \
@@ -252,6 +253,7 @@ class TestLeaveSetupMode:
         sm = MagicMock()
         with patch.object(watchdog, "state_manager", sm), \
                 patch.object(watchdog, "stop_setup_mode"), \
+                patch.object(watchdog, "_reenable_wifi_autoconnect"), \
                 patch.object(watchdog, "wait_for_wifi", return_value=False), \
                 patch.object(watchdog, "start_display") as start_display, \
                 patch.object(watchdog, "start_setup_mode") as start_setup:
@@ -260,6 +262,100 @@ class TestLeaveSetupMode:
         sm.clear_needs_setup.assert_not_called()
         start_display.assert_not_called()
         start_setup.assert_called_once()
+
+    def test_autoconnect_reenabled_between_stop_and_wait(self):
+        """NetworkManager must be told to reconnect before waiting for WiFi (PL-138)."""
+        order = MagicMock()
+        with patch.object(watchdog, "state_manager", MagicMock()), \
+                patch.object(watchdog, "stop_setup_mode", order.stop), \
+                patch.object(watchdog, "_reenable_wifi_autoconnect", order.reenable), \
+                patch.object(watchdog, "wait_for_wifi", order.wait), \
+                patch.object(watchdog, "_restore_issue"), \
+                patch.object(watchdog, "start_display"):
+            order.wait.return_value = True
+            watchdog.try_leave_setup_mode()
+
+        assert [c[0] for c in order.mock_calls] == ["stop", "reenable", "wait"]
+
+
+class TestReenableWifiAutoconnect:
+    """The nmcli calls that undo `nmcli device disconnect` (PL-138)."""
+
+    def test_runs_autoconnect_then_connect(self):
+        ok = subprocess.CompletedProcess([], 0, "", "")
+        with patch.object(watchdog.subprocess, "run", return_value=ok) as run:
+            watchdog._reenable_wifi_autoconnect()
+
+        cmds = [c.args[0] for c in run.call_args_list]
+        assert cmds == [
+            ["nmcli", "device", "set", "wlan0", "autoconnect", "yes"],
+            ["nmcli", "--wait", "20", "device", "connect", "wlan0"],
+        ]
+        assert all(c.kwargs["check"] is False for c in run.call_args_list)
+
+    def test_failures_do_not_raise(self):
+        fail = subprocess.CompletedProcess([], 10, "", "Error: no suitable connection")
+        with patch.object(watchdog.subprocess, "run",
+                          side_effect=[subprocess.TimeoutExpired("nmcli", 30), fail]) as run:
+            watchdog._reenable_wifi_autoconnect()
+
+        assert run.call_count == 2
+
+
+class TestSetupIssueText:
+    """Console box shown in setup mode."""
+
+    @pytest.fixture
+    def issue(self, tmp_path):
+        issue_path = tmp_path / "issue"
+        issue_path.write_text("Debian GNU/Linux\n")
+        with patch.object(watchdog, "ISSUE_PATH", issue_path), \
+                patch.object(watchdog, "ISSUE_BACKUP_PATH", tmp_path / "issue.bak"), \
+                patch.object(watchdog, "_get_hostapd_value", return_value="a1b2c3d4"), \
+                patch.object(watchdog.subprocess, "run"):
+            yield issue_path
+
+    def test_outage_wording(self, issue):
+        watchdog._write_setup_issue("tkframe", "extended_outage")
+        text = issue.read_text()
+
+        assert "PicFrame - No WiFi" in text
+        assert "offline for over 10 min" in text
+        assert "Photos resume automatically when WiFi is back" in text
+        assert "checks every 15 minutes" in text
+        assert "PicFrame-tkframe" in text
+        assert "a1b2c3d4" in text
+        assert "http://192.168.4.1" in text
+        assert "WiFi Setup Mode" not in text
+
+    @pytest.mark.parametrize("reason", ["unprovisioned", "manual", None])
+    def test_other_reasons_keep_setup_wording(self, issue, reason):
+        watchdog._write_setup_issue("tkframe", reason)
+        text = issue.read_text()
+
+        assert "WiFi Setup Mode" in text
+        assert "No WiFi" not in text
+        assert "PicFrame-tkframe" in text
+
+    @pytest.mark.parametrize("reason", ["extended_outage", "unprovisioned"])
+    def test_every_line_fits_the_box(self, issue, reason):
+        watchdog._write_setup_issue("tkframe", reason)
+        box = [line for line in issue.read_text().splitlines() if line]
+
+        assert {len(line) for line in box} == {52}
+
+    def test_start_setup_mode_passes_reason(self):
+        sm = MagicMock()
+        sm.read.return_value = {"frame_name": "tkframe", "setup_mode_reason": "extended_outage"}
+        with patch.object(watchdog, "state_manager", sm), \
+                patch.object(watchdog, "_update_hostapd_ssid"), \
+                patch.object(watchdog, "Path"), \
+                patch.object(watchdog.subprocess, "run"), \
+                patch.object(watchdog, "stop_display"), \
+                patch.object(watchdog, "_write_setup_issue") as write_issue:
+            watchdog.start_setup_mode()
+
+        write_issue.assert_called_once_with("tkframe", "extended_outage")
 
 
 # ── ble_setup ────────────────────────────────────────────────────────────────

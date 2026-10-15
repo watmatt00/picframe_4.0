@@ -166,15 +166,16 @@ curl https://<hostname>.<tailnet>.ts.net/health
 | Condition | When |
 |-----------|------|
 | First boot (`provisioned=false`) | Immediately on boot |
-| WiFi lost > 10 minutes | `needs_setup` flag set; setup mode on next reboot |
+| WiFi lost > 10 minutes | `needs_setup` flag set; setup mode on next reboot if WiFi is still unavailable 90 s after boot |
 | Manual trigger | `sudo picframe-config --force-setup` then reboot |
 
 ### What the frame does in setup mode
 
 1. Photo display stops
-2. Console (`/etc/issue`) shows a box with the hotspot name, AP password, and portal URL — visible above the login prompt
+2. Console (`/etc/issue`) shows a box with the hotspot name, AP password, and portal URL — visible above the login prompt. After an outage the box reads **"PicFrame - No WiFi"**: photos resume automatically when WiFi is back, and the hotspot steps are only for a changed WiFi name or password
 3. Frame broadcasts a WiFi hotspot: `PicFrame-<framename>` with a unique 8-character password derived from the Pi's serial number
 4. Any URL resolves to `http://192.168.4.1` (DNS hijack via dnsmasq)
+5. **Outage-triggered setup mode leaves by itself:** every 15 minutes the hotspot stops for up to 90 s while the frame tries to rejoin home WiFi (the watchdog re-enables NetworkManager autoconnect first). If it connects, the slideshow resumes without a reboot; otherwise the hotspot comes back. First-run and manual setup mode wait for the setup page.
 
 ### Reconfiguring WiFi via hotspot
 

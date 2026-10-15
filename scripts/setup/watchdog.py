@@ -282,13 +282,21 @@ def _update_hostapd_ssid(frame_name: str) -> None:
         logger.warning(f"Could not update hostapd SSID: {e}")
 
 
-def _write_setup_issue(frame_name: str) -> None:
+def _write_setup_issue(frame_name: str, reason: str | None = None) -> None:
     """
     Write WiFi setup instructions to /etc/issue so they appear above
     the login prompt. Terminal stays fully usable — user can log in
     normally and the setup info is visible in the header.
 
+    An outage (reason "extended_outage") gets its own wording: photos come
+    back on their own when WiFi returns, and the hotspot is only needed if
+    the WiFi network changed (PL-138).
+
     Backs up the original /etc/issue first; restored by _restore_issue().
+
+    Args:
+        frame_name: Frame name, used in the hotspot SSID.
+        reason: setup_mode_reason from state.yaml.
     """
     ap_ssid = f"PicFrame-{frame_name}"
     ap_password = _get_hostapd_value("wpa_passphrase", "picframe")
@@ -299,24 +307,45 @@ def _write_setup_issue(frame_name: str) -> None:
     def row(text: str = "") -> str:
         return f"| {text:<{W - 1}}|"
 
-    lines = [
-        sep,
-        row(f"  PicFrame \u2014 WiFi Setup Mode"),
-        sep,
-        row(),
-        row("  Connect to this WiFi network:"),
-        row(),
-        row(f"  Network  :  {ap_ssid}"),
-        row(f"  Password :  {ap_password}"),
-        row(),
-        row(f"  Open a browser to: http://{AP_PORTAL_IP}"),
-        row(),
-        row("  Enter your home WiFi credentials"),
-        row("  in the page that opens."),
-        row(),
-        sep,
-        "",
-    ]
+    if reason == "extended_outage":
+        lines = [
+            sep,
+            row("  PicFrame - No WiFi"),
+            sep,
+            row(),
+            row(f"  This frame has been offline for over {WIFI_OUTAGE_THRESHOLD_SECONDS // 60} min."),
+            row("  Photos resume automatically when WiFi is back"),
+            row(f"  (it checks every {SETUP_MODE_RETRY_SECONDS // 60} minutes)."),
+            row(),
+            row("  WiFi name or password changed? Use your phone:"),
+            row(),
+            row(f"  1. Join WiFi  :  {ap_ssid}"),
+            row(f"     Password   :  {ap_password}"),
+            row(f"  2. Open       :  http://{AP_PORTAL_IP}"),
+            row("  3. Enter your new WiFi name and password."),
+            row(),
+            sep,
+            "",
+        ]
+    else:
+        lines = [
+            sep,
+            row(f"  PicFrame \u2014 WiFi Setup Mode"),
+            sep,
+            row(),
+            row("  Connect to this WiFi network:"),
+            row(),
+            row(f"  Network  :  {ap_ssid}"),
+            row(f"  Password :  {ap_password}"),
+            row(),
+            row(f"  Open a browser to: http://{AP_PORTAL_IP}"),
+            row(),
+            row("  Enter your home WiFi credentials"),
+            row("  in the page that opens."),
+            row(),
+            sep,
+            "",
+        ]
 
     content = "\n".join(lines) + "\n"
     try:
@@ -324,7 +353,7 @@ def _write_setup_issue(frame_name: str) -> None:
             ISSUE_PATH.rename(ISSUE_BACKUP_PATH)
         ISSUE_PATH.write_text(content)
         subprocess.run(["systemctl", "restart", "getty@tty1"], check=False)
-        logger.info(f"Setup info written to /etc/issue (SSID: {ap_ssid})")
+        logger.info(f"Setup info written to /etc/issue (SSID: {ap_ssid}, reason: {reason})")
     except Exception as e:
         logger.warning(f"Could not write setup info to /etc/issue: {e}")
 
@@ -463,7 +492,7 @@ def start_setup_mode() -> None:
         logger.error(f"Failed to start setup mode services: {e}")
 
     # Show instructions in the login header (/etc/issue)
-    _write_setup_issue(frame_name)
+    _write_setup_issue(frame_name, state.get("setup_mode_reason"))
 
     # Stop the display last — may wait for the user manager at boot, and the AP
     # should not be delayed by that
@@ -476,19 +505,42 @@ def stop_setup_mode() -> None:
     subprocess.run(["systemctl", "stop", *SETUP_SERVICES], check=False)
 
 
+def _reenable_wifi_autoconnect() -> None:
+    """
+    Let NetworkManager rejoin home WiFi after the AP service releases wlan0 (PL-138).
+
+    The AP service runs `nmcli device disconnect wlan0`, which blocks the device
+    from autoconnecting until something re-enables it; setting it back to
+    managed does not. Re-enable autoconnect, then ask NetworkManager to connect
+    now (up to 20 s; wait_for_wifi still does the final check). Never raises.
+    """
+    for cmd in (
+        ["nmcli", "device", "set", "wlan0", "autoconnect", "yes"],
+        ["nmcli", "--wait", "20", "device", "connect", "wlan0"],
+    ):
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
+        except (OSError, subprocess.SubprocessError) as e:
+            logger.warning(f"{' '.join(cmd)} failed: {e}")
+            continue
+        if result.returncode != 0:
+            logger.warning(f"{' '.join(cmd)} exited {result.returncode}: {result.stderr.strip()}")
+
+
 def try_leave_setup_mode() -> bool:
     """
     Check whether home WiFi is reachable again and, if so, leave setup mode.
 
-    Stopping the AP service returns wlan0 to NetworkManager, which then
-    autoconnects to any saved network. If none associates within the grace
-    period, setup mode is restarted.
+    Stopping the AP service returns wlan0 to NetworkManager; autoconnect is
+    then re-enabled so it can join any saved network. If none associates
+    within the grace period, setup mode is restarted.
 
     Returns:
         True if setup mode was left (WiFi associated), False if re-entered.
     """
     logger.info("Setup mode not completed — checking whether home WiFi is available")
     stop_setup_mode()
+    _reenable_wifi_autoconnect()
     if wait_for_wifi(WIFI_GRACE_SECONDS):
         state_manager.clear_needs_setup()
         state_manager.mark_wifi_connected()
