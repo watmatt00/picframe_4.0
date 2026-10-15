@@ -12,6 +12,7 @@ import pytest
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.testclient import TestClient
 from starlette.datastructures import Headers
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.api.app import app
 from src.api.middleware import UploadSizeLimitMiddleware
@@ -21,10 +22,19 @@ from src.main import use_disk_tempdir
 UPLOAD_URL = "/api/v1/contributor/upload/fam"
 
 
+class _Passthrough(BaseHTTPMiddleware):
+    """Stands in for LANOnlyMiddleware: a BaseHTTPMiddleware between the limiter and routes."""
+
+    async def dispatch(self, request, call_next):
+        return await call_next(request)
+
+
 def _small_app(limit: int) -> tuple[FastAPI, list]:
-    """A tiny app with the limiter in front of one upload route; records handler calls."""
+    """A tiny app laid out like the real one (limiter outermost, then a
+    BaseHTTPMiddleware) with one upload route; records handler calls."""
     calls = []
     small = FastAPI()
+    small.add_middleware(_Passthrough)
     small.add_middleware(UploadSizeLimitMiddleware, path_prefix="/up/", max_body_bytes=limit)
 
     @small.post("/up/x")

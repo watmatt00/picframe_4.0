@@ -7,7 +7,7 @@ for upload routes.
 
 import ipaddress
 
-from fastapi import HTTPException, Request
+from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -152,15 +152,36 @@ class UploadSizeLimitMiddleware:
                 return
 
         received = 0
+        overflowed = False
+        response_started = False
 
         async def limited_receive() -> Message:
-            nonlocal received
+            nonlocal received, overflowed
+            if overflowed:
+                return {"type": "http.disconnect"}
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
                 if received > self.max_body_bytes:
-                    # Raised while FastAPI reads the body; it re-raises HTTPException
-                    raise HTTPException(status_code=413, detail=too_large["detail"])
+                    # Stop reading: the app sees a client disconnect. An exception
+                    # raised here would reach FastAPI wrapped by BaseHTTPMiddleware
+                    # and come out as a generic 400.
+                    overflowed = True
+                    return {"type": "http.disconnect"}
             return message
 
-        await self.app(scope, limited_receive, send)
+        async def guarded_send(message: Message) -> None:
+            nonlocal response_started
+            if overflowed:
+                return  # whatever the app sends after the cut-off is replaced by the 413
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, limited_receive, guarded_send)
+        except Exception:
+            if not overflowed:
+                raise
+        if overflowed and not response_started:
+            await JSONResponse(status_code=413, content=too_large)(scope, receive, send)
