@@ -237,7 +237,7 @@ class TestLeaveSetupMode:
         sm = MagicMock()
         with patch.object(watchdog, "state_manager", sm), \
                 patch.object(watchdog, "stop_setup_mode") as stop_setup, \
-                patch.object(watchdog, "_reenable_wifi_autoconnect"), \
+                patch.object(watchdog, "_reconnect_home_wifi"), \
                 patch.object(watchdog, "wait_for_wifi", return_value=True), \
                 patch.object(watchdog, "_restore_issue"), \
                 patch.object(watchdog, "start_display") as start_display, \
@@ -253,7 +253,7 @@ class TestLeaveSetupMode:
         sm = MagicMock()
         with patch.object(watchdog, "state_manager", sm), \
                 patch.object(watchdog, "stop_setup_mode"), \
-                patch.object(watchdog, "_reenable_wifi_autoconnect"), \
+                patch.object(watchdog, "_reconnect_home_wifi"), \
                 patch.object(watchdog, "wait_for_wifi", return_value=False), \
                 patch.object(watchdog, "start_display") as start_display, \
                 patch.object(watchdog, "start_setup_mode") as start_setup:
@@ -263,12 +263,12 @@ class TestLeaveSetupMode:
         start_display.assert_not_called()
         start_setup.assert_called_once()
 
-    def test_autoconnect_reenabled_between_stop_and_wait(self):
+    def test_reconnect_runs_between_stop_and_wait(self):
         """NetworkManager must be told to reconnect before waiting for WiFi (PL-138)."""
         order = MagicMock()
         with patch.object(watchdog, "state_manager", MagicMock()), \
                 patch.object(watchdog, "stop_setup_mode", order.stop), \
-                patch.object(watchdog, "_reenable_wifi_autoconnect", order.reenable), \
+                patch.object(watchdog, "_reconnect_home_wifi", order.reenable), \
                 patch.object(watchdog, "wait_for_wifi", order.wait), \
                 patch.object(watchdog, "_restore_issue"), \
                 patch.object(watchdog, "start_display"):
@@ -278,28 +278,93 @@ class TestLeaveSetupMode:
         assert [c[0] for c in order.mock_calls] == ["stop", "reenable", "wait"]
 
 
-class TestReenableWifiAutoconnect:
-    """The nmcli calls that undo `nmcli device disconnect` (PL-138)."""
+class TestReconnectHomeWifi:
+    """Handing wlan0 back to NetworkManager after the AP stops (PL-138)."""
 
-    def test_runs_autoconnect_then_connect(self):
-        ok = subprocess.CompletedProcess([], 0, "", "")
-        with patch.object(watchdog.subprocess, "run", return_value=ok) as run:
-            watchdog._reenable_wifi_autoconnect()
+    @staticmethod
+    def _fake_nm(states):
+        """subprocess.run stand-in: GENERAL.STATE returns the given states in turn."""
+        states = iter(states)
+        calls = []
 
-        cmds = [c.args[0] for c in run.call_args_list]
-        assert cmds == [
-            ["nmcli", "device", "set", "wlan0", "autoconnect", "yes"],
-            ["nmcli", "--wait", "20", "device", "connect", "wlan0"],
-        ]
-        assert all(c.kwargs["check"] is False for c in run.call_args_list)
+        def run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd[:3] == ["nmcli", "-g", "GENERAL.STATE"]:
+                return subprocess.CompletedProcess(cmd, 0, next(states) + "\n", "")
+            if "list" in cmd:
+                return subprocess.CompletedProcess(cmd, 0, "7Oaks\nNeighbor\n", "")
+            return subprocess.CompletedProcess(cmd, 0, "", "")
 
-    def test_failures_do_not_raise(self):
-        fail = subprocess.CompletedProcess([], 10, "", "Error: no suitable connection")
-        with patch.object(watchdog.subprocess, "run",
-                          side_effect=[subprocess.TimeoutExpired("nmcli", 30), fail]) as run:
-            watchdog._reenable_wifi_autoconnect()
+        return run, calls
 
-        assert run.call_count == 2
+    def test_waits_for_device_then_scans_then_connects(self, no_sleep):
+        run, calls = self._fake_nm(["20 (unavailable)", "20 (unavailable)", "30 (disconnected)"])
+        with patch.object(watchdog.subprocess, "run", side_effect=run):
+            watchdog._reconnect_home_wifi()
+
+        assert calls[0] == ["nmcli", "device", "set", "wlan0", "autoconnect", "yes"]
+        assert sum(c[:3] == ["nmcli", "-g", "GENERAL.STATE"] for c in calls) == 3
+        assert calls[-2] == ["nmcli", "-g", "SSID", "device", "wifi", "list", "ifname", "wlan0", "--rescan", "yes"]
+        assert calls[-1] == ["nmcli", "--wait", "20", "device", "connect", "wlan0"]
+
+    def test_connected_state_counts_as_ready(self, no_sleep):
+        """"100 (connected)" must not be read as 10."""
+        run, calls = self._fake_nm(["100 (connected)"])
+        with patch.object(watchdog.subprocess, "run", side_effect=run):
+            watchdog._reconnect_home_wifi()
+
+        assert sum(c[:3] == ["nmcli", "-g", "GENERAL.STATE"] for c in calls) == 1
+
+    def test_gives_up_waiting_and_still_connects(self, no_sleep):
+        clock = iter(range(0, 1000, 5))
+        run, calls = self._fake_nm(["20 (unavailable)"] * 50)
+        with patch.object(watchdog.subprocess, "run", side_effect=run), \
+                patch.object(watchdog.time, "monotonic", side_effect=lambda: next(clock)):
+            watchdog._reconnect_home_wifi()
+
+        assert calls[-1] == ["nmcli", "--wait", "20", "device", "connect", "wlan0"]
+
+    def test_failures_do_not_raise(self, no_sleep):
+        with patch.object(watchdog.subprocess, "run", side_effect=subprocess.TimeoutExpired("nmcli", 30)), \
+                patch.object(watchdog.time, "monotonic", side_effect=[0, 100, 100]):
+            watchdog._reconnect_home_wifi()
+
+    @pytest.mark.parametrize("state,code", [
+        ("30 (disconnected)", 30), ("100 (connected)", 100), ("20 (unavailable)", 20), ("", 0), ("x", 0),
+    ])
+    def test_state_code(self, state, code):
+        assert watchdog._nm_state_code(state) == code
+
+
+class TestWifiDiagnostics:
+    """Evidence copied to the watchdog log when leaving setup mode fails."""
+
+    def test_logged_only_when_wifi_stays_down(self):
+        with patch.object(watchdog, "state_manager", MagicMock()), \
+                patch.object(watchdog, "stop_setup_mode"), \
+                patch.object(watchdog, "_reconnect_home_wifi"), \
+                patch.object(watchdog, "_restore_issue"), \
+                patch.object(watchdog, "start_display"), \
+                patch.object(watchdog, "start_setup_mode"), \
+                patch.object(watchdog, "_log_wifi_diagnostics") as diag:
+            with patch.object(watchdog, "wait_for_wifi", return_value=True):
+                watchdog.try_leave_setup_mode()
+            diag.assert_not_called()
+            with patch.object(watchdog, "wait_for_wifi", return_value=False):
+                watchdog.try_leave_setup_mode()
+            diag.assert_called_once()
+
+    def test_copies_command_output_to_log(self, caplog):
+        def run(cmd, **kwargs):
+            return subprocess.CompletedProcess(cmd, 0, f"out-of-{cmd[0]}\n", "")
+
+        with patch.object(watchdog.subprocess, "run", side_effect=run), \
+                caplog.at_level("INFO", logger=watchdog.logger.name):
+            watchdog._log_wifi_diagnostics()
+
+        assert "diag [nmcli] out-of-nmcli" in caplog.text
+        assert "diag [iw] out-of-iw" in caplog.text
+        assert "diag [journalctl] out-of-journalctl" in caplog.text
 
 
 class TestSetupIssueText:

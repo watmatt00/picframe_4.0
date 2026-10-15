@@ -43,6 +43,10 @@ WIFI_GRACE_SECONDS = 90
 WIFI_RECHECK_INTERVAL_SECONDS = 5
 # After this long in setup mode with no configuration, check whether home WiFi is back
 SETUP_MODE_RETRY_SECONDS = 900  # 15 minutes
+# After the AP stops, how long to wait for NetworkManager to have wlan0 ready again
+NM_READY_TIMEOUT_SECONDS = 20
+# NetworkManager journal lines copied into the watchdog log when leaving setup mode fails
+DIAG_JOURNAL_LINES = 80
 # Only outage-triggered setup mode may auto-exit; "unprovisioned"/"manual" must be completed
 RETRYABLE_SETUP_REASONS = {"extended_outage"}
 # Max wait for the frame user's systemd manager at boot (display runs as a user service)
@@ -505,42 +509,100 @@ def stop_setup_mode() -> None:
     subprocess.run(["systemctl", "stop", *SETUP_SERVICES], check=False)
 
 
-def _reenable_wifi_autoconnect() -> None:
+def _run_nmcli_step(cmd: list[str], timeout: float = 30) -> subprocess.CompletedProcess | None:
     """
-    Let NetworkManager rejoin home WiFi after the AP service releases wlan0 (PL-138).
+    Run one command for the home-WiFi reconnect, logging its result (PL-138).
+
+    Returns:
+        The completed process, or None if it could not run. Never raises.
+    """
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.warning(f"{' '.join(cmd)} failed: {e}")
+        return None
+    if result.returncode != 0:
+        logger.warning(f"{' '.join(cmd)} exited {result.returncode}: {result.stderr.strip()}")
+    return result
+
+
+def _wlan0_nm_state() -> str:
+    """Return NetworkManager's state for wlan0, e.g. "30 (disconnected)", or "" if unknown."""
+    result = _run_nmcli_step(["nmcli", "-g", "GENERAL.STATE", "device", "show", "wlan0"], timeout=10)
+    return result.stdout.strip() if result and result.returncode == 0 else ""
+
+
+def _nm_state_code(state: str) -> int:
+    """Return the numeric NetworkManager device state ("100 (connected)" → 100), or 0."""
+    first = state.split(" ", 1)[0]
+    return int(first) if first.isdigit() else 0
+
+
+def _reconnect_home_wifi() -> None:
+    """
+    Hand wlan0 back to NetworkManager and ask it to rejoin home WiFi (PL-138).
 
     The AP service runs `nmcli device disconnect wlan0`, which blocks the device
-    from autoconnecting until something re-enables it; setting it back to
-    managed does not. Re-enable autoconnect, then ask NetworkManager to connect
-    now (up to 20 s; wait_for_wifi still does the final check). Never raises.
+    from autoconnecting; setting it back to managed does not undo that. Steps:
+    re-enable autoconnect, wait until NetworkManager has the device ready
+    (state 30 "disconnected" or later), run a fresh scan and wait for it, then
+    connect. Each step is logged; wait_for_wifi() still does the final check.
+    Never raises.
+    """
+    _run_nmcli_step(["nmcli", "device", "set", "wlan0", "autoconnect", "yes"])
+
+    deadline = time.monotonic() + NM_READY_TIMEOUT_SECONDS
+    state = _wlan0_nm_state()
+    while _nm_state_code(state) < 30 and time.monotonic() < deadline:
+        time.sleep(WIFI_RECHECK_INTERVAL_SECONDS)
+        state = _wlan0_nm_state()
+    logger.info(f"wlan0 NetworkManager state before reconnect: {state or 'unknown'}")
+
+    scan = _run_nmcli_step(
+        ["nmcli", "-g", "SSID", "device", "wifi", "list", "ifname", "wlan0", "--rescan", "yes"]
+    )
+    if scan and scan.returncode == 0:
+        seen = [line for line in scan.stdout.splitlines() if line.strip()]
+        logger.info(f"WiFi scan found {len(seen)} network(s)")
+
+    _run_nmcli_step(["nmcli", "--wait", "20", "device", "connect", "wlan0"])
+
+
+def _log_wifi_diagnostics() -> None:
+    """
+    Copy WiFi state and recent NetworkManager log lines into the watchdog log.
+
+    Called when leaving setup mode fails. The journal is not kept across
+    reboots on the frames, but this log file is (PL-138).
     """
     for cmd in (
-        ["nmcli", "device", "set", "wlan0", "autoconnect", "yes"],
-        ["nmcli", "--wait", "20", "device", "connect", "wlan0"],
+        ["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device"],
+        ["iw", "dev", "wlan0", "info"],
+        ["journalctl", "-u", "NetworkManager", "--no-pager", "-o", "short", "--since", "5 min ago",
+         "-n", str(DIAG_JOURNAL_LINES)],
     ):
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
-        except (OSError, subprocess.SubprocessError) as e:
-            logger.warning(f"{' '.join(cmd)} failed: {e}")
+        result = _run_nmcli_step(cmd)
+        if result is None:
             continue
-        if result.returncode != 0:
-            logger.warning(f"{' '.join(cmd)} exited {result.returncode}: {result.stderr.strip()}")
+        for line in (result.stdout or "").splitlines():
+            logger.info(f"diag [{cmd[0]}] {line}")
 
 
 def try_leave_setup_mode() -> bool:
     """
     Check whether home WiFi is reachable again and, if so, leave setup mode.
 
-    Stopping the AP service returns wlan0 to NetworkManager; autoconnect is
-    then re-enabled so it can join any saved network. If none associates
-    within the grace period, setup mode is restarted.
+    Stopping the AP service returns wlan0 to NetworkManager, which is then
+    asked to rejoin a saved network (see _reconnect_home_wifi). If none
+    associates within the grace period, diagnostics are logged and setup
+    mode is restarted.
 
     Returns:
         True if setup mode was left (WiFi associated), False if re-entered.
     """
     logger.info("Setup mode not completed — checking whether home WiFi is available")
     stop_setup_mode()
-    _reenable_wifi_autoconnect()
+    _reconnect_home_wifi()
     if wait_for_wifi(WIFI_GRACE_SECONDS):
         state_manager.clear_needs_setup()
         state_manager.mark_wifi_connected()
@@ -549,6 +611,7 @@ def try_leave_setup_mode() -> bool:
         logger.info("Home WiFi available — left setup mode")
         return True
     logger.info("Home WiFi still unavailable — re-entering setup mode")
+    _log_wifi_diagnostics()
     start_setup_mode()
     return False
 
