@@ -241,12 +241,14 @@ class TestLeaveSetupMode:
                 patch.object(watchdog, "wait_for_wifi", return_value=True), \
                 patch.object(watchdog, "_restore_issue"), \
                 patch.object(watchdog, "start_display") as start_display, \
+                patch.object(watchdog, "_catch_up_after_outage") as catch_up, \
                 patch.object(watchdog, "start_setup_mode") as start_setup:
             assert watchdog.try_leave_setup_mode() is True
 
         stop_setup.assert_called_once()
         sm.clear_needs_setup.assert_called_once()
         start_display.assert_called_once()
+        catch_up.assert_called_once()
         start_setup.assert_not_called()
 
     def test_reenters_setup_when_wifi_still_down(self):
@@ -256,9 +258,12 @@ class TestLeaveSetupMode:
                 patch.object(watchdog, "_reconnect_home_wifi"), \
                 patch.object(watchdog, "wait_for_wifi", return_value=False), \
                 patch.object(watchdog, "start_display") as start_display, \
+                patch.object(watchdog, "_log_wifi_diagnostics"), \
+                patch.object(watchdog, "_catch_up_after_outage") as catch_up, \
                 patch.object(watchdog, "start_setup_mode") as start_setup:
             assert watchdog.try_leave_setup_mode() is False
 
+        catch_up.assert_not_called()
         sm.clear_needs_setup.assert_not_called()
         start_display.assert_not_called()
         start_setup.assert_called_once()
@@ -271,7 +276,8 @@ class TestLeaveSetupMode:
                 patch.object(watchdog, "_reconnect_home_wifi", order.reenable), \
                 patch.object(watchdog, "wait_for_wifi", order.wait), \
                 patch.object(watchdog, "_restore_issue"), \
-                patch.object(watchdog, "start_display"):
+                patch.object(watchdog, "start_display"), \
+                patch.object(watchdog, "_catch_up_after_outage"):
             order.wait.return_value = True
             watchdog.try_leave_setup_mode()
 
@@ -345,6 +351,7 @@ class TestWifiDiagnostics:
                 patch.object(watchdog, "_reconnect_home_wifi"), \
                 patch.object(watchdog, "_restore_issue"), \
                 patch.object(watchdog, "start_display"), \
+                patch.object(watchdog, "_catch_up_after_outage"), \
                 patch.object(watchdog, "start_setup_mode"), \
                 patch.object(watchdog, "_log_wifi_diagnostics") as diag:
             with patch.object(watchdog, "wait_for_wifi", return_value=True):
@@ -365,6 +372,28 @@ class TestWifiDiagnostics:
         assert "diag [nmcli] out-of-nmcli" in caplog.text
         assert "diag [iw] out-of-iw" in caplog.text
         assert "diag [journalctl] out-of-journalctl" in caplog.text
+
+
+class TestCatchUpAfterOutage:
+    """Clock and photo sync right after leaving setup mode (PL-140)."""
+
+    def test_restarts_timesyncd_and_starts_sync_without_waiting(self):
+        ok = subprocess.CompletedProcess([], 0, "", "")
+        with patch.object(watchdog.subprocess, "run", return_value=ok) as run, \
+                patch.object(watchdog, "FRAME_USER", "pi"):
+            watchdog._catch_up_after_outage()
+
+        cmds = [c.args[0] for c in run.call_args_list]
+        assert cmds == [
+            ["systemctl", "restart", "systemd-timesyncd"],
+            ["systemctl", "--user", "-M", "pi@", "start", "--no-block", "picframe-sync.service"],
+        ]
+
+    def test_failures_do_not_raise(self):
+        with patch.object(watchdog.subprocess, "run",
+                          side_effect=[subprocess.TimeoutExpired("systemctl", 30),
+                                       subprocess.CompletedProcess([], 1, "", "boom")]):
+            watchdog._catch_up_after_outage()
 
 
 class TestSetupIssueText:

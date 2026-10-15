@@ -175,7 +175,7 @@ curl https://<hostname>.<tailnet>.ts.net/health
 2. Console (`/etc/issue`) shows a box with the hotspot name, AP password, and portal URL — visible above the login prompt. After an outage the box reads **"PicFrame - No WiFi"**: photos resume automatically when WiFi is back, and the hotspot steps are only for a changed WiFi name or password
 3. Frame broadcasts a WiFi hotspot: `PicFrame-<framename>` with a unique 8-character password derived from the Pi's serial number
 4. Any URL resolves to `http://192.168.4.1` (DNS hijack via dnsmasq)
-5. **Outage-triggered setup mode leaves by itself:** every 15 minutes the hotspot stops for up to 90 s while the frame tries to rejoin home WiFi (the watchdog re-enables NetworkManager autoconnect first). If it connects, the slideshow resumes without a reboot; otherwise the hotspot comes back. First-run and manual setup mode wait for the setup page.
+5. **Outage-triggered setup mode leaves by itself:** every 15 minutes the hotspot stops for up to 90 s while the frame tries to rejoin home WiFi (the watchdog re-enables NetworkManager autoconnect first). If it connects, the slideshow resumes without a reboot, the clock is re-synced and a photo sync runs right away (clearing the sync error from the outage); otherwise the hotspot comes back. First-run and manual setup mode wait for the setup page.
 
 ### Reconfiguring WiFi via hotspot
 

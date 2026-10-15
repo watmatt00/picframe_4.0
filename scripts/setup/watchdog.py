@@ -52,6 +52,7 @@ RETRYABLE_SETUP_REASONS = {"extended_outage"}
 # Max wait for the frame user's systemd manager at boot (display runs as a user service)
 USER_MANAGER_WAIT_SECONDS = 120
 DISPLAY_SERVICE = "picframe"
+SYNC_SERVICE = "picframe-sync.service"
 SETUP_SERVICES = ["picframe-ble-setup", "picframe-ap-setup"]
 LOG_FORMAT = "[%(asctime)s] %(levelname)-5s %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -509,9 +510,9 @@ def stop_setup_mode() -> None:
     subprocess.run(["systemctl", "stop", *SETUP_SERVICES], check=False)
 
 
-def _run_nmcli_step(cmd: list[str], timeout: float = 30) -> subprocess.CompletedProcess | None:
+def _run_logged(cmd: list[str], timeout: float = 30) -> subprocess.CompletedProcess | None:
     """
-    Run one command for the home-WiFi reconnect, logging its result (PL-138).
+    Run a helper command (reconnect, diagnostics, catch-up), logging failures.
 
     Returns:
         The completed process, or None if it could not run. Never raises.
@@ -528,7 +529,7 @@ def _run_nmcli_step(cmd: list[str], timeout: float = 30) -> subprocess.Completed
 
 def _wlan0_nm_state() -> str:
     """Return NetworkManager's state for wlan0, e.g. "30 (disconnected)", or "" if unknown."""
-    result = _run_nmcli_step(["nmcli", "-g", "GENERAL.STATE", "device", "show", "wlan0"], timeout=10)
+    result = _run_logged(["nmcli", "-g", "GENERAL.STATE", "device", "show", "wlan0"], timeout=10)
     return result.stdout.strip() if result and result.returncode == 0 else ""
 
 
@@ -549,7 +550,7 @@ def _reconnect_home_wifi() -> None:
     connect. Each step is logged; wait_for_wifi() still does the final check.
     Never raises.
     """
-    _run_nmcli_step(["nmcli", "device", "set", "wlan0", "autoconnect", "yes"])
+    _run_logged(["nmcli", "device", "set", "wlan0", "autoconnect", "yes"])
 
     deadline = time.monotonic() + NM_READY_TIMEOUT_SECONDS
     state = _wlan0_nm_state()
@@ -558,14 +559,14 @@ def _reconnect_home_wifi() -> None:
         state = _wlan0_nm_state()
     logger.info(f"wlan0 NetworkManager state before reconnect: {state or 'unknown'}")
 
-    scan = _run_nmcli_step(
+    scan = _run_logged(
         ["nmcli", "-g", "SSID", "device", "wifi", "list", "ifname", "wlan0", "--rescan", "yes"]
     )
     if scan and scan.returncode == 0:
         seen = [line for line in scan.stdout.splitlines() if line.strip()]
         logger.info(f"WiFi scan found {len(seen)} network(s)")
 
-    _run_nmcli_step(["nmcli", "--wait", "20", "device", "connect", "wlan0"])
+    _run_logged(["nmcli", "--wait", "20", "device", "connect", "wlan0"])
 
 
 def _log_wifi_diagnostics() -> None:
@@ -581,11 +582,32 @@ def _log_wifi_diagnostics() -> None:
         ["journalctl", "-u", "NetworkManager", "--no-pager", "-o", "short", "--since", "5 min ago",
          "-n", str(DIAG_JOURNAL_LINES)],
     ):
-        result = _run_nmcli_step(cmd)
+        result = _run_logged(cmd)
         if result is None:
             continue
         for line in (result.stdout or "").splitlines():
             logger.info(f"diag [{cmd[0]}] {line}")
+
+
+def _catch_up_after_outage() -> None:
+    """
+    Fix the clock and sync photos right after leaving setup mode (PL-140).
+
+    In setup mode the hotspot's DNS answers every name with 192.168.4.1, so
+    time sync fails and backs off, and the scheduled photo sync fails. Without
+    this the frame shows a sync error (and may run minutes behind) until the
+    next timer slot and the next time-sync retry. Starts the sync the same way
+    the timer does, without waiting for it. Never raises.
+    """
+    result = _run_logged(["systemctl", "restart", "systemd-timesyncd"])
+    if result and result.returncode == 0:
+        logger.info("Restarted systemd-timesyncd to correct the clock")
+
+    result = _user_systemctl("start", "--no-block", SYNC_SERVICE)
+    if result.returncode == 0:
+        logger.info(f"Started {SYNC_SERVICE} to replace the sync that failed in setup mode")
+    else:
+        logger.warning(f"Could not start {SYNC_SERVICE}: {result.stderr.strip()}")
 
 
 def try_leave_setup_mode() -> bool:
@@ -609,6 +631,7 @@ def try_leave_setup_mode() -> bool:
         _restore_issue()
         start_display()
         logger.info("Home WiFi available — left setup mode")
+        _catch_up_after_outage()
         return True
     logger.info("Home WiFi still unavailable — re-entering setup mode")
     _log_wifi_diagnostics()
