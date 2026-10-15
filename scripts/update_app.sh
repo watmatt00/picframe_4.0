@@ -39,11 +39,11 @@ done
 
 if [[ ${#MISSING[@]} -gt 0 ]]; then
     LOG "Missing packages: ${MISSING[*]} — attempting install..."
-    if sudo -n apt-get install -y "${MISSING[@]}" 2>/dev/null; then
+    if sudo -n apt-get install -y "${MISSING[@]}"; then
         LOG "  Packages installed."
     else
-        WARN "Could not install packages (no passwordless sudo). Run manually:"
-        WARN "  sudo apt-get install -y ${MISSING[*]}"
+        WARN "apt-get install failed (missing packages or no sudo). Run manually:"
+        WARN "  sudo apt-get update && sudo apt-get install -y ${MISSING[*]}"
     fi
 else
     LOG "APT packages: all present."
@@ -114,8 +114,9 @@ done
 # ── Step 5: picframe config.yaml migrations ───────────────────────────────────
 # Idempotent patches to ~/picframe_data/config/configuration.yaml.
 PCONF="$HOME/picframe_data/config/configuration.yaml"
+VENV_PYTHON="$PROJECT_DIR/venv/bin/python3"
 if [[ -f "$PCONF" ]]; then
-    python3 - "$PCONF" <<'PYEOF'
+    "${VENV_PYTHON}" - "$PCONF" <<'PYEOF'
 import sys, yaml
 p = sys.argv[1]
 with open(p) as f:
