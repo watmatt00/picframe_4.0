@@ -178,6 +178,33 @@ class TestBootDecision:
         boot_env["start_setup"].assert_called_once()
 
 
+class TestKoofrFlagAtBoot:
+    """A stale koofr_configured=false must not bring back the setup image (PL-063)."""
+
+    def test_stale_flag_corrected_when_koofr_configured(self, boot_env):
+        state = _state(None, needs_setup=False)
+        state["koofr_configured"] = False
+        boot_env["sm"].read.return_value = state
+
+        with patch.object(watchdog, "is_koofr_configured", return_value=True):
+            watchdog.main()
+
+        boot_env["sm"].set.assert_any_call("koofr_configured", True)
+        watchdog.generate_setup_image.assert_not_called()
+        watchdog.restore_no_pictures.assert_called_once()
+
+    def test_setup_image_shown_when_koofr_not_configured(self, boot_env):
+        state = _state(None, needs_setup=False)
+        state["koofr_configured"] = False
+        boot_env["sm"].read.return_value = state
+
+        with patch.object(watchdog, "is_koofr_configured", return_value=False):
+            watchdog.main()
+
+        assert ("koofr_configured", True) not in [c.args for c in boot_env["sm"].set.call_args_list]
+        watchdog.generate_setup_image.assert_called_once_with("tkframe")
+
+
 class TestLeaveSetupMode:
     """Periodic retry out of outage-triggered setup mode."""
 

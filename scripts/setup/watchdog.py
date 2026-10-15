@@ -32,6 +32,7 @@ NO_PICTURES_BACKUP = FRAME_USER_HOME / "picframe_data" / "data" / "no_pictures.s
 # Allow running from any working directory
 sys.path.insert(0, str(Path(__file__).parent))
 
+from koofr_detect import is_koofr_configured
 from state_manager import state_manager
 
 # Outage threshold before setting needs_setup flag
@@ -620,6 +621,11 @@ def main() -> None:
     # Show setup instruction image if Koofr hasn't been configured yet
     frame_name = state.get("frame_name", "picframe")
     koofr_configured = state.get("koofr_configured", False)
+    if not koofr_configured and is_koofr_configured(FRAME_USER_HOME):
+        # Koofr was set up by a path that doesn't write the flag (PL-063)
+        logger.info("koofr_configured=false but Koofr is configured — correcting flag")
+        state_manager.set("koofr_configured", True)
+        koofr_configured = True
     if not koofr_configured:
         logger.info("koofr_configured=false — generating setup instruction image")
         generate_setup_image(frame_name)
