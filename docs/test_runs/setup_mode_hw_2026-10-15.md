@@ -79,7 +79,7 @@ Claude checks from the PC: a 60 MB POST to `/api/v1/contributor/upload/…` gets
 | Step | Result | Notes |
 |---|---|---|
 | 1 PL-063 | pass | Flag corrected at boot; no setup image (watchdog journal) |
-| 2 Round A: outage → setup → recovery (+ portal) | **fail** | Setup mode OK; never rejoined home WiFi after unblock (leave attempts 12:25, 12:41). Cause: `nmcli device disconnect` blocks autoconnect. Tracked in PL-138 |
+| 2 Round A: outage → setup → recovery (+ portal) | **pass (3rd run)** | Run 1 fail (autoconnect blocked by `nmcli device disconnect`); run 2 fail (`device connect` 1 s after AP stop: no scan results); run 3 at `f51efb4`: "PicFrame - No WiFi" box shown, AP stopped 15:08:40, wlan0 ready 15:08:46, scan 19 networks, **left setup mode 15:08:49** without a reboot. Afterwards: yellow light / sync error until 15:19, because the last sync ran during setup mode and the clock was 5 min behind (NTP names resolved to 192.168.4.1 by the setup DNS; timesyncd backed off). Self-healed at 15:19:21 (NTP sync → sync ran → match 4/4) |
 | 3 Round B: BLE (optional) | skipped | PL-137 |
 | 4 PL-128 | pass | Safari on cellular shows the PicFrame page. From the PC the Funnel name resolves to the tailnet IP, so it isn't a public test |
 | 5 PL-060 | pass (after fix) | App uploads incl. large + duplicate OK. 60 MB with Content-Length: 413 in 0.25 s, 0 bytes sent. Chunked 60 MB first returned 400 (BaseHTTPMiddleware wrapped the 413); fixed in the next commit. `free -m` unchanged |
