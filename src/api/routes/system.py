@@ -27,7 +27,7 @@ async def reboot_frame(http_request: Request, admin=Depends(require_admin)):
 
     503 if this frame hasn't had install_setup.sh re-run since reboot was added.
     """
-    if not power_service.reboot_available():
+    if not await power_service.reboot_available():
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=power_service.NOT_SET_UP_MESSAGE)
     client_ip = http_request.client.host if http_request.client else None
     power_service.schedule_reboot(admin.device_name, ip=client_ip)

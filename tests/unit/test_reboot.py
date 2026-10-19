@@ -1,10 +1,11 @@
 """
-Unit tests: Reboot Frame (PL-142) — admin only, a clear 503 when the polkit
-rule isn't installed, and `systemctl reboot` runs after the delay (mocked).
+Unit tests: Reboot Frame (PL-142) — admin only, a clear 503 when logind won't
+allow it (polkit rule not installed), and `systemctl reboot` runs after the delay (mocked).
 """
 
 import asyncio
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 from filelock import FileLock
@@ -22,9 +23,12 @@ LAN = ("192.168.1.50", 50000)
 @pytest.fixture
 def frame(tmp_path, monkeypatch):
     """Tokens for an admin and a contributor; polkit rule installed; reboots recorded, not run."""
-    rule = tmp_path / "50-picframe.rules"
-    rule.write_text('action.id === "org.freedesktop.login1.reboot"')
-    monkeypatch.setattr(power_service, "POLKIT_RULE", rule)
+    rule = SimpleNamespace(allowed=True)
+
+    async def can_reboot():
+        return rule.allowed
+
+    monkeypatch.setattr(power_service, "reboot_available", can_reboot)
     scheduled = []
     monkeypatch.setattr(power_service, "schedule_reboot", lambda who, ip=None: scheduled.append(who))
 
@@ -62,7 +66,7 @@ def test_no_token_cannot_reboot(frame):
 
 def test_not_set_up_is_503_with_message(frame):
     rule, scheduled, headers = frame
-    rule.unlink()
+    rule.allowed = False
     r = TestClient(app).post("/api/v1/system/reboot", headers=headers["admin"])
     assert r.status_code == 503
     assert r.json()["detail"] == power_service.NOT_SET_UP_MESSAGE
@@ -74,7 +78,7 @@ def test_dashboard_reboot(frame):
     client = TestClient(app, client=LAN)
     assert client.post("/system/reboot").json()["ok"] is True
     assert scheduled == ["dashboard"]
-    rule.write_text("no reboot here")
+    rule.allowed = False
     assert client.post("/system/reboot").json() == {"ok": False, "error": power_service.NOT_SET_UP_MESSAGE}
 
 
@@ -107,3 +111,35 @@ def test_reboot_runs_systemctl_after_delay(monkeypatch):
 
     asyncio.run(run())
     assert calls == [("systemctl", "reboot")]
+
+
+@pytest.mark.parametrize("stdout, code, expected", [
+    (b's "yes"\n', 0, True),
+    (b's "challenge"\n', 0, False),
+    (b's "no"\n', 0, False),
+    (b"", 1, False),
+])
+def test_reboot_available_asks_logind(monkeypatch, stdout, code, expected):
+    calls = []
+
+    class FakeProc:
+        returncode = code
+
+        async def communicate(self):
+            return stdout, b""
+
+    async def fake_exec(*args, **kwargs):
+        calls.append(args)
+        return FakeProc()
+
+    monkeypatch.setattr(power_service.asyncio, "create_subprocess_exec", fake_exec)
+    assert asyncio.run(power_service.reboot_available()) is expected
+    assert calls == [power_service.CAN_REBOOT_CMD]
+
+
+def test_reboot_available_false_without_busctl(monkeypatch):
+    async def missing(*args, **kwargs):
+        raise FileNotFoundError("busctl")
+
+    monkeypatch.setattr(power_service.asyncio, "create_subprocess_exec", missing)
+    assert asyncio.run(power_service.reboot_available()) is False

@@ -9,13 +9,17 @@ so the caller gets its answer first.
 
 import asyncio
 import logging
-from pathlib import Path
-
 from src.utils.logging import log_auth_event
 
 logger = logging.getLogger(__name__)
 
-POLKIT_RULE = Path("/etc/polkit-1/rules.d/50-picframe.rules")
+# logind's own answer to "may this user reboot without a password?" ("yes",
+# "challenge", "no", "na"). The polkit rules folder isn't readable by the API user,
+# so asking logind is the only reliable check.
+CAN_REBOOT_CMD = (
+    "busctl", "call", "org.freedesktop.login1", "/org/freedesktop/login1",
+    "org.freedesktop.login1.Manager", "CanReboot",
+)
 REBOOT_DELAY_SECONDS = 3
 
 # Keeps the scheduled reboot task referenced so it isn't garbage-collected
@@ -27,12 +31,23 @@ NOT_SET_UP_MESSAGE = (
 )
 
 
-def reboot_available() -> bool:
-    """True if the polkit rule that lets the API reboot the frame is installed."""
+async def reboot_available() -> bool:
+    """True if logind lets this user reboot without a password (install_setup.sh's polkit rule)."""
     try:
-        return "org.freedesktop.login1.reboot" in POLKIT_RULE.read_text()
-    except OSError:
+        proc = await asyncio.create_subprocess_exec(
+            *CAN_REBOOT_CMD,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+    except (OSError, asyncio.TimeoutError) as e:
+        logger.warning(f"Couldn't ask logind whether reboot is allowed: {e}")
         return False
+    answer = stdout.decode().strip()
+    if proc.returncode != 0 or answer != 's "yes"':
+        logger.info(f"Reboot not available: CanReboot answered {answer or stderr.decode().strip()!r}")
+        return False
+    return True
 
 
 async def _reboot_after_delay() -> None:

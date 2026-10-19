@@ -1365,7 +1365,7 @@ async def reboot_frame_dashboard(request: Request):
     """
     Reboot the frame a few seconds from now (PL-142). LAN-only endpoint, no JWT auth required.
     """
-    if not power_service.reboot_available():
+    if not await power_service.reboot_available():
         return {"ok": False, "error": power_service.NOT_SET_UP_MESSAGE}
     client_ip = request.client.host if request.client else None
     power_service.schedule_reboot("dashboard", ip=client_ip)
