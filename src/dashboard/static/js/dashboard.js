@@ -721,6 +721,11 @@ function renderSourcesTable() {
             ? ''
             : `<button class="btn-small" onclick="activateSource('${escapeHtml(source.path)}', '${escapeHtml(source.id)}')">Activate</button> `;
 
+        // The album that's showing can't be deleted (PL-147): show another one first
+        const deleteBtn = source.active
+            ? ''
+            : `<button class="btn-small btn-danger" onclick="deleteSource('${escapeHtml(source.id)}')">Delete</button>`;
+
         const hasRemote = !!source.remote;
         const cloudDisplay = !hasRemote ? '—' : source.remote_count === -1 ? '?' : source.remote_count;
         const dot = _syncDot(source.photo_count, source.remote_count, hasRemote);
@@ -735,7 +740,7 @@ function renderSourcesTable() {
                 <td>${source.photo_count}</td>
                 <td>${statusBadges.join(' ')}</td>
                 <td class="tech-column" style="white-space: nowrap;">
-                    ${activateBtn}<button class="btn-small btn-danger" onclick="deleteSource('${escapeHtml(source.id)}')">Delete</button>
+                    ${activateBtn}${deleteBtn}
                 </td>
             </tr>
         `;
@@ -1113,11 +1118,17 @@ async function activateSource(targetPath, sourceId) {
 }
 
 async function deleteSource(sourceId) {
-    if (!confirm(`Are you sure you want to delete album "${sourceId}"?\n\nThis will remove it from the configuration but will NOT delete any files.`)) {
+    const source = (sourcesState.sources || []).find(s => s.id === sourceId);
+    const name = source ? source.label : sourceId;
+    const count = source ? source.photo_count : 0;
+    const cloud = source && source.remote
+        ? `They stay in your cloud storage (${source.remote}).`
+        : 'This album has no cloud folder, so these photos are NOT kept anywhere else.';
+    if (!confirm(`Delete album "${name}"?\n\nThis deletes ${count} photo${count === 1 ? '' : 's'} from the frame. ${cloud}\n\nBackups are kept. This can't be undone.`)) {
         return;
     }
 
-    showSourcesStatus('info', `Deleting album "${sourceId}"...`);
+    showSourcesStatus('info', `Deleting album "${name}"...`);
 
     try {
         const response = await fetch('/api/sources/delete', {
@@ -1128,11 +1139,14 @@ async function deleteSource(sourceId) {
 
         const data = await response.json();
 
-        if (data.ok) {
-            showSourcesStatus('success', `Album "${sourceId}" deleted successfully!`);
+        if (data.ok && data.error) {
+            showSourcesStatus('error', data.error);
+            await loadSources();
+        } else if (data.ok) {
+            showSourcesStatus('success', `Album "${name}" deleted (${data.photos_removed} photo${data.photos_removed === 1 ? '' : 's'} removed from the frame).`);
             await loadSources();
         } else {
-            showSourcesStatus('error', `Failed to delete album: ${data.error}`);
+            showSourcesStatus('error', `Couldn't delete album: ${data.error}`);
         }
     } catch (err) {
         showSourcesStatus('error', `Error deleting album: ${err.message}`);

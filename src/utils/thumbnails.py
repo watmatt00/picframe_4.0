@@ -35,6 +35,19 @@ def evict(source_id: str, filename: str) -> None:
             stale.unlink(missing_ok=True)
 
 
+def evict_source(source_id: str) -> None:
+    """
+    Delete every cached thumbnail of an album (used when it's deleted).
+
+    The pattern can also match an album whose id starts with this one plus "_";
+    that only costs a re-render of those thumbnails.
+    """
+    sid = glob.escape(source_id)
+    for pattern in (f"{sid}_*.jpg", f"dash_{sid}_*.jpg"):
+        for stale in THUMB_CACHE_DIR.glob(pattern):
+            stale.unlink(missing_ok=True)
+
+
 def _render(local_file: Path, size: tuple[int, int], quality: int) -> bytes:
     """Decode a photo and return a JPEG thumbnail (runs in a worker thread)."""
     from PIL import Image, ImageOps  # noqa: PLC0415 — lazy import, Pillow is optional at startup

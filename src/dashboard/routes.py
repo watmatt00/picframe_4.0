@@ -53,7 +53,7 @@ from src.utils.rclone import count_local_files, rclone_count, rclone_list_remote
 from src.services import photo_tools_service as photo_tools
 from src.services import backup_service
 from src.services.party_service import enable_party, disable_party
-from src.services import demo_service
+from src.services import album_service, demo_service
 
 logger = logging.getLogger(__name__)
 
@@ -955,13 +955,15 @@ async def delete_source_api(request: DeleteSourceRequest):
     """
     Delete a photo source from the dashboard.
 
-    LAN-only endpoint, no JWT auth required.
+    Deletes the album's photos on the frame too (PL-147); the cloud folder and
+    backups are kept. LAN-only endpoint, no JWT auth required.
     """
-    if source_manager.delete_source(request.source_id):
-        logger.info(f"Deleted source '{request.source_id}' via dashboard")
-        return {"ok": True}
-    else:
-        return {"ok": False, "error": f"Album '{request.source_id}' not found"}
+    try:
+        result = album_service.delete_album(request.source_id)
+    except album_service.AlbumDeleteError as e:
+        return {"ok": False, "error": e.message}
+    logger.info(f"Deleted album '{request.source_id}' via dashboard")
+    return {"ok": True, **result}
 
 
 @router.get("/api/rclone/remotes")

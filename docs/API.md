@@ -46,6 +46,7 @@ Tokens are obtained through the pairing flow (see [Security](SECURITY.md)).
 | `/api/v1/display/spotlight` | DELETE | Cancel active spotlight immediately |
 | `/api/v1/folders` | GET | List folders |
 | `/api/v1/folders` | POST | Create folder |
+| `/api/v1/folders/{id}` | DELETE | Delete an album and its photos on the frame (cloud folder kept) |
 | `/api/v1/contributors` | GET | List contributor invites |
 | `/api/v1/contributors/invite` | POST | Generate Koofr invite |
 | `/api/v1/sync` | POST | Trigger manual sync |
@@ -225,6 +226,25 @@ List all paired devices. Admin only.
   ]
 }
 ```
+
+---
+
+### DELETE /api/v1/folders/{id}
+
+Delete an album (PL-147). Admin only. Removes it from the album list and deletes its photos on the frame (`~/Pictures/<id>`). The cloud folder and backups in `~/Pictures/backups` are kept. The folder is only deleted if it is a direct child of `~/Pictures`, isn't `spotlight` or `backups`, and no other album uses it.
+
+**Response (200):**
+```json
+{"deleted": "trip", "name": "Trip", "photos_removed": 42, "local_folder_removed": true, "cloud_folder": "koofr:KFR_trip", "error": null}
+```
+`error` is set (and `local_folder_removed` false) when the album was removed but its folder couldn't be deleted.
+
+**Response (409):** the album is showing, or syncing:
+```json
+{"detail": "This album is showing on the frame. Show another album first, then delete it."}
+```
+
+**Response (404):** unknown album. Changed 2026-10-19: was `204` with no body, and kept the photos.
 
 ---
 

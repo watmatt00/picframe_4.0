@@ -22,6 +22,7 @@ from typing import Optional
 
 from src.api.dependencies import require_admin
 from src.config.settings import get_settings
+from src.services import album_service
 from src.services.source_manager import source_manager
 from src.services.sync_service import sync_service
 from src.utils.rclone import count_local_files, get_sync_status, rclone_list_remotes
@@ -205,18 +206,28 @@ async def rename_folder(
     )
 
 
-@router.delete("/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+class DeleteFolderResponse(BaseModel):
+    """Result of deleting an album (PL-147)."""
+    deleted: str
+    name: str
+    photos_removed: int
+    local_folder_removed: bool
+    cloud_folder: Optional[str] = None
+    error: Optional[str] = None
+
+
+@router.delete("/{source_id}", response_model=DeleteFolderResponse)
 async def delete_folder(source_id: str, admin=Depends(require_admin)):
     """
-    Delete a photo source configuration.
+    Delete an album and its photos on the frame (PL-147).
 
-    Note: Does not delete the local files.
+    The cloud folder and backups are kept. Refused (409) for the album that's
+    showing or syncing; 404 for an unknown album.
     """
-    if not source_manager.delete_source(source_id):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Source '{source_id}' not found",
-        )
+    try:
+        return DeleteFolderResponse(**album_service.delete_album(source_id))
+    except album_service.AlbumDeleteError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
 
 @router.get("/{source_id}/sync/status", response_model=SyncStatusResponse)
