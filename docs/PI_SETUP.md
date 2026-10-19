@@ -159,6 +159,19 @@ curl https://<hostname>.<tailnet>.ts.net/health
 
 ---
 
+## Reboot Frame (dashboard and Manager app)
+
+Reboot Frame (dashboard Frame Status quick actions, or the Manager app's Frame Settings) needs a polkit rule that `install_setup.sh` installs. On a frame set up before 2026-10-19, pull, then re-run it once:
+
+```bash
+cd ~/picframe_4.0 && git pull
+sudo bash scripts/setup/install_setup.sh
+```
+
+Until then, Reboot Frame answers "Reboot isn't set up on this frame yet". Re-running keeps state.yaml; it reinstalls the setup packages, rewrites the hotspot config, setup service units and polkit rule, and restarts the WiFi watchdog (the slideshow keeps running).
+
+---
+
 ## Demo Mode (App Store review frame)
 
 Reusable pairing codes for an App Store reviewer (PL-015). See `docs/SECURITY.md` → Demo Mode for the risks.

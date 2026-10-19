@@ -606,8 +606,64 @@ function initStatusDashboard() {
         }
     }
 
+    // Reboot Frame (PL-142): ask, wait for the frame to go down, then poll /health until it's back
+    async function rebootFrame() {
+        const btn = document.getElementById("btn-reboot");
+        const spinner = document.getElementById("btn-reboot-spinner");
+        const label = document.getElementById("btn-reboot-label");
+        if (!btn) return;
+        if (!confirm("Reboot the frame? The display and this dashboard will be unavailable for about 1-2 minutes.")) return;
+
+        const setLabel = (text) => { if (label) label.textContent = text; };
+        btn.disabled = true;
+        if (spinner) spinner.style.display = "inline-block";
+        setLabel("Rebooting...");
+
+        const reset = () => {
+            btn.disabled = false;
+            if (spinner) spinner.style.display = "none";
+            setLabel("⏻ Reboot Frame");
+        };
+
+        try {
+            const resp = await fetch("/system/reboot", { method: "POST" });
+            const data = await resp.json();
+            if (!data.ok) {
+                alert("Couldn't reboot: " + (data.error || "Unknown error"));
+                reset();
+                return;
+            }
+        } catch (err) {
+            alert("Couldn't reboot: " + err);
+            reset();
+            return;
+        }
+
+        // Give it time to go down, then poll every 5 s for up to 4 minutes
+        await new Promise(r => setTimeout(r, 20000));
+        const started = Date.now();
+        while (Date.now() - started < 240000) {
+            try {
+                const health = await fetch("/health", { cache: "no-store" });
+                if (health.ok) {
+                    setLabel("Back online");
+                    window.location.reload();
+                    return;
+                }
+            } catch (err) {
+                // Still rebooting
+            }
+            setLabel(`Rebooting... ${Math.round((Date.now() - started) / 1000) + 20}s`);
+            await new Promise(r => setTimeout(r, 5000));
+        }
+        alert("The frame hasn't come back after 4 minutes. Check that it has power and WiFi, then reload this page.");
+        reset();
+    }
+
     // Button event listeners
     if (btnRefresh) btnRefresh.addEventListener("click", refreshStatus);
+    const btnReboot = document.getElementById("btn-reboot");
+    if (btnReboot) btnReboot.addEventListener("click", rebootFrame);
     if (btnSyncNow) btnSyncNow.addEventListener("click", syncNow);
     if (btnRestartPf) btnRestartPf.addEventListener("click", restartPfService);
     if (btnRestartApi) btnRestartApi.addEventListener("click", restartApiService);

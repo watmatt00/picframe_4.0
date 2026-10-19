@@ -40,6 +40,7 @@ Tokens are obtained through the pairing flow (see [Security](SECURITY.md)).
 | `/api/v1/devices/{id}` | DELETE | Revoke device |
 | `/api/v1/services` | GET | List services + status |
 | `/api/v1/services/{name}/restart` | POST | Restart service |
+| `/api/v1/system/reboot` | POST | Reboot the frame (202; back in about 1-2 minutes) |
 | `/api/v1/display/folder` | GET | Current display folder |
 | `/api/v1/display/folder` | POST | Switch folder |
 | `/api/v1/display/spotlight` | POST | Spotlight a single photo for N seconds, then auto-restore |
@@ -225,6 +226,22 @@ List all paired devices. Admin only.
     }
   ]
 }
+```
+
+---
+
+### POST /api/v1/system/reboot
+
+Reboot the frame (PL-142). Admin only. The answer comes first; the reboot starts `delay_seconds` later. Poll `GET /health` until it answers again (about 1-2 minutes).
+
+**Response (202):**
+```json
+{"rebooting": true, "message": "Rebooting. The frame will be back in about 1-2 minutes.", "delay_seconds": 3}
+```
+
+**Response (503):** the frame hasn't had `install_setup.sh` re-run since reboot was added (its polkit rule has no reboot permission):
+```json
+{"detail": "Reboot isn't set up on this frame yet. Run: sudo bash scripts/setup/install_setup.sh"}
 ```
 
 ---
@@ -485,6 +502,7 @@ The web dashboard at `http://<pi-ip>:8000` provides browser-based management acc
 | `/api/settings/log-level` | POST | Set log level |
 | `/api/settings/sleep-schedule` | POST | Save display sleep schedule (on/off times, systemd timers) |
 | `/api/settings/party` | POST | Enable or disable party mode |
+| `/system/reboot` | POST | Reboot the frame (`{"ok": true}` or `{"ok": false, "error": ...}`) |
 | `/api/settings/demo` | POST | Turn demo mode on (`{"enabled": true}`, 14 days) or off (revokes demo devices). 403 unless `demo.allowed` |
 | `/api/settings/demo/regenerate` | POST | New demo codes and a fresh 14 days; paired demo phones stay paired. 403 unless `demo.allowed` |
 | `/dashboard/test-lights` | POST | Override indicator light state for manual testing |

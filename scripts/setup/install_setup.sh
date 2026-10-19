@@ -209,11 +209,11 @@ chmod +x /usr/local/bin/picframe-config
 LOG "picframe-config installed to /usr/local/bin/picframe-config"
 check_cmd "picframe-config" picframe-config --show
 
-# ── Party mode: polkit rule + state.yaml permissions ─────────────────────────
-# Allows the API (NoNewPrivileges=true) to manage watchdog units via D-Bus
-# and write state.yaml for --clear-setup, without requiring sudo.
+# ── Party mode + reboot: polkit rule + state.yaml permissions ────────────────
+# Allows the API (NoNewPrivileges=true) to manage watchdog units and reboot the
+# frame via D-Bus, and write state.yaml for --clear-setup, without requiring sudo.
 
-LOG "Installing party mode polkit rule..."
+LOG "Installing polkit rule (party mode, reboot)..."
 mkdir -p /etc/polkit-1/rules.d
 cat > /etc/polkit-1/rules.d/50-picframe.rules << 'POLKIT_EOF'
 /* Allow sudo-group users to manage PicFrame system services without interaction */
@@ -231,6 +231,11 @@ polkit.addRule(function(action, subject) {
             }
         }
         if (action.id === "org.freedesktop.systemd1.manage-unit-files") {
+            return polkit.Result.YES;
+        }
+        /* Reboot Frame from the dashboard / Manager app (PL-142) */
+        if (action.id === "org.freedesktop.login1.reboot" ||
+            action.id === "org.freedesktop.login1.reboot-multiple-sessions") {
             return polkit.Result.YES;
         }
     }

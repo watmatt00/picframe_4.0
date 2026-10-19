@@ -53,7 +53,7 @@ from src.utils.rclone import count_local_files, rclone_count, rclone_list_remote
 from src.services import photo_tools_service as photo_tools
 from src.services import backup_service
 from src.services.party_service import enable_party, disable_party
-from src.services import album_service, demo_service
+from src.services import album_service, demo_service, power_service
 
 logger = logging.getLogger(__name__)
 
@@ -1355,6 +1355,18 @@ async def regenerate_demo_codes():
     except Exception as e:
         logger.error(f"Failed to regenerate demo codes: {e}")
         return {"ok": False, "error": str(e)}
+
+
+@router.post("/system/reboot")
+async def reboot_frame_dashboard(request: Request):
+    """
+    Reboot the frame a few seconds from now (PL-142). LAN-only endpoint, no JWT auth required.
+    """
+    if not power_service.reboot_available():
+        return {"ok": False, "error": power_service.NOT_SET_UP_MESSAGE}
+    client_ip = request.client.host if request.client else None
+    power_service.schedule_reboot("dashboard", ip=client_ip)
+    return {"ok": True, "delay_seconds": power_service.REBOOT_DELAY_SECONDS}
 
 
 @router.post("/api/settings/party")
