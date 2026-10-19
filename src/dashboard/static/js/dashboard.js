@@ -639,21 +639,28 @@ function initStatusDashboard() {
             return;
         }
 
-        // Give it time to go down, then poll every 5 s for up to 4 minutes
-        await new Promise(r => setTimeout(r, 20000));
-        const started = Date.now();
-        while (Date.now() - started < 240000) {
+        const isUp = async () => {
             try {
-                const health = await fetch("/health", { cache: "no-store" });
-                if (health.ok) {
-                    setLabel("Back online");
-                    window.location.reload();
-                    return;
-                }
+                return (await fetch("/health", { cache: "no-store" })).ok;
             } catch (err) {
-                // Still rebooting
+                return false;
             }
-            setLabel(`Rebooting... ${Math.round((Date.now() - started) / 1000) + 20}s`);
+        };
+        const started = Date.now();
+        const elapsed = () => Math.round((Date.now() - started) / 1000);
+
+        // Wait until it has actually gone down (shutdown can be slow), then poll every 5 s for up to 4 minutes
+        while (Date.now() - started < 90000 && await isUp()) {
+            await new Promise(r => setTimeout(r, 2000));
+        }
+        const downAt = Date.now();
+        while (Date.now() - downAt < 240000) {
+            setLabel(`Rebooting... ${elapsed()}s`);
+            if (await isUp()) {
+                setLabel("Back online");
+                window.location.reload();
+                return;
+            }
             await new Promise(r => setTimeout(r, 5000));
         }
         alert("The frame hasn't come back after 4 minutes. Check that it has power and WiFi, then reload this page.");
