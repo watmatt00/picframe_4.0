@@ -6,6 +6,8 @@ Python wrapper for rclone operations (no shell scripts).
 Provides:
 - rclone_sync: Sync from remote to local
 - rclone_copyto: Upload a single local file to a remote destination
+- rclone_copy_dir: Upload a local folder's files without overwriting
+- rclone_list_dirs: List the top-level folders of a remote
 - rclone_count: Count files on remote
 - rclone_check: Check if remote is accessible
 - rclone_list_remotes: List configured remotes
@@ -269,6 +271,66 @@ async def rclone_copyto(local_file: Path, remote_dest: str) -> RcloneResult:
         return RcloneResult(success=False, error="rclone not found. Please install rclone.")
     except Exception as e:
         return RcloneResult(success=False, error=str(e))
+
+
+async def rclone_copy_dir(local_dir: Path, remote_dest: str) -> RcloneResult:
+    """
+    Upload every file in a local folder to a remote folder (rclone copy).
+
+    `--ignore-existing` never overwrites a file already in the cloud; nothing is
+    deleted on either side.
+    """
+    if not _validate_path(str(local_dir)):
+        return RcloneResult(success=False, error=f"Invalid local folder: {local_dir}")
+    if not _validate_remote(remote_dest):
+        return RcloneResult(success=False, error=f"Invalid remote destination: {remote_dest}")
+    cmd = ["rclone", "copy", str(local_dir), remote_dest, "--ignore-existing", "--stats-one-line", "-v"]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        stdout, _ = await proc.communicate()
+        output = stdout.decode()
+        if proc.returncode == 0:
+            return RcloneResult(success=True, files_transferred=_parse_transferred(output), output=output)
+        return RcloneResult(
+            success=False,
+            error=f"rclone copy exited {proc.returncode}",
+            output=output,
+        )
+    except FileNotFoundError:
+        return RcloneResult(success=False, error="rclone not found. Please install rclone.")
+    except Exception as e:
+        return RcloneResult(success=False, error=str(e))
+
+
+async def rclone_list_dirs(remote: str) -> list[str] | None:
+    """
+    List the folders directly under a remote (e.g. "koofr:").
+
+    Returns:
+        Folder names, or None if the listing failed
+    """
+    if not _validate_remote(remote):
+        raise ValueError(f"Invalid remote: {remote}")
+    cmd = ["rclone", "lsjson", remote, "--dirs-only"]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            logger.error(f"rclone lsjson {remote} failed: {stderr.decode().strip()}")
+            return None
+        import json
+        return [entry["Name"] for entry in json.loads(stdout.decode() or "[]") if entry.get("IsDir")]
+    except Exception as e:
+        logger.error(f"Failed to list remote folders: {e}")
+        return None
 
 
 async def rclone_count(remote: str) -> int:

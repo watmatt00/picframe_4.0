@@ -503,6 +503,10 @@ The web dashboard at `http://<pi-ip>:8000` provides browser-based management acc
 | `/api/settings/sleep-schedule` | POST | Save display sleep schedule (on/off times, systemd timers) |
 | `/api/settings/party` | POST | Enable or disable party mode |
 | `/system/reboot` | POST | Reboot the frame (`{"ok": true}` or `{"ok": false, "error": ...}`) |
+| `/api/albums/recoverable` | GET | Unused `KFR_*` cloud folders (with photo counts) and every backup, deleted albums' included |
+| `/api/albums/recover-cloud` | POST | `{folder, name}`: re-add an album pointed at an unused cloud folder, then sync it |
+| `/api/albums/restore-backup` | POST | `{filename, target_id \| new_name}`: add a backup's photos to an album and its cloud folder |
+| `/api/albums/upload-archive` | POST | Raw body = .zip or .tar.gz (max 2 GB), query `target_id` or `new_name`: add its photos/videos to an album and its cloud folder |
 | `/api/settings/demo` | POST | Turn demo mode on (`{"enabled": true}`, 14 days) or off (revokes demo devices). 403 unless `demo.allowed` |
 | `/api/settings/demo/regenerate` | POST | New demo codes and a fresh 14 days; paired demo phones stay paired. 403 unless `demo.allowed` |
 | `/dashboard/test-lights` | POST | Override indicator light state for manual testing |

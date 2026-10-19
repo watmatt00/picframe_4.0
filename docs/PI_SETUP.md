@@ -159,6 +159,18 @@ curl https://<hostname>.<tailnet>.ts.net/health
 
 ---
 
+## Recover a deleted album
+
+Delete Album removes an album's photos from the frame but keeps its cloud folder and backups. Dashboard → Albums → ♻️ Recover Albums brings it back:
+
+- **From cloud storage:** lists cloud folders (`KFR_*`) that no album uses. Recover re-adds the album pointed at that folder and syncs it.
+- **From a backup:** any backup in `~/Pictures/backups`, including a deleted album's, into an existing or a new album. Tools → Photo Backups also has Restore.
+- **Upload a .zip:** a .zip or .tar.gz of photos from your computer (up to 2 GB) into an existing or a new album.
+
+Restored photos are copied to the album's cloud folder first and then added on the frame, so the next sync doesn't remove them. Nothing is overwritten: a photo with the same name is saved as `name_1.jpg`. Only photos and videos are restored; other files are skipped.
+
+---
+
 ## Reboot Frame (dashboard and Manager app)
 
 Reboot Frame (dashboard Frame Status quick actions, or the Manager app's Frame Settings) needs a polkit rule that `install_setup.sh` installs. On a frame set up before 2026-10-19, pull, then re-run it once:

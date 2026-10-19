@@ -1943,7 +1943,9 @@ async function loadBackupList() {
                 <td style="font-family:monospace;font-size:0.85rem;">${b.filename}</td>
                 <td>${fmtBytes(b.size_bytes)}</td>
                 <td>${created}</td>
-                <td><button class="btn secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;"
+                <td style="white-space:nowrap;"><button class="btn secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;"
+                    onclick="restoreBackupInto('${b.filename.replace(/'/g, "\\'")}', '${sourceId}')">Restore</button>
+                    <button class="btn secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;"
                     onclick="runDeleteBackup('${b.filename.replace(/'/g, "\\'")}')">Delete</button></td>
             </tr>`;
         }).join('');
@@ -3070,4 +3072,193 @@ function updateDemoBanner(demo) {
             post('/api/settings/demo/regenerate', null, 'Generating new codes…');
         });
     }
+})();
+
+
+// =============================================================================
+// RECOVER ALBUMS (PL-147 follow-up)
+// =============================================================================
+
+let recoverAlbums = [];
+
+function showRecoverStatus(type, message) {
+    const el = document.getElementById('recover-status');
+    if (!el) return;
+    el.className = `status-message ${type}`;
+    el.textContent = message;
+    el.style.display = 'block';
+}
+
+function restoreSummary(data) {
+    const parts = [`${data.restored} file${data.restored === 1 ? '' : 's'} added to "${data.album}"`];
+    if (data.renamed) parts.push(`${data.renamed} renamed to avoid overwriting`);
+    if (data.skipped) parts.push(`${data.skipped} skipped (not photos/videos)`);
+    parts.push(data.uploaded_to_cloud ? 'uploaded to its cloud folder' : 'this album has no cloud folder, so they are on the frame only');
+    return parts.join(', ') + '.';
+}
+
+/** Ask where to restore to: an existing album id, or {newName}. Returns null if cancelled. */
+function askNewAlbumName(suggested) {
+    const name = prompt('Name for the new album:', suggested || '');
+    if (name === null) return null;
+    if (!name.trim()) { alert('The album needs a name.'); return null; }
+    return { newName: name.trim() };
+}
+
+async function loadRecoverable() {
+    const cloudEl = document.getElementById('recover-cloud');
+    const backupsEl = document.getElementById('recover-backups');
+    cloudEl.textContent = 'Checking cloud storage…';
+    backupsEl.textContent = 'Loading…';
+    try {
+        const [rec, albums] = await Promise.all([apiFetch('/api/albums/recoverable'), apiFetch('/api/sources')]);
+        recoverAlbums = albums.sources || [];
+        renderRecoverCloud(rec);
+        renderRecoverBackups(rec.backups || []);
+        renderRecoverUploadTargets();
+    } catch (e) {
+        cloudEl.textContent = `Error: ${e.message}`;
+        backupsEl.textContent = '';
+    }
+}
+
+function renderRecoverCloud(rec) {
+    const el = document.getElementById('recover-cloud');
+    if (rec.cloud_error) { el.textContent = rec.cloud_error; return; }
+    const folders = rec.cloud || [];
+    if (folders.length === 0) { el.textContent = 'No unused cloud folders. Every cloud folder belongs to an album.'; return; }
+    el.innerHTML = `<table class="sources-table"><thead><tr><th>Cloud folder</th><th>Photos</th><th>Album name</th><th></th></tr></thead><tbody>${
+        folders.map((f, i) => `<tr>
+            <td><code>${escapeHtml(f.folder)}</code></td>
+            <td>${f.photo_count < 0 ? '?' : f.photo_count}</td>
+            <td><input class="form-input" id="recover-name-${i}" value="${escapeHtml(f.suggested_name)}" maxlength="50"></td>
+            <td><button class="btn-small" onclick="recoverFromCloud('${escapeHtml(f.folder)}', ${i}, ${f.photo_count})">Recover</button></td>
+        </tr>`).join('')
+    }</tbody></table>`;
+}
+
+function renderRecoverBackups(backups) {
+    const el = document.getElementById('recover-backups');
+    if (backups.length === 0) { el.textContent = 'No backups yet. Create them in Tools → Photo Backups.'; return; }
+    el.innerHTML = `<table class="sources-table"><thead><tr><th>Album</th><th>Created</th><th>Size</th><th></th></tr></thead><tbody>${
+        backups.map(b => `<tr>
+            <td>${escapeHtml(b.album_name || b.album_id)}${b.album_exists ? '' : ' <span class="source-status-badge disabled">deleted</span>'}</td>
+            <td>${new Date(b.created_at).toLocaleString()}</td>
+            <td>${fmtBytes(b.size_bytes)}</td>
+            <td><button class="btn-small" onclick="restoreBackupInto('${escapeHtml(b.filename)}', ${b.album_exists ? `'${escapeHtml(b.album_id)}'` : 'null'}, '${escapeHtml(b.album_id)}')">Restore</button></td>
+        </tr>`).join('')
+    }</tbody></table>`;
+}
+
+function renderRecoverUploadTargets() {
+    const sel = document.getElementById('recover-upload-target');
+    sel.innerHTML = recoverAlbums.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.label)}</option>`).join('')
+        + '<option value="__new__">➕ New album…</option>';
+}
+
+async function recoverFromCloud(folder, index, count) {
+    const name = document.getElementById(`recover-name-${index}`).value.trim();
+    if (!name) { alert('The album needs a name.'); return; }
+    const photos = count < 0 ? 'its photos' : `${count} photo${count === 1 ? '' : 's'}`;
+    if (!confirm(`Add album "${name}" using cloud folder ${folder}?\n\n${photos} will sync to the frame.`)) return;
+    showRecoverStatus('info', `Recovering "${name}"…`);
+    try {
+        const data = await apiFetch('/api/albums/recover-cloud', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ folder, name }),
+        });
+        if (!data.ok) { showRecoverStatus('error', data.error); return; }
+        showRecoverStatus('success', `"${data.name}": ${data.message}`);
+        if (typeof loadSources === 'function') loadSources();
+        loadRecoverable();
+    } catch (e) {
+        showRecoverStatus('error', `Error: ${e.message}`);
+    }
+}
+
+/**
+ * Restore a backup. `albumId` is the album to restore into, or null to ask for a new album name
+ * (suggested from the backup). Used by this card and by Tools → Photo Backups.
+ */
+async function restoreBackupInto(filename, albumId, suggestedName) {
+    let target = albumId ? { targetId: albumId } : askNewAlbumName((suggestedName || '').replace(/_/g, ' '));
+    if (!target) return;
+    const where = target.targetId ? `album "${target.targetId}"` : `a new album "${target.newName}"`;
+    if (!confirm(`Restore ${filename} into ${where}?\n\nIts photos are added (existing photos are kept; same-name files are renamed) and uploaded to the album's cloud folder.`)) return;
+    showRecoverStatus('info', 'Restoring… this can take a few minutes for a large backup.');
+    try {
+        const data = await apiFetch('/api/albums/restore-backup', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename, target_id: target.targetId || null, new_name: target.newName || null }),
+        });
+        const msg = data.ok ? restoreSummary(data) : data.error;
+        showRecoverStatus(data.ok ? 'success' : 'error', msg);
+        if (!document.getElementById('recover-section') || document.getElementById('recover-section').style.display === 'none') {
+            alert(data.ok ? `Restored: ${msg}` : `Restore failed: ${msg}`);
+        }
+        if (data.ok) {
+            if (typeof loadSources === 'function') loadSources();
+            loadRecoverable();
+        }
+    } catch (e) {
+        showRecoverStatus('error', `Error: ${e.message}`);
+    }
+}
+
+function uploadRecoverArchive() {
+    const file = document.getElementById('recover-file').files[0];
+    if (!file) { alert('Choose a .zip or .tar.gz file first.'); return; }
+    const sel = document.getElementById('recover-upload-target');
+    let target = sel.value === '__new__' ? askNewAlbumName(file.name.replace(/\.(zip|tar\.gz|tgz)$/i, '')) : { targetId: sel.value };
+    if (!target) return;
+    const where = target.targetId ? `album "${sel.options[sel.selectedIndex].text}"` : `a new album "${target.newName}"`;
+    if (!confirm(`Upload ${file.name} (${fmtBytes(file.size)}) into ${where}?\n\nIts photos are added and uploaded to the album's cloud folder.`)) return;
+
+    const params = new URLSearchParams(target.targetId ? { target_id: target.targetId } : { new_name: target.newName });
+    const progress = document.getElementById('recover-upload-progress');
+    const btn = document.getElementById('btn-recover-upload');
+    progress.style.display = 'block';
+    progress.value = 0;
+    btn.disabled = true;
+    showRecoverStatus('info', `Uploading ${file.name}…`);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/albums/upload-archive?${params}`);
+    xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) progress.value = Math.round((e.loaded / e.total) * 100);
+        if (e.loaded === e.total) showRecoverStatus('info', 'Uploaded. Unpacking and copying to the cloud folder…');
+    };
+    xhr.onload = () => {
+        btn.disabled = false;
+        progress.style.display = 'none';
+        let data;
+        try { data = JSON.parse(xhr.responseText); } catch (e) { data = { ok: false, error: `HTTP ${xhr.status}` }; }
+        if (xhr.status === 413) data = { ok: false, error: 'The file is too big (limit 2 GB).' };
+        showRecoverStatus(data.ok ? 'success' : 'error', data.ok ? restoreSummary(data) : (data.error || data.detail));
+        if (data.ok) {
+            document.getElementById('recover-file').value = '';
+            if (typeof loadSources === 'function') loadSources();
+            loadRecoverable();
+        }
+    };
+    xhr.onerror = () => {
+        btn.disabled = false;
+        progress.style.display = 'none';
+        showRecoverStatus('error', 'Upload failed (network error).');
+    };
+    xhr.send(file);
+}
+
+(function initRecoverAlbums() {
+    const toggle = document.getElementById('recover-toggle');
+    const section = document.getElementById('recover-section');
+    if (!toggle || !section) return;
+    toggle.addEventListener('click', () => {
+        const open = section.style.display === 'none';
+        section.style.display = open ? 'block' : 'none';
+        toggle.textContent = open ? 'Hide' : 'Show';
+        if (open) loadRecoverable();
+    });
+    const btn = document.getElementById('btn-recover-upload');
+    if (btn) btn.addEventListener('click', uploadRecoverArchive);
 })();

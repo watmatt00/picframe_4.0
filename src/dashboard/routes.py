@@ -9,10 +9,13 @@ import asyncio
 import logging
 import os
 import re
+import shutil
 import subprocess
 import tempfile
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Optional
 
 import httpx
 import yaml
@@ -53,7 +56,7 @@ from src.utils.rclone import count_local_files, rclone_count, rclone_list_remote
 from src.services import photo_tools_service as photo_tools
 from src.services import backup_service
 from src.services.party_service import enable_party, disable_party
-from src.services import album_service, demo_service, power_service
+from src.services import album_service, demo_service, power_service, recovery_service
 
 logger = logging.getLogger(__name__)
 
@@ -1636,6 +1639,98 @@ async def delete_source_backup(source_id: str, body: DeleteBackupRequest):
     except Exception as exc:
         logger.error("backup delete error: %s", exc)
         return {"ok": False, "error": str(exc)}
+
+
+# --- Recover albums (PL-147 follow-up) ---------------------------------------
+
+class RecoverCloudRequest(BaseModel):
+    """Re-add an album from an unused cloud folder."""
+    folder: str
+    name: str
+
+
+class RestoreBackupRequest(BaseModel):
+    """Restore a backup into an existing album (target_id) or a new one (new_name)."""
+    filename: str
+    target_id: Optional[str] = None
+    new_name: Optional[str] = None
+
+
+@router.get("/api/albums/recoverable")
+async def list_recoverable():
+    """
+    Unused KFR_* cloud folders and every backup (deleted albums' too).
+
+    The cloud part can fail on its own (no Koofr, offline); backups are still listed.
+    LAN-only, no JWT.
+    """
+    try:
+        cloud = await recovery_service.list_recoverable_cloud_folders()
+        cloud_error = None
+    except recovery_service.RecoveryError as e:
+        cloud, cloud_error = [], e.message
+    return {"ok": True, "cloud": cloud, "cloud_error": cloud_error, "backups": recovery_service.list_all_backups()}
+
+
+@router.post("/api/albums/recover-cloud")
+async def recover_cloud_album(body: RecoverCloudRequest):
+    """Re-add an album pointed at an unused cloud folder, then sync it. LAN-only, no JWT."""
+    try:
+        return {"ok": True, **await recovery_service.recover_from_cloud(body.folder, body.name)}
+    except recovery_service.RecoveryError as e:
+        return {"ok": False, "error": e.message}
+
+
+@router.post("/api/albums/restore-backup")
+async def restore_backup_api(body: RestoreBackupRequest):
+    """Restore a backup's photos into an album (and its cloud folder). LAN-only, no JWT."""
+    try:
+        return {"ok": True, **await recovery_service.restore_backup(body.filename, body.target_id, body.new_name)}
+    except recovery_service.RecoveryError as e:
+        return {"ok": False, "error": e.message}
+
+
+ARCHIVE_MAGIC = {b"PK\x03\x04": ".zip", b"\x1f\x8b": ".tar.gz"}
+
+
+@router.post("/api/albums/upload-archive")
+async def upload_archive(request: Request, target_id: Optional[str] = None, new_name: Optional[str] = None):
+    """
+    Upload a .zip or .tar.gz of photos and add them to an album (and its cloud folder).
+
+    The raw request body is the archive. It's streamed to ~/Pictures/backups (not
+    /tmp, which can be RAM) and always deleted afterwards. LAN-only, no JWT.
+    """
+    length = int(request.headers.get("content-length") or 0)
+    if length <= 0:
+        return {"ok": False, "error": "No file received."}
+    if length > recovery_service.MAX_UPLOAD_BYTES:
+        return {"ok": False, "error": f"The file is too big; the limit is {recovery_service.MAX_UPLOAD_BYTES // 1024 ** 3} GB."}
+    backup_service.BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+    if length > shutil.disk_usage(backup_service.BACKUPS_DIR).free - recovery_service.FREE_SPACE_MARGIN:
+        return {"ok": False, "error": "Not enough free space on the frame for this file."}
+
+    incoming = backup_service.BACKUPS_DIR / f".incoming-{uuid.uuid4().hex}"
+    try:
+        received = 0
+        with open(incoming, "wb") as f:
+            async for chunk in request.stream():
+                received += len(chunk)
+                if received > recovery_service.MAX_UPLOAD_BYTES:
+                    return {"ok": False, "error": "The file is too big."}
+                f.write(chunk)
+        with open(incoming, "rb") as f:
+            head = f.read(4)
+        if not any(head.startswith(magic) for magic in ARCHIVE_MAGIC):
+            return {"ok": False, "error": "That isn't a .zip or .tar.gz file."}
+
+        source = await recovery_service.resolve_target(target_id, new_name)
+        result = await recovery_service.restore_into_album(source, incoming)
+        return {"ok": True, **result}
+    except recovery_service.RecoveryError as e:
+        return {"ok": False, "error": e.message}
+    finally:
+        incoming.unlink(missing_ok=True)
 
 
 @router.post("/api/updates/apply")

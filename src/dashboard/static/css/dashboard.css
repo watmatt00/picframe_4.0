@@ -869,3 +869,35 @@ footer {
     font-size: 0.8rem;
     color: #93c5fd;
 }
+
+/* Recover Albums card */
+.recover-part {
+    margin-top: 1.25rem;
+}
+.recover-part:first-of-type {
+    margin-top: 0.25rem;
+}
+.recover-heading {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+.recover-list {
+    margin-top: 0.6rem;
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+.recover-list table {
+    width: 100%;
+}
+.recover-list .form-input,
+.recover-upload-row .form-input {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.85rem;
+}
+.recover-upload-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-top: 0.6rem;
+}

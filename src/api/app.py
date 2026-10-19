@@ -25,6 +25,7 @@ from src.dashboard import routes as dashboard_routes
 # Middleware
 from src.api.middleware import LANOnlyMiddleware, UploadSizeLimitMiddleware
 from src.api.routes.contributor import MAX_UPLOAD_BYTES
+from src.services.recovery_service import MAX_UPLOAD_BYTES as RECOVERY_MAX_UPLOAD_BYTES
 
 # Update service
 from src.services.update_service import start_update_scheduler
@@ -55,6 +56,13 @@ app.add_middleware(
     UploadSizeLimitMiddleware,
     path_prefix="/api/v1/contributor/upload/",
     max_body_bytes=MAX_UPLOAD_BYTES + 1024 * 1024,
+)
+
+# Dashboard "Upload a .zip" for album recovery: 2 GB archives (LAN only)
+app.add_middleware(
+    UploadSizeLimitMiddleware,
+    path_prefix="/api/albums/upload-archive",
+    max_body_bytes=RECOVERY_MAX_UPLOAD_BYTES + 1024 * 1024,
 )
 
 

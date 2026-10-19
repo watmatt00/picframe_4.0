@@ -29,6 +29,31 @@ class PhotoSource(BaseModel):
     enabled: bool = True
 
 
+def find_koofr_remote() -> Optional[str]:
+    """
+    Name of the first rclone remote of type Koofr (e.g. "kfr_tkframe"), or None.
+    """
+    result = subprocess.run(
+        ["rclone", "listremotes"],
+        capture_output=True, text=True, timeout=10,
+    )
+    if result.returncode != 0:
+        logger.warning("Failed to list rclone remotes")
+        return None
+
+    for line in result.stdout.strip().split("\n"):
+        line = line.strip()
+        if line.endswith(":"):
+            candidate = line[:-1]
+            type_result = subprocess.run(
+                ["rclone", "config", "show", candidate],
+                capture_output=True, text=True, timeout=10,
+            )
+            if "koofr" in type_result.stdout.lower():
+                return candidate
+    return None
+
+
 class SourceManager:
     """
     Manages photo source configurations.
@@ -158,29 +183,7 @@ class SourceManager:
             rclone remote string (e.g. "kfr_tkframe:KFR_source_id") or None
         """
         try:
-            # Find Koofr remotes
-            result = subprocess.run(
-                ["rclone", "listremotes"],
-                capture_output=True, text=True, timeout=10,
-            )
-            if result.returncode != 0:
-                logger.warning("Failed to list rclone remotes")
-                return None
-
-            remote_name = None
-            for line in result.stdout.strip().split("\n"):
-                line = line.strip()
-                if line.endswith(":"):
-                    candidate = line[:-1]
-                    # Check if it's a Koofr remote
-                    type_result = subprocess.run(
-                        ["rclone", "config", "show", candidate],
-                        capture_output=True, text=True, timeout=10,
-                    )
-                    if "koofr" in type_result.stdout.lower():
-                        remote_name = candidate
-                        break
-
+            remote_name = find_koofr_remote()
             if not remote_name:
                 logger.warning("No Koofr rclone remote found")
                 return None
