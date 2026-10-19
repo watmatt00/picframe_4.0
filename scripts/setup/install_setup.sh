@@ -104,6 +104,38 @@ EOF
 chmod 644 "${INSTALL_CONF}"
 LOG "install.conf written"
 
+# ── Initialize state.yaml ─────────────────────────────────────────────────────
+# Before hostapd and the watchdog: the hotspot SSID comes from frame_name, and a
+# watchdog started first would create state.yaml itself (PL-141).
+
+if [[ ! -f "$STATE_FILE" ]]; then
+    LOG "Initializing state.yaml..."
+    "${SETUP_PYTHON}" - <<PYEOF
+import sys
+sys.path.insert(0, '${SETUP_DIR}')
+from state_manager import state_manager
+state_manager.initialize()
+PYEOF
+    LOG "state.yaml initialized at ${STATE_FILE}"
+
+    # A new state file starts unprovisioned, which forces the setup portal on
+    # the next boot. If this frame is already online, skip that (PL-064).
+    if iw dev wlan0 link 2>/dev/null | grep -q "Connected to" \
+        || nmcli -t -f TYPE,STATE device 2>/dev/null | grep -qx "ethernet:connected"; then
+        "${SETUP_PYTHON}" - <<PYEOF
+import sys
+sys.path.insert(0, '${SETUP_DIR}')
+from state_manager import state_manager
+state_manager.set('provisioned', True)
+PYEOF
+        LOG "Network already connected — marked frame as provisioned"
+    else
+        WARN "No network connection — frame will start the setup portal on next boot"
+    fi
+else
+    LOG "state.yaml already exists — not overwriting"
+fi
+
 LOG "Writing hostapd configuration..."
 
 # Read frame name from state.yaml if it exists, else use default
@@ -176,36 +208,6 @@ cp "${SETUP_DIR}/picframe-config" /usr/local/bin/picframe-config
 chmod +x /usr/local/bin/picframe-config
 LOG "picframe-config installed to /usr/local/bin/picframe-config"
 check_cmd "picframe-config" picframe-config --show
-
-# ── Initialize state.yaml ─────────────────────────────────────────────────────
-
-if [[ ! -f "$STATE_FILE" ]]; then
-    LOG "Initializing state.yaml..."
-    "${SETUP_PYTHON}" - <<PYEOF
-import sys
-sys.path.insert(0, '${SETUP_DIR}')
-from state_manager import state_manager
-state_manager.initialize()
-PYEOF
-    LOG "state.yaml initialized at ${STATE_FILE}"
-
-    # A new state file starts unprovisioned, which forces the setup portal on
-    # the next boot. If this frame is already online, skip that (PL-064).
-    if iw dev wlan0 link 2>/dev/null | grep -q "Connected to" \
-        || nmcli -t -f TYPE,STATE device 2>/dev/null | grep -qx "ethernet:connected"; then
-        "${SETUP_PYTHON}" - <<PYEOF
-import sys
-sys.path.insert(0, '${SETUP_DIR}')
-from state_manager import state_manager
-state_manager.set('provisioned', True)
-PYEOF
-        LOG "Network already connected — marked frame as provisioned"
-    else
-        WARN "No network connection — frame will start the setup portal on next boot"
-    fi
-else
-    LOG "state.yaml already exists — not overwriting"
-fi
 
 # ── Party mode: polkit rule + state.yaml permissions ─────────────────────────
 # Allows the API (NoNewPrivileges=true) to manage watchdog units via D-Bus

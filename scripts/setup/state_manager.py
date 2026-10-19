@@ -8,6 +8,8 @@ Tracks provisioning state, WiFi status, and setup mode flag.
 import grp
 import logging
 import os
+import re
+import socket
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -30,6 +32,24 @@ DEFAULT_STATE: dict[str, Any] = {
     "last_wifi_connected": None,
     "setup_mode_reason": None,  # "boot_no_wifi" | "extended_outage" | "unprovisioned"
 }
+
+
+FRAME_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")
+
+
+def default_frame_name() -> str:
+    """
+    Name for a new state.yaml: the hostname (e.g. "kframe"), so the setup hotspot
+    is "PicFrame-kframe" rather than "PicFrame-picframe" (PL-141).
+
+    Keeps only the characters picframe-config accepts; falls back to "picframe".
+    """
+    try:
+        host = socket.gethostname().split(".")[0]
+    except OSError:
+        host = ""
+    name = re.sub(r"[^a-zA-Z0-9_-]", "", host)[:32]
+    return name if FRAME_NAME_RE.match(name) else "picframe"
 
 
 class StateManager:
@@ -165,8 +185,10 @@ class StateManager:
         """
         if not self._path.exists():
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            self.write(DEFAULT_STATE.copy())
-            logger.info(f"[{_ts()}] state.yaml initialized at {self._path}")
+            state = DEFAULT_STATE.copy()
+            state["frame_name"] = default_frame_name()
+            self.write(state)
+            logger.info(f"[{_ts()}] state.yaml initialized at {self._path} (frame_name={state['frame_name']})")
 
     def show(self) -> str:
         """Return a human-readable summary of current state."""
