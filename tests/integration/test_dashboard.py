@@ -40,16 +40,60 @@ class TestDashboardNavigation:
 class TestDashboardForms:
     """Tests for dashboard form submissions."""
 
-    def test_settings_form_submit(self, client):
-        """Settings API should accept valid settings."""
+    def test_settings_form_submit(self, client, tmp_path, monkeypatch):
+        """Settings API saves valid settings (temp config files, no real restarts)."""
+        import yaml
+        from filelock import FileLock
+        from src.config import settings as settings_mod
+        from src.config.manager import config_manager
+        from src.dashboard import routes as dashboard_routes
+
+        picframe_config = tmp_path / "configuration.yaml"
+        picframe_config.write_text(yaml.safe_dump({"model": {"time_delay": 30, "fade_time": 2.0}}))
+        config_path = tmp_path / "config.yaml"
+        monkeypatch.setattr(dashboard_routes, "PICFRAME_CONFIG_PATH", picframe_config)
+        monkeypatch.setattr(config_manager, "_path", config_path)
+        monkeypatch.setattr(config_manager, "_lock", FileLock(tmp_path / "config.lock"))
+        original_from_yaml = settings_mod.Settings.from_yaml.__func__
+        monkeypatch.setattr(
+            settings_mod.Settings, "from_yaml",
+            classmethod(lambda cls, path=config_path: original_from_yaml(cls, path)),
+        )
+        restarts, timers = [], []
+
+        async def fake_restart(name):
+            restarts.append(name)
+            return True
+
+        async def fake_timer(interval):
+            timers.append(interval)
+
+        monkeypatch.setattr(dashboard_routes.systemd_service, "restart", fake_restart)
+        monkeypatch.setattr(dashboard_routes, "update_sync_timer", fake_timer)
+        settings_mod.reload_settings()
+        try:
+            response = client.post("/api/settings", json={
+                "frame_name": "Updated Frame",
+                "rotation_interval": 45,
+                "sync_interval": 1800,
+                "fade_time": 3.0,
+            })
+            assert response.status_code == 200
+            assert response.json() == {"ok": True, "restarted": True}
+            assert yaml.safe_load(picframe_config.read_text())["model"] == {"time_delay": 45.0, "fade_time": 3.0}
+            saved = yaml.safe_load(config_path.read_text())
+            assert saved["frame"]["name"] == "Updated Frame"
+            assert saved["sync"]["interval"] == 1800
+            assert restarts == ["picframe"] and timers == [1800]
+        finally:
+            settings_mod.get_settings.cache_clear()
+
+    def test_settings_form_requires_fade_time(self, client):
+        """Missing fade_time is a validation error, before anything is written."""
         response = client.post("/api/settings", json={
-            "frame_name": "Updated Frame",
-            "rotation_interval": 45,
-            "sync_interval": 900,
-            "log_level": "INFO",
+            "frame_name": "Updated Frame", "rotation_interval": 45, "sync_interval": 900,
         })
-        # Should return OK or fail gracefully (Pi config file not present in test env)
-        assert response.status_code in (200, 302, 303, 500)
+        assert response.status_code == 422
 
     def test_pairing_generate(self, client):
         """Pairing generation should work."""
