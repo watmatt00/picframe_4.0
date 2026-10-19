@@ -3,6 +3,7 @@ Unit tests: demo mode (PL-015) — reusable reviewer pairing codes, 14-day expir
 revoke on end, the demo.allowed gate, and the exact errors the app shows.
 """
 
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -293,3 +294,27 @@ def test_status_hides_codes_when_not_allowed(frame):
     frame.write_text(yaml.safe_dump({"demo": {"allowed": False, "admin_code": "ABC-123"}}))
     settings_mod.reload_settings()
     assert demo_service.demo_status()["admin_code"] == ""
+
+
+def test_dashboard_page_shows_qr_for_both_codes(frame, monkeypatch):
+    from src.dashboard import routes as dashboard_routes
+    config_manager.update({"frame": {"funnel_url": "https://tkframe.example.ts.net", "name": "Test Frame"}})
+    settings_mod.reload_settings()
+    payloads = []
+    real = dashboard_routes.generate_qr_data_url
+    monkeypatch.setattr(dashboard_routes, "generate_qr_data_url",
+                        lambda **kw: payloads.append(kw) or real(**kw))
+    codes = demo_service.enable_demo()
+    html = TestClient(app, client=LAN).get("/").text
+    for key in ("admin", "contributor"):
+        assert re.search(rf'<img src="data:image/png;base64,[^"]+" alt="[^"]+" id="demo-{key}-qr">', html)
+    assert 'download="picframe-demo-manager-qr.png"' in html
+    assert {p["code"] for p in payloads} == {codes["admin_code"], codes["contributor_code"]}
+    assert all(p["url"] == "https://tkframe.example.ts.net" for p in payloads)
+
+
+def test_dashboard_page_no_qr_when_demo_off(frame):
+    demo_service.enable_demo()
+    demo_service.disable_demo()
+    html = TestClient(app, client=LAN).get("/").text
+    assert "demo-admin-qr" not in html

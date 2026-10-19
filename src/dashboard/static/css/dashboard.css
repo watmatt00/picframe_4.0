@@ -841,3 +841,31 @@ footer {
     font-size: 0.8rem;
     opacity: 0.85;
 }
+
+/* Demo codes with their QR codes, side by side when there's room */
+.demo-code-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+}
+.demo-code-block {
+    flex: 1 1 200px;
+}
+.demo-qr {
+    background: white;
+    display: inline-block;
+    padding: 0.5rem;
+    border-radius: 8px;
+    margin-top: 0.5rem;
+}
+.demo-qr img {
+    width: 180px;
+    height: 180px;
+    display: block;
+}
+.demo-qr-download {
+    display: block;
+    margin-top: 0.4rem;
+    font-size: 0.8rem;
+    color: #93c5fd;
+}

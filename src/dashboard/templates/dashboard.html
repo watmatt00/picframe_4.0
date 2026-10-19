@@ -708,10 +708,25 @@
                     </p>
                     {% if demo.enabled %}
                     <div style="padding:1rem;background:rgba(255,255,255,0.05);border-radius:8px;margin-bottom:1rem;">
-                        <p style="color:#9ca3af;font-size:0.8rem;margin:0 0 0.25rem;">Manager app code (admin)</p>
-                        <p class="pairing-code-text demo-code" id="demo-admin-code">{{ demo.admin_code }}</p>
-                        <p style="color:#9ca3af;font-size:0.8rem;margin:0.75rem 0 0.25rem;">Contributor app code</p>
-                        <p class="pairing-code-text demo-code" id="demo-contributor-code">{{ demo.contributor_code }}</p>
+                        <div class="demo-code-grid">
+                            {% for key, label, code in [("admin", "Manager app code (admin)", demo.admin_code), ("contributor", "Contributor app code", demo.contributor_code)] %}
+                            <div class="demo-code-block">
+                                <p style="color:#9ca3af;font-size:0.8rem;margin:0 0 0.25rem;">{{ label }}</p>
+                                <p class="pairing-code-text demo-code" id="demo-{{ key }}-code">{{ code }}</p>
+                                {% if demo_qr[key] %}
+                                <div class="demo-qr">
+                                    <img src="{{ demo_qr[key] }}" alt="{{ label }} QR code" id="demo-{{ key }}-qr">
+                                </div>
+                                <a class="demo-qr-download" href="{{ demo_qr[key] }}" download="picframe-demo-{{ 'manager' if key == 'admin' else 'contributor' }}-qr.png">Download QR (PNG)</a>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% if not demo_qr %}
+                        <p class="status-message error" style="display:block;margin:0.75rem 0 0;">No Funnel URL or Tailscale IP, so no QR codes. Set frame.funnel_url in config.</p>
+                        {% elif not funnel_url %}
+                        <p class="status-message error" style="display:block;margin:0.75rem 0 0;">No Funnel URL: these QR codes use the Tailscale IP and only work on the tailnet, not for the reviewer.</p>
+                        {% endif %}
                         {% if funnel_url %}
                         <p style="color:#e5e7eb;font-size:0.85rem;margin:0.75rem 0 0;"><span style="color:#9ca3af;">Frame URL:</span> {{ funnel_url }}</p>
                         {% endif %}

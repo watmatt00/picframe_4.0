@@ -254,6 +254,28 @@ def _get_wifi_ssid() -> str:
 
 
 
+def _pairing_url() -> str:
+    """URL the app should pair with: the Funnel URL, else the Tailscale IP, else ""."""
+    url = get_settings().frame.funnel_url or ""
+    if not url:
+        ts_ip = _get_tailscale_ip()
+        if ts_ip:
+            url = f"http://{ts_ip}:8000"
+    return url
+
+
+def _demo_qr_codes(demo: dict) -> dict:
+    """QR data URLs for the two demo codes (same payload as normal pairing QRs), or {} when off."""
+    url = _pairing_url()
+    if not (demo["allowed"] and demo["enabled"] and url):
+        return {}
+    name = get_settings().frame.name
+    return {
+        "admin": generate_qr_data_url(url=url, code=demo["admin_code"], frame_name=name),
+        "contributor": generate_qr_data_url(url=url, code=demo["contributor_code"], frame_name=name),
+    }
+
+
 @router.get("/", response_class=HTMLResponse)
 async def dashboard_home(request: Request):
     """
@@ -263,6 +285,7 @@ async def dashboard_home(request: Request):
     """
     demo_service.expire_if_due()
     settings = get_settings()
+    demo = demo_service.demo_status()
 
     # Get current source info (shared logic)
     current_source_id, current_source = get_current_source()
@@ -343,7 +366,8 @@ async def dashboard_home(request: Request):
         "sleep_enabled": settings.display.sleep_enabled,
         "sleep_time": settings.display.sleep_time,
         "wake_time": settings.display.wake_time,
-        "demo": demo_service.demo_status(),
+        "demo": demo,
+        "demo_qr": _demo_qr_codes(demo),
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
 
@@ -378,11 +402,7 @@ async def generate_pairing_endpoint():
     pairing_code = generate_pairing_code()
 
     if pairing_code:
-        url = settings.frame.funnel_url or ""
-        if not url:
-            ts_ip = _get_tailscale_ip()
-            if ts_ip:
-                url = f"http://{ts_ip}:8000"
+        url = _pairing_url()
         if not url:
             return {"error": "No address available — set funnel_url in config or ensure Tailscale is running"}
         qr_data_url = generate_qr_data_url(
