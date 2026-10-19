@@ -163,7 +163,7 @@ curl https://<hostname>.<tailnet>.ts.net/health
 
 Delete Album removes an album's photos from the frame but keeps its cloud folder and backups. Dashboard → Tools → ♻️ Recover Albums (last card) brings it back:
 
-- **From cloud storage:** lists cloud folders (`KFR_*`) that no album uses. Recover re-adds the album pointed at that folder and syncs it.
+- **From cloud storage:** lists albums deleted **on this frame** whose cloud folder (`KFR_*`) still exists and no album uses. Recover re-adds the album pointed at that folder and syncs it. The Koofr account can be shared by several frames, so other frames' folders (and albums deleted before 2026-10-19) are never offered. Delete Album records each deletion in `~/.picframe/deleted_albums.yaml`.
 - **From a backup:** any backup in `~/Pictures/backups`, including a deleted album's, into an existing or a new album. Tools → Photo Backups also has Restore.
 - **Upload a .zip:** a .zip or .tar.gz of photos from your computer (up to 2 GB) into an existing or a new album.
 

@@ -2,7 +2,8 @@
 PicFrame 4.0 - Album Recovery (PL-147 follow-up).
 
 Gets albums back after Delete Album, from the dashboard:
-- from an unused KFR_* cloud folder (re-adds the album pointed at it)
+- from its cloud folder, for albums deleted on this frame (re-adds the album
+  pointed at it); other frames sharing the cloud account are never offered
 - from a .tar.gz backup in ~/Pictures/backups, including a deleted album's
 - from a .zip / .tar.gz of photos uploaded from the computer
 
@@ -23,9 +24,9 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, BinaryIO, Callable, Optional
 
-from src.services import backup_service
+from src.services import album_service, backup_service
 from src.services import source_manager as sources
-from src.services.source_manager import PhotoSource, find_koofr_remote
+from src.services.source_manager import PhotoSource
 from src.services.sync_service import sync_service
 from src.utils.rclone import (
     IMAGE_EXTENSIONS,
@@ -258,44 +259,62 @@ async def restore_backup(filename: str, target_id: Optional[str], new_name: Opti
 
 # --- Cloud folders ----------------------------------------------------------
 
-async def _unused_cloud_folders() -> tuple[str, list[str]]:
-    """(Koofr remote name, KFR_* folders on it that no album uses)."""
-    try:
-        remote = await asyncio.to_thread(find_koofr_remote)
-    except Exception as e:  # subprocess timeout or rclone missing
-        raise RecoveryError(502, f"Couldn't reach cloud storage ({e})")
-    if not remote:
-        raise RecoveryError(400, "No cloud storage (Koofr) is set up on this frame.")
-    folders = await rclone_list_dirs(f"{remote}:")
-    if folders is None:
-        raise RecoveryError(502, "Couldn't list the cloud storage folders.")
-    used = set()
-    for s in sources.source_manager.list_sources():
-        if s.rclone_remote and s.rclone_remote.startswith(f"{remote}:"):
-            used.add(s.rclone_remote.split(":", 1)[1].strip("/"))
-    return remote, sorted(f for f in folders if CLOUD_FOLDER_RE.match(f) and f not in used)
+async def _recoverable() -> list[dict[str, Any]]:
+    """
+    Albums deleted on this frame whose cloud folder still exists and no album uses.
+
+    Only this frame's own deletions: the cloud account can be shared by several
+    frames, and another frame's KFR_* folder must never be offered.
+    """
+    deleted = album_service.list_deleted_albums()
+    if not deleted:
+        return []
+    used = {s.rclone_remote for s in sources.source_manager.list_sources() if s.rclone_remote}
+    existing: dict[str, Optional[set[str]]] = {}
+    result = []
+    for entry in deleted:
+        remote = entry["rclone_remote"]
+        if remote in used or ":" not in remote:
+            continue
+        remote_name, folder = remote.split(":", 1)
+        folder = folder.strip("/")
+        if not CLOUD_FOLDER_RE.match(folder):
+            continue
+        if remote_name not in existing:
+            dirs = await rclone_list_dirs(f"{remote_name}:")
+            existing[remote_name] = set(dirs) if dirs is not None else None
+        if existing[remote_name] is None:
+            raise RecoveryError(502, "Couldn't list the cloud storage folders.")
+        if folder in existing[remote_name]:
+            result.append({**entry, "folder": folder})
+    return result
 
 
 async def list_recoverable_cloud_folders() -> list[dict[str, Any]]:
-    """Unused KFR_* cloud folders with photo counts (-1 when counting timed out)."""
-    remote, folders = await _unused_cloud_folders()
+    """This frame's deleted albums that can come back from cloud, with photo counts (-1 on timeout)."""
+    entries = await _recoverable()
 
-    async def count(folder: str) -> int:
+    async def count(remote: str) -> int:
         try:
-            return await asyncio.wait_for(rclone_count(f"{remote}:{folder}"), timeout=COUNT_TIMEOUT_SECONDS)
+            return await asyncio.wait_for(rclone_count(remote), timeout=COUNT_TIMEOUT_SECONDS)
         except Exception:
             return -1
 
-    counts = await asyncio.gather(*(count(f) for f in folders))
+    counts = await asyncio.gather(*(count(e["rclone_remote"]) for e in entries))
     return [
-        {"folder": f, "photo_count": c, "suggested_name": f[4:].replace("_", " ").strip() or f}
-        for f, c in zip(folders, counts)
+        {
+            "folder": e["folder"],
+            "photo_count": c,
+            "suggested_name": e.get("name") or e["folder"][4:].replace("_", " "),
+            "deleted_at": e.get("deleted_at"),
+        }
+        for e, c in zip(entries, counts)
     ]
 
 
 async def recover_from_cloud(folder: str, name: str) -> dict[str, Any]:
     """
-    Re-add an album pointed at an unused cloud folder, then start syncing it.
+    Re-add a deleted album pointed at its cloud folder, then start syncing it.
 
     Returns:
         album, name, cloud_folder, sync_started, message
@@ -305,14 +324,17 @@ async def recover_from_cloud(folder: str, name: str) -> dict[str, Any]:
     name = name.strip()
     if not 1 <= len(name) <= 50:
         raise RecoveryError(400, "Album name must be 1–50 characters")
-    remote, unused = await _unused_cloud_folders()
-    if folder not in unused:
-        raise RecoveryError(409, f"{folder} isn't an unused cloud folder (another album may use it).")
+    entry = next((e for e in await _recoverable() if e["folder"] == folder), None)
+    if entry is None:
+        raise RecoveryError(
+            409, f"{folder} can't be recovered here: only albums deleted on this frame, "
+                 "whose cloud folder still exists and isn't in use, can be recovered."
+        )
 
-    rclone_remote = f"{remote}:{folder}"
+    rclone_remote = entry["rclone_remote"]
     source = await asyncio.to_thread(sources.source_manager.create_source, name, rclone_remote)
+    album_service.forget_deleted_album(rclone_remote)
     logger.info(f"Recovered album '{source.id}' from cloud folder {rclone_remote}")
-
     if sync_service._is_syncing:
         return {
             "album": source.id, "name": source.name, "cloud_folder": rclone_remote, "sync_started": False,

@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api.app import app
-from src.services import backup_service, recovery_service
+from src.services import album_service, backup_service, recovery_service
 from src.services import source_manager as sm
 from src.services.source_manager import PhotoSource, SourceManager
 from src.services.sync_service import sync_service
@@ -47,6 +47,12 @@ def frame(tmp_path, monkeypatch):
     monkeypatch.setattr(manager, "create_source", create_source)
     monkeypatch.setattr(sm, "source_manager", manager)
     monkeypatch.setattr(backup_service, "BACKUPS_DIR", backups)
+    monkeypatch.setattr(album_service, "DELETED_ALBUMS_PATH", tmp_path / "deleted_albums.yaml")
+    # Deleted on this frame: old_party and kids (and gone, whose folder no longer exists).
+    # KFR_kframe is another frame's album in the shared cloud account: never offered.
+    for sid, name in (("old_party", "Old Party"), ("kids", "Kids"), ("gone_folder", "Gone")):
+        album_service.record_deleted_album(PhotoSource(
+            id=sid, name=name, local_path=str(pictures / sid), rclone_remote=f"kfr:KFR_{sid}"))
 
     calls = SimpleNamespace(copies=[], in_album_at_copy=[], syncs=[], copy_ok=True)
 
@@ -57,7 +63,7 @@ def frame(tmp_path, monkeypatch):
         return RcloneResult(success=calls.copy_ok, error=None if calls.copy_ok else "network down")
 
     async def fake_dirs(remote):
-        return ["KFR_trip", "KFR_old_party", "KFR_kids", "Documents"]
+        return ["KFR_trip", "KFR_old_party", "KFR_kids", "KFR_kframe", "Documents"]
 
     async def fake_count(remote):
         return {"kfr:KFR_old_party": 12, "kfr:KFR_kids": 3}.get(remote, 0)
@@ -68,7 +74,6 @@ def frame(tmp_path, monkeypatch):
     monkeypatch.setattr(recovery_service, "rclone_copy_dir", fake_copy)
     monkeypatch.setattr(recovery_service, "rclone_list_dirs", fake_dirs)
     monkeypatch.setattr(recovery_service, "rclone_count", fake_count)
-    monkeypatch.setattr(recovery_service, "find_koofr_remote", lambda: "kfr")
     monkeypatch.setattr(sync_service, "sync_source", fake_sync)
     monkeypatch.setattr(sync_service, "_is_syncing", False)
     monkeypatch.setattr(sync_service, "_current_source", None)
@@ -104,14 +109,23 @@ def _upload(data: bytes, **params):
 
 # --- Cloud folders -----------------------------------------------------------
 
-def test_lists_only_unused_kfr_folders(frame):
+def test_lists_only_this_frames_deleted_albums(frame):
     r = TestClient(app, client=LAN).get("/api/albums/recoverable")
     data = r.json()
     assert data["ok"] and data["cloud_error"] is None
-    assert data["cloud"] == [
-        {"folder": "KFR_kids", "photo_count": 3, "suggested_name": "kids"},
-        {"folder": "KFR_old_party", "photo_count": 12, "suggested_name": "old party"},
+    assert sorted((c["folder"], c["photo_count"], c["suggested_name"]) for c in data["cloud"]) == [
+        ("KFR_kids", 3, "Kids"),
+        ("KFR_old_party", 12, "Old Party"),
     ]
+    # Not offered: another frame's album, a folder that's gone, one in use
+    assert {"KFR_kframe", "KFR_gone_folder", "KFR_trip"}.isdisjoint(c["folder"] for c in data["cloud"])
+
+
+def test_deleted_album_back_in_use_is_not_offered(frame):
+    album_service.record_deleted_album(PhotoSource(
+        id="trip", name="Trip", local_path=str(frame.pictures / "trip"), rclone_remote="kfr:KFR_trip"))
+    folders = [c["folder"] for c in TestClient(app, client=LAN).get("/api/albums/recoverable").json()["cloud"]]
+    assert "KFR_trip" not in folders  # album "trip" still uses it
 
 
 def test_recover_from_cloud_points_album_at_folder_and_syncs(frame):
@@ -121,19 +135,23 @@ def test_recover_from_cloud_points_album_at_folder_and_syncs(frame):
     assert data["cloud_folder"] == "kfr:KFR_old_party" and data["sync_started"] is True
     assert frame.manager.get_source("party").rclone_remote == "kfr:KFR_old_party"
     assert frame.calls.syncs == [("party", "kfr:KFR_old_party")]
+    # Recovered: no longer offered
+    assert "KFR_old_party" not in [a["rclone_remote"].split(":")[1] for a in album_service.list_deleted_albums()]
 
 
-@pytest.mark.parametrize("folder", ["KFR_trip", "Documents", "KFR_../x", "KFR_missing"])
+@pytest.mark.parametrize("folder", ["KFR_trip", "KFR_kframe", "KFR_gone_folder", "Documents", "KFR_../x", "KFR_missing"])
 def test_recover_refuses_used_or_invalid_folders(frame, folder):
     r = TestClient(app, client=LAN).post("/api/albums/recover-cloud", json={"folder": folder, "name": "X"})
     assert r.json()["ok"] is False
 
 
 def test_cloud_unavailable_still_lists_backups(frame, monkeypatch):
-    monkeypatch.setattr(recovery_service, "find_koofr_remote", lambda: None)
+    async def offline(remote):
+        return None
+    monkeypatch.setattr(recovery_service, "rclone_list_dirs", offline)
     (frame.backups / "trip_2026-10-01_120000.tar.gz").write_bytes(_tar({"trip/b.jpg": b"b"}))
     data = TestClient(app, client=LAN).get("/api/albums/recoverable").json()
-    assert data["cloud"] == [] and "No cloud storage" in data["cloud_error"]
+    assert data["cloud"] == [] and "Couldn't list" in data["cloud_error"]
     assert data["backups"][0]["album_id"] == "trip" and data["backups"][0]["album_exists"] is True
 
 

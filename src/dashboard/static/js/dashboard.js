@@ -3126,10 +3126,11 @@ function renderRecoverCloud(rec) {
     const el = document.getElementById('recover-cloud');
     if (rec.cloud_error) { el.textContent = rec.cloud_error; return; }
     const folders = rec.cloud || [];
-    if (folders.length === 0) { el.textContent = 'No unused cloud folders. Every cloud folder belongs to an album.'; return; }
-    el.innerHTML = `<table class="sources-table"><thead><tr><th>Cloud folder</th><th>Photos</th><th>Album name</th><th></th></tr></thead><tbody>${
+    if (folders.length === 0) { el.textContent = 'No deleted albums to recover from cloud storage.'; return; }
+    el.innerHTML = `<table class="sources-table"><thead><tr><th>Cloud folder</th><th>Deleted</th><th>Photos</th><th>Album name</th><th></th></tr></thead><tbody>${
         folders.map((f, i) => `<tr>
             <td><code>${escapeHtml(f.folder)}</code></td>
+            <td>${f.deleted_at ? new Date(f.deleted_at).toLocaleDateString() : ''}</td>
             <td>${f.photo_count < 0 ? '?' : f.photo_count}</td>
             <td><input class="form-input" id="recover-name-${i}" value="${escapeHtml(f.suggested_name)}" maxlength="50"></td>
             <td><button class="btn-small" onclick="recoverFromCloud('${escapeHtml(f.folder)}', ${i}, ${f.photo_count})">Recover</button></td>

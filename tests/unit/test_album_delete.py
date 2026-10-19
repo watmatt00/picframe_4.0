@@ -41,6 +41,7 @@ def frame(tmp_path, monkeypatch):
     ])
     monkeypatch.setattr(sm, "source_manager", manager)
     monkeypatch.setattr(album_service, "PICTURES_DIR", pictures)
+    monkeypatch.setattr(album_service, "DELETED_ALBUMS_PATH", tmp_path / "deleted_albums.yaml")
     monkeypatch.setattr(album_service, "get_settings",
                         lambda: SimpleNamespace(display=SimpleNamespace(current_source="showing")))
     monkeypatch.setattr(thumbnails, "THUMB_CACHE_DIR", tmp_path / "thumbs")
@@ -73,6 +74,13 @@ def test_delete_removes_album_and_photos(frame):
     assert not (frame.pictures / "trip").exists()
     assert (frame.pictures / "backups" / "trip_backup.tar.gz").exists()
     assert sorted(p.name for p in frame.thumbs.iterdir()) == ["showing_a.jpg_1.jpg"]
+
+
+def test_delete_is_recorded_for_recovery(frame):
+    TestClient(app).delete("/api/v1/folders/trip", headers=frame.headers["admin"])
+    deleted = album_service.list_deleted_albums()
+    assert [(a["id"], a["name"], a["rclone_remote"]) for a in deleted] == [("trip", "Trip", "kfr:KFR_trip")]
+    assert (album_service.DELETED_ALBUMS_PATH.stat().st_mode & 0o777) == 0o600
 
 
 def test_showing_album_is_refused(frame):
