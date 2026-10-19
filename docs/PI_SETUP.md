@@ -161,7 +161,7 @@ curl https://<hostname>.<tailnet>.ts.net/health
 
 ## Recover a deleted album
 
-Delete Album removes an album's photos from the frame but keeps its cloud folder and backups. Dashboard → Albums → ♻️ Recover Albums brings it back:
+Delete Album removes an album's photos from the frame but keeps its cloud folder and backups. Dashboard → Tools → ♻️ Recover Albums (last card) brings it back:
 
 - **From cloud storage:** lists cloud folders (`KFR_*`) that no album uses. Recover re-adds the album pointed at that folder and syncs it.
 - **From a backup:** any backup in `~/Pictures/backups`, including a deleted album's, into an existing or a new album. Tools → Photo Backups also has Restore.

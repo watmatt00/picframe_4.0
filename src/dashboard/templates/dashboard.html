@@ -248,43 +248,6 @@
                     </div>
                 </form>
             </section>
-
-            <!-- Recover Albums (PL-147 follow-up) -->
-            <section class="card" style="margin-top: 1.5rem;">
-                <div class="card-header">
-                    <div>
-                        <div class="card-title">♻️ Recover Albums</div>
-                        <div class="card-subtitle">Bring back a deleted album from cloud storage, a backup, or a .zip of photos</div>
-                    </div>
-                    <button class="advanced-toggle" id="recover-toggle">Show</button>
-                </div>
-                <div id="recover-section" style="display: none; padding: 0 1.5rem 1.5rem;">
-                    <div id="recover-status" class="status-message" style="display: none; margin-bottom: 1rem;"></div>
-
-                    <div class="recover-part">
-                        <div class="recover-heading">From cloud storage</div>
-                        <div class="form-hint">Cloud folders that no album uses. Recovering adds the album back and syncs its photos to the frame.</div>
-                        <div id="recover-cloud" class="recover-list">Loading…</div>
-                    </div>
-
-                    <div class="recover-part">
-                        <div class="recover-heading">From a backup</div>
-                        <div class="form-hint">Backups in ~/Pictures/backups, including deleted albums'. Restored photos are added to the album and uploaded to its cloud folder; nothing is overwritten.</div>
-                        <div id="recover-backups" class="recover-list">Loading…</div>
-                    </div>
-
-                    <div class="recover-part">
-                        <div class="recover-heading">Upload a .zip of photos</div>
-                        <div class="form-hint">A .zip or .tar.gz from your computer (up to 2 GB). Photos and videos are added to the album and uploaded to its cloud folder; other files are skipped.</div>
-                        <div class="recover-upload-row">
-                            <input type="file" id="recover-file" accept=".zip,.tar.gz,.tgz,application/zip,application/gzip">
-                            <select id="recover-upload-target" class="form-input"></select>
-                            <button class="btn btn-primary" id="btn-recover-upload">Upload</button>
-                        </div>
-                        <progress id="recover-upload-progress" max="100" value="0" style="display: none; width: 100%; margin-top: 0.75rem;"></progress>
-                    </div>
-                </div>
-            </section>
         </main>
     </div>
 
@@ -1061,6 +1024,42 @@
                 </div>
             </section>
 
+            <!-- Recover Albums (PL-147 follow-up) -->
+            <section class="card" style="margin-bottom:1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">♻️ Recover Albums</div>
+                        <div class="card-subtitle">Bring back a deleted album from cloud storage, a backup, or a .zip of photos</div>
+                    </div>
+                    <button class="advanced-toggle" id="recover-toggle">Show</button>
+                </div>
+                <div id="recover-section" style="display: none; padding: 0 1.5rem 1.5rem;">
+                    <div id="recover-status" class="status-message" style="display: none; margin-bottom: 1rem;"></div>
+
+                    <div class="recover-part">
+                        <div class="recover-heading">From cloud storage</div>
+                        <div class="form-hint">Cloud folders that no album uses. Recovering adds the album back and syncs its photos to the frame.</div>
+                        <div id="recover-cloud" class="recover-list">Loading…</div>
+                    </div>
+
+                    <div class="recover-part">
+                        <div class="recover-heading">From a backup</div>
+                        <div class="form-hint">Backups in ~/Pictures/backups, including deleted albums'. Restored photos are added to the album and uploaded to its cloud folder; nothing is overwritten.</div>
+                        <div id="recover-backups" class="recover-list">Loading…</div>
+                    </div>
+
+                    <div class="recover-part">
+                        <div class="recover-heading">Upload a .zip of photos</div>
+                        <div class="form-hint">A .zip or .tar.gz from your computer (up to 2 GB). Photos and videos are added to the album and uploaded to its cloud folder; other files are skipped.</div>
+                        <div class="recover-upload-row">
+                            <input type="file" id="recover-file" accept=".zip,.tar.gz,.tgz,application/zip,application/gzip">
+                            <select id="recover-upload-target" class="form-input"></select>
+                            <button class="btn btn-primary" id="btn-recover-upload">Upload</button>
+                        </div>
+                        <progress id="recover-upload-progress" max="100" value="0" style="display: none; width: 100%; margin-top: 0.75rem;"></progress>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 

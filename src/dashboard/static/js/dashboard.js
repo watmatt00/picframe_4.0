@@ -3253,12 +3253,22 @@ function uploadRecoverArchive() {
     const toggle = document.getElementById('recover-toggle');
     const section = document.getElementById('recover-section');
     if (!toggle || !section) return;
-    toggle.addEventListener('click', () => {
-        const open = section.style.display === 'none';
+    const setOpen = (open) => {
         section.style.display = open ? 'block' : 'none';
         toggle.textContent = open ? 'Hide' : 'Show';
+        header.style.cursor = open ? 'default' : 'pointer';
         if (open) loadRecoverable();
+    };
+    const header = toggle.closest('.card-header');
+    toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setOpen(section.style.display === 'none');
     });
+    // Like the other Tools cards: clicking the header of a closed card opens it
+    header.addEventListener('click', () => {
+        if (section.style.display === 'none') setOpen(true);
+    });
+    header.style.cursor = 'pointer';
     const btn = document.getElementById('btn-recover-upload');
     if (btn) btn.addEventListener('click', uploadRecoverArchive);
 })();
