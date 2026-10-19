@@ -21,7 +21,7 @@ Cloud (Koofr) ──────────────────────
 
 | Device | IP (LAN) | IP (VPN) | Dashboard URL | User | Branch | Notes |
 |--------|----------|----------|---------------|------|--------|-------|
-| **tkframe** | 192.168.102.210 | 100.83.164.79 | `http://tkframe.whale-ayu.ts.net:8000` | pi | `dev` | Test frame — tracks dev branch |
+| **tkframe** | 192.168.102.210 | 100.100.168.66 | `http://tkframe.whale-ayu.ts.net:8000` | pi | `dev` | Test frame — tracks dev branch |
 | **kframe** | 192.168.102.200 | 100.69.17.26 | `http://kframe.whale-ayu.ts.net:8000` | pi | `main` | Home frame (production) |
 | **mnbframe** | 192.168.1.154 | 100.125.51.92 | `http://mnbframe.whale-ayu.ts.net:8000` | pi | `main` | Remote only (production) |
 | **fuckms** | 192.168.102.100 | 100.82.140.119 | — | matt | — | Main PC (dev) |
