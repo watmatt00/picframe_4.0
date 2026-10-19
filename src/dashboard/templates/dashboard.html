@@ -28,6 +28,23 @@
         <span class="demo-banner-hint">After review: turn off demo mode, then rotate the Koofr app password.</span>
     </div>
 
+    <!-- Album registry banners (PL-147): SD card moved to another Pi, or this frame taken over -->
+    <div id="swap-banner" class="demo-banner registry-banner" {% if not registry.pending_swap %}style="display:none;"{% endif %}>
+        <strong>NEW PI?</strong>
+        <span>This SD card was last used on another Pi (<span id="swap-banner-old">{{ registry.pending_swap or '' }}</span>). Did you move it to a new Pi?</span>
+        <span class="registry-banner-actions">
+            <button class="btn-small" id="btn-swap-moved">Yes, keep this frame's albums</button>
+            <button class="btn-small" id="btn-swap-copied">No, this is a new frame copied from that card</button>
+        </span>
+    </div>
+    <div id="replaced-banner" class="demo-banner registry-banner" {% if not registry.replaced_by %}style="display:none;"{% endif %}>
+        <strong>ALBUMS TAKEN OVER</strong>
+        <span>Another Pi (<span id="replaced-banner-by">{{ registry.replaced_by or '' }}</span>) took over this frame's albums<span id="replaced-banner-at" data-at="{{ registry.replaced_at or '' }}"></span>.</span>
+        <span class="registry-banner-actions">
+            <button class="btn-small" id="btn-undo-takeover">Undo</button>
+        </span>
+    </div>
+
     <!-- Tab Navigation -->
     <div class="tab-bar">
         <button class="tab-button active" data-tab="status">Frame Status</button>
@@ -1038,8 +1055,19 @@
 
                     <div class="recover-part">
                         <div class="recover-heading">From cloud storage</div>
-                        <div class="form-hint">Albums deleted on this frame whose cloud folder still exists. Recovering adds the album back and syncs its photos to the frame. Other frames' albums are never shown.</div>
+                        <div class="form-hint">This frame's deleted albums whose cloud folder still exists. Recovering adds the album back and syncs its photos to the frame. Albums that belong to another frame on the same cloud account are never shown.</div>
                         <div id="recover-cloud" class="recover-list">Loading…</div>
+                        <div id="recover-unclaimed-wrap" style="display: none; margin-top: 0.75rem;">
+                            <label class="recover-check"><input type="checkbox" id="recover-show-unclaimed"> Show unclaimed folders (<span id="recover-unclaimed-count">0</span>)</label>
+                            <div class="form-hint">Cloud folders no frame has recorded, such as albums deleted before frames kept a list. This cloud account is shared with other frames: only recover folders you know are this frame's.</div>
+                            <div id="recover-unclaimed" class="recover-list" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <div class="recover-part" id="recover-frames-part" style="display: none;">
+                        <div class="recover-heading">Other frames on this cloud account</div>
+                        <div class="form-hint">Replaced this frame's Pi and SD card? Take over the old frame's albums so you can recover them here. A frame that checked in within the last 24 hours may still be running: you'll need to type its name.</div>
+                        <div id="recover-frames" class="recover-list"></div>
                     </div>
 
                     <div class="recover-part">

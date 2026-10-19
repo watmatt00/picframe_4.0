@@ -2,8 +2,9 @@
 PicFrame 4.0 - Album Recovery (PL-147 follow-up).
 
 Gets albums back after Delete Album, from the dashboard:
-- from its cloud folder, for albums deleted on this frame (re-adds the album
-  pointed at it); other frames sharing the cloud account are never offered
+- from its cloud folder (re-adds the album pointed at it): this frame's own
+  deleted albums, per the frame registry; folders another frame sharing the
+  cloud account claims are never offered
 - from a .tar.gz backup in ~/Pictures/backups, including a deleted album's
 - from a .zip / .tar.gz of photos uploaded from the computer
 
@@ -24,7 +25,7 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, BinaryIO, Callable, Optional
 
-from src.services import album_service, backup_service
+from src.services import backup_service, frame_registry
 from src.services import source_manager as sources
 from src.services.source_manager import PhotoSource
 from src.services.sync_service import sync_service
@@ -33,7 +34,6 @@ from src.utils.rclone import (
     VIDEO_EXTENSIONS,
     rclone_copy_dir,
     rclone_count,
-    rclone_list_dirs,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ MAX_FILES = 10_000
 MAX_TOTAL_BYTES = 8 * 1024 ** 3
 FREE_SPACE_MARGIN = 1024 ** 3
 MAX_UPLOAD_BYTES = 2 * 1024 ** 3
-CLOUD_FOLDER_RE = re.compile(r"^KFR_[A-Za-z0-9_]+$")
+CLOUD_FOLDER_RE = frame_registry.FOLDER_RE
 BACKUP_NAME_RE = re.compile(r"^(?P<id>[a-z0-9_-]+)_(?P<ts>\d{4}-\d{2}-\d{2}_\d{6})\.tar\.gz$")
 COUNT_TIMEOUT_SECONDS = 15
 
@@ -259,62 +259,60 @@ async def restore_backup(filename: str, target_id: Optional[str], new_name: Opti
 
 # --- Cloud folders ----------------------------------------------------------
 
-async def _recoverable() -> list[dict[str, Any]]:
+async def _cloud_view() -> dict[str, Any]:
+    """The frame registry's view of unused cloud folders, as a RecoveryError on failure."""
+    try:
+        return await frame_registry.cloud_view()
+    except frame_registry.RegistryError as e:
+        raise RecoveryError(e.status_code, e.message)
+
+
+async def list_recoverable_cloud_folders() -> dict[str, Any]:
     """
-    Albums deleted on this frame whose cloud folder still exists and no album uses.
+    Cloud folders that can come back as albums, with photo counts (-1 on timeout).
 
-    Only this frame's own deletions: the cloud account can be shared by several
-    frames, and another frame's KFR_* folder must never be offered.
+    Returns:
+        cloud: this frame's deleted albums; unclaimed: folders no frame claims
+        (offered only after a warning unless the account is this frame's alone);
+        unclaimed_needs_confirm; frames: other frames that can be taken over
     """
-    deleted = album_service.list_deleted_albums()
-    if not deleted:
-        return []
-    used = {s.rclone_remote for s in sources.source_manager.list_sources() if s.rclone_remote}
-    existing: dict[str, Optional[set[str]]] = {}
-    result = []
-    for entry in deleted:
-        remote = entry["rclone_remote"]
-        if remote in used or ":" not in remote:
-            continue
-        remote_name, folder = remote.split(":", 1)
-        folder = folder.strip("/")
-        if not CLOUD_FOLDER_RE.match(folder):
-            continue
-        if remote_name not in existing:
-            dirs = await rclone_list_dirs(f"{remote_name}:")
-            existing[remote_name] = set(dirs) if dirs is not None else None
-        if existing[remote_name] is None:
-            raise RecoveryError(502, "Couldn't list the cloud storage folders.")
-        if folder in existing[remote_name]:
-            result.append({**entry, "folder": folder})
-    return result
+    view = await _cloud_view()
 
-
-async def list_recoverable_cloud_folders() -> list[dict[str, Any]]:
-    """This frame's deleted albums that can come back from cloud, with photo counts (-1 on timeout)."""
-    entries = await _recoverable()
-
-    async def count(remote: str) -> int:
+    async def count(folder: str) -> int:
         try:
-            return await asyncio.wait_for(rclone_count(remote), timeout=COUNT_TIMEOUT_SECONDS)
+            return await asyncio.wait_for(rclone_count(f"{view['remote']}:{folder}"), timeout=COUNT_TIMEOUT_SECONDS)
         except Exception:
             return -1
 
-    counts = await asyncio.gather(*(count(e["rclone_remote"]) for e in entries))
-    return [
-        {
+    entries = view["mine"] + view["unclaimed"]
+    counts = dict(zip(
+        (e["folder"] for e in entries),
+        await asyncio.gather(*(count(e["folder"]) for e in entries)),
+    ))
+
+    def row(e: dict[str, Any]) -> dict[str, Any]:
+        return {
             "folder": e["folder"],
-            "photo_count": c,
+            "photo_count": counts[e["folder"]],
             "suggested_name": e.get("name") or e["folder"][4:].replace("_", " "),
             "deleted_at": e.get("deleted_at"),
         }
-        for e, c in zip(entries, counts)
-    ]
+
+    return {
+        "cloud": [row(e) for e in view["mine"]],
+        "unclaimed": [row(e) for e in view["unclaimed"]],
+        "unclaimed_needs_confirm": not view["dedicated"],
+        "frames": view["frames"],
+    }
 
 
-async def recover_from_cloud(folder: str, name: str) -> dict[str, Any]:
+async def recover_from_cloud(folder: str, name: str, allow_unclaimed: bool = False) -> dict[str, Any]:
     """
     Re-add a deleted album pointed at its cloud folder, then start syncing it.
+
+    Offered: this frame's own deleted albums; folders no frame claims when the
+    account is this frame's alone, or with `allow_unclaimed` (the user accepted
+    the shared-account warning). Never a folder another frame claims.
 
     Returns:
         album, name, cloud_folder, sync_started, message
@@ -324,16 +322,17 @@ async def recover_from_cloud(folder: str, name: str) -> dict[str, Any]:
     name = name.strip()
     if not 1 <= len(name) <= 50:
         raise RecoveryError(400, "Album name must be 1–50 characters")
-    entry = next((e for e in await _recoverable() if e["folder"] == folder), None)
-    if entry is None:
+    view = await _cloud_view()
+    mine = any(e["folder"] == folder for e in view["mine"])
+    unclaimed = any(e["folder"] == folder for e in view["unclaimed"])
+    if not (mine or (unclaimed and (view["dedicated"] or allow_unclaimed))):
         raise RecoveryError(
-            409, f"{folder} can't be recovered here: only albums deleted on this frame, "
-                 "whose cloud folder still exists and isn't in use, can be recovered."
+            409, f"{folder} can't be recovered here: it isn't one of this frame's albums, "
+                 "or it's in use or no longer in the cloud."
         )
 
-    rclone_remote = entry["rclone_remote"]
+    rclone_remote = f"{view['remote']}:{folder}"
     source = await asyncio.to_thread(sources.source_manager.create_source, name, rclone_remote)
-    album_service.forget_deleted_album(rclone_remote)
     logger.info(f"Recovered album '{source.id}' from cloud folder {rclone_remote}")
     if sync_service._is_syncing:
         return {

@@ -503,8 +503,11 @@ The web dashboard at `http://<pi-ip>:8000` provides browser-based management acc
 | `/api/settings/sleep-schedule` | POST | Save display sleep schedule (on/off times, systemd timers) |
 | `/api/settings/party` | POST | Enable or disable party mode |
 | `/system/reboot` | POST | Reboot the frame (`{"ok": true}` or `{"ok": false, "error": ...}`) |
-| `/api/albums/recoverable` | GET | Albums deleted on this frame whose cloud folder still exists (with photo counts), and every backup, deleted albums' included |
-| `/api/albums/recover-cloud` | POST | `{folder, name}`: re-add a deleted album pointed at its cloud folder, then sync it (only this frame's deletions) |
+| `/api/albums/recoverable` | GET | `cloud`: this frame's deleted albums whose cloud folder still exists (with photo counts); `unclaimed`: `KFR_*` folders no frame claims, with `unclaimed_needs_confirm` (true on a shared account); `frames`: other frames on the account that can be taken over; `backups`: every backup, deleted albums' included |
+| `/api/albums/recover-cloud` | POST | `{folder, name, allow_unclaimed}`: re-add an album pointed at a cloud folder, then sync it. This frame's own folders always; unclaimed ones on a dedicated account, or with `allow_unclaimed`; another frame's never |
+| `/api/albums/frame-swap` | POST | `{moved}`: answer "this SD card was last used on another Pi". `true` = moved (keep every album, mark the old board replaced); `false` = copied (new frame, keeps only the albums on the card) |
+| `/api/albums/take-over` | POST | `{serial, confirm_name}`: take over another frame's albums. `confirm_name` must match its name if it checked in within 24 hours |
+| `/api/albums/undo-takeover` | POST | Clear another Pi's takeover of this frame |
 | `/api/albums/restore-backup` | POST | `{filename, target_id \| new_name}`: add a backup's photos to an album and its cloud folder |
 | `/api/albums/upload-archive` | POST | Raw body = .zip or .tar.gz (max 2 GB), query `target_id` or `new_name`: add its photos/videos to an album and its cloud folder |
 | `/api/settings/demo` | POST | Turn demo mode on (`{"enabled": true}`, 14 days) or off (revokes demo devices). 403 unless `demo.allowed` |

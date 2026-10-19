@@ -12,6 +12,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from src.services import frame_registry
 from src.utils.rclone import rclone_sync, rclone_count
 
 logger = logging.getLogger(__name__)
@@ -108,6 +109,7 @@ class SyncService:
         finally:
             self._is_syncing = False
             self._current_source = None
+            frame_registry.maybe_heartbeat()
 
     async def get_status(
         self,

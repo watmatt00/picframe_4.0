@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.api.app import app
-from src.services import album_service, backup_service, recovery_service
+from src.services import backup_service, frame_registry, recovery_service
 from src.services import source_manager as sm
 from src.services.source_manager import PhotoSource, SourceManager
 from src.services.sync_service import sync_service
@@ -47,12 +47,34 @@ def frame(tmp_path, monkeypatch):
     monkeypatch.setattr(manager, "create_source", create_source)
     monkeypatch.setattr(sm, "source_manager", manager)
     monkeypatch.setattr(backup_service, "BACKUPS_DIR", backups)
-    monkeypatch.setattr(album_service, "DELETED_ALBUMS_PATH", tmp_path / "deleted_albums.yaml")
-    # Deleted on this frame: old_party and kids (and gone, whose folder no longer exists).
+    # Frame registry in tmp, following this manager's changes. Deleted on this
+    # frame: old_party, kids, and gone_folder (whose cloud folder no longer exists).
+    monkeypatch.setattr(frame_registry, "LOCAL_PATH", tmp_path / "frame_albums.yaml")
+    monkeypatch.setattr(frame_registry, "LEGACY_DELETED_PATH", tmp_path / "deleted_albums.yaml")
+    monkeypatch.setattr(frame_registry, "board_serial", lambda: "1000000002343a2b")
+    manager.add_listener(frame_registry.note_change)
+    with frame_registry._lock():
+        doc = frame_registry._load_or_init()
+        doc["account"] = "shared"
+        doc["albums"] = [
+            {"folder": f"KFR_{sid}", "name": name, "status": "deleted", "deleted_at": "2026-10-01T12:00:00+00:00"}
+            for sid, name in (("old_party", "Old Party"), ("kids", "Kids"), ("gone_folder", "Gone"))
+        ]
+        frame_registry._reconcile(doc, manager.list_sources())
+        frame_registry._write_local(doc)
+
     # KFR_kframe is another frame's album in the shared cloud account: never offered.
-    for sid, name in (("old_party", "Old Party"), ("kids", "Kids"), ("gone_folder", "Gone")):
-        album_service.record_deleted_album(PhotoSource(
-            id=sid, name=name, local_path=str(pictures / sid), rclone_remote=f"kfr:KFR_{sid}"))
+    # KFR_legacy is in no frame's list: offered only after the shared-account warning.
+    async def fake_frames(remote):
+        return {"10000000aaaa0001": frame_registry._parse_doc(
+            "serial: 10000000aaaa0001\nframe_name: kframe\nlast_seen: 2020-01-01T00:00:00+00:00\n"
+            "albums: [{folder: KFR_kframe, name: Home, status: active}]")}
+
+    async def fake_remote():
+        return "kfr"
+
+    monkeypatch.setattr(frame_registry, "cloud_frames", fake_frames)
+    monkeypatch.setattr(frame_registry, "_koofr_remote", fake_remote)
 
     calls = SimpleNamespace(copies=[], in_album_at_copy=[], syncs=[], copy_ok=True)
 
@@ -63,7 +85,7 @@ def frame(tmp_path, monkeypatch):
         return RcloneResult(success=calls.copy_ok, error=None if calls.copy_ok else "network down")
 
     async def fake_dirs(remote):
-        return ["KFR_trip", "KFR_old_party", "KFR_kids", "KFR_kframe", "Documents"]
+        return ["KFR_trip", "KFR_old_party", "KFR_kids", "KFR_kframe", "KFR_legacy", "Documents"]
 
     async def fake_count(remote):
         return {"kfr:KFR_old_party": 12, "kfr:KFR_kids": 3}.get(remote, 0)
@@ -72,7 +94,7 @@ def frame(tmp_path, monkeypatch):
         calls.syncs.append((source_id, remote))
 
     monkeypatch.setattr(recovery_service, "rclone_copy_dir", fake_copy)
-    monkeypatch.setattr(recovery_service, "rclone_list_dirs", fake_dirs)
+    monkeypatch.setattr(frame_registry, "rclone_list_dirs", fake_dirs)
     monkeypatch.setattr(recovery_service, "rclone_count", fake_count)
     monkeypatch.setattr(sync_service, "sync_source", fake_sync)
     monkeypatch.setattr(sync_service, "_is_syncing", False)
@@ -118,14 +140,20 @@ def test_lists_only_this_frames_deleted_albums(frame):
         ("KFR_old_party", 12, "Old Party"),
     ]
     # Not offered: another frame's album, a folder that's gone, one in use
-    assert {"KFR_kframe", "KFR_gone_folder", "KFR_trip"}.isdisjoint(c["folder"] for c in data["cloud"])
+    listed = [c["folder"] for c in data["cloud"] + data["unclaimed"]]
+    assert {"KFR_kframe", "KFR_gone_folder", "KFR_trip"}.isdisjoint(listed)
+    # Shared account: the unclaimed folder needs the warning; kframe can be taken over
+    assert [c["folder"] for c in data["unclaimed"]] == ["KFR_legacy"]
+    assert data["unclaimed_needs_confirm"] is True
+    assert [f["frame_name"] for f in data["frames"]] == ["kframe"]
 
 
 def test_deleted_album_back_in_use_is_not_offered(frame):
-    album_service.record_deleted_album(PhotoSource(
-        id="trip", name="Trip", local_path=str(frame.pictures / "trip"), rclone_remote="kfr:KFR_trip"))
+    frame.manager._save_sources(frame.manager.list_sources() + [
+        PhotoSource(id="kids", name="Kids", local_path=str(frame.pictures / "kids"), rclone_remote="kfr:KFR_kids"),
+    ])
     folders = [c["folder"] for c in TestClient(app, client=LAN).get("/api/albums/recoverable").json()["cloud"]]
-    assert "KFR_trip" not in folders  # album "trip" still uses it
+    assert "KFR_kids" not in folders
 
 
 def test_recover_from_cloud_points_album_at_folder_and_syncs(frame):
@@ -135,20 +163,48 @@ def test_recover_from_cloud_points_album_at_folder_and_syncs(frame):
     assert data["cloud_folder"] == "kfr:KFR_old_party" and data["sync_started"] is True
     assert frame.manager.get_source("party").rclone_remote == "kfr:KFR_old_party"
     assert frame.calls.syncs == [("party", "kfr:KFR_old_party")]
-    # Recovered: no longer offered
-    assert "KFR_old_party" not in [a["rclone_remote"].split(":")[1] for a in album_service.list_deleted_albums()]
+    # Recovered: active again, so no longer offered
+    entry = next(a for a in frame_registry.local_doc()["albums"] if a["folder"] == "KFR_old_party")
+    assert entry["status"] == "active" and entry["name"] == "Party"
 
 
-@pytest.mark.parametrize("folder", ["KFR_trip", "KFR_kframe", "KFR_gone_folder", "Documents", "KFR_../x", "KFR_missing"])
+@pytest.mark.parametrize("folder", ["KFR_trip", "KFR_kframe", "KFR_gone_folder", "Documents", "KFR_../x", "KFR_missing",
+                                    "KFR_legacy"])
 def test_recover_refuses_used_or_invalid_folders(frame, folder):
     r = TestClient(app, client=LAN).post("/api/albums/recover-cloud", json={"folder": folder, "name": "X"})
     assert r.json()["ok"] is False
 
 
+def test_unclaimed_folder_needs_the_warning(frame):
+    client = TestClient(app, client=LAN)
+    r = client.post("/api/albums/recover-cloud", json={"folder": "KFR_legacy", "name": "Legacy", "allow_unclaimed": True})
+    assert r.json()["ok"] is True
+    # Now claimed by this frame
+    assert any(a["folder"] == "KFR_legacy" and a["status"] == "active" for a in frame_registry.local_doc()["albums"])
+    # Another frame's folder stays refused, warning or not
+    r = client.post("/api/albums/recover-cloud", json={"folder": "KFR_kframe", "name": "K", "allow_unclaimed": True})
+    assert r.json()["ok"] is False
+
+
+def test_dedicated_account_offers_unclaimed_without_warning(frame, monkeypatch):
+    async def no_other_frames(remote):
+        return {}
+    monkeypatch.setattr(frame_registry, "cloud_frames", no_other_frames)
+    with frame_registry._lock():
+        doc = frame_registry._load_or_init()
+        doc["account"] = "dedicated"
+        frame_registry._write_local(doc)
+    data = TestClient(app, client=LAN).get("/api/albums/recoverable").json()
+    assert data["unclaimed_needs_confirm"] is False
+    assert "KFR_kframe" in [c["folder"] for c in data["unclaimed"]]  # no frame claims it here
+    r = TestClient(app, client=LAN).post("/api/albums/recover-cloud", json={"folder": "KFR_legacy", "name": "Legacy"})
+    assert r.json()["ok"] is True
+
+
 def test_cloud_unavailable_still_lists_backups(frame, monkeypatch):
     async def offline(remote):
         return None
-    monkeypatch.setattr(recovery_service, "rclone_list_dirs", offline)
+    monkeypatch.setattr(frame_registry, "rclone_list_dirs", offline)
     (frame.backups / "trip_2026-10-01_120000.tar.gz").write_bytes(_tar({"trip/b.jpg": b"b"}))
     data = TestClient(app, client=LAN).get("/api/albums/recoverable").json()
     assert data["cloud"] == [] and "Couldn't list" in data["cloud_error"]

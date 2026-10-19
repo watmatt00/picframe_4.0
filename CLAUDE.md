@@ -37,6 +37,7 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 | `~/picframe_data/config/configuration.yaml` | Pi3D display config (rotation interval, pic_dir, etc.) |
 | `~/.picframe/config.yaml` | Dashboard config (frame name, sync interval, current source) |
 | `~/.picframe/sources.yaml` | Photo source definitions |
+| `~/.picframe/frame_albums.yaml` | Albums this frame owns (active/deleted), mirrored to Koofr `.picframe/frames/<pi-serial>.yaml` — Recover Albums ownership (PL-147) |
 | `~/.picframe/logs/picframe.log` | Operations log |
 | `~/.picframe/logs/security.log` | Auth/security log |
 | `~/.local/share/systemd/timers/stamp-picframe-sync.timer` | Last sync timestamp |

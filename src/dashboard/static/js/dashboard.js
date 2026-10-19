@@ -434,6 +434,7 @@ function initStatusDashboard() {
             const resp = await fetch("/dashboard/status");
             const data = await resp.json();
             updateDemoBanner(data.demo);
+            updateRegistryBanners(data.registry);
 
             const nowStr = new Date().toLocaleString();
             if (bannerUpdated) bannerUpdated.textContent = "Updated: " + nowStr;
@@ -3003,6 +3004,59 @@ function plural(n, word) {
     return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
 
+/** Show or hide the SD-card-moved and taken-over banners from /dashboard/status. */
+function updateRegistryBanners(registry) {
+    if (!registry) return;
+    const swap = document.getElementById('swap-banner');
+    const replaced = document.getElementById('replaced-banner');
+    if (swap) {
+        swap.style.display = registry.pending_swap ? '' : 'none';
+        document.getElementById('swap-banner-old').textContent = registry.pending_swap || '';
+    }
+    if (replaced) {
+        replaced.style.display = registry.replaced_by ? '' : 'none';
+        document.getElementById('replaced-banner-by').textContent = registry.replaced_by || '';
+        const at = document.getElementById('replaced-banner-at');
+        at.textContent = registry.replaced_at ? ` on ${new Date(registry.replaced_at).toLocaleDateString()}` : '';
+    }
+}
+
+(function initRegistryBanners() {
+    const at = document.getElementById('replaced-banner-at');
+    if (at && at.dataset.at) at.textContent = ` on ${new Date(at.dataset.at).toLocaleDateString()}`;
+
+    async function post(url, body, okMessage) {
+        try {
+            const data = await apiFetch(url, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body || {}),
+            });
+            if (!data.ok) { alert(data.error); return; }
+            alert(okMessage(data));
+            location.reload();
+        } catch (e) {
+            alert(`Error: ${e.message}`);
+        }
+    }
+
+    const moved = document.getElementById('btn-swap-moved');
+    const copied = document.getElementById('btn-swap-copied');
+    const undo = document.getElementById('btn-undo-takeover');
+    if (moved) moved.addEventListener('click', () => {
+        if (!confirm('Keep this frame\'s albums on this Pi?\n\nThe old Pi\'s cloud record is marked as replaced by this one.')) return;
+        post('/api/albums/frame-swap', { moved: true }, d => 'Done: this Pi now owns the frame\'s albums.'
+            + (d.cloud_updated ? '' : ' The cloud record will be updated when the cloud is reachable.'));
+    });
+    if (copied) copied.addEventListener('click', () => {
+        if (!confirm('Start this Pi as a new frame?\n\nIt keeps the albums on this card. The original frame keeps its deleted albums.')) return;
+        post('/api/albums/frame-swap', { moved: false }, () => 'Done: this Pi is now a separate frame.');
+    });
+    if (undo) undo.addEventListener('click', () => {
+        if (!confirm('Undo the takeover? This frame\'s cloud record is marked as its own again.')) return;
+        post('/api/albums/undo-takeover', {}, () => 'Takeover undone.');
+    });
+})();
+
 /** Keep the demo banner in step with /dashboard/status (days left, expiry while open). */
 function updateDemoBanner(demo) {
     const banner = document.getElementById('demo-banner');
@@ -3122,20 +3176,85 @@ async function loadRecoverable() {
     }
 }
 
-function renderRecoverCloud(rec) {
-    const el = document.getElementById('recover-cloud');
-    if (rec.cloud_error) { el.textContent = rec.cloud_error; return; }
-    const folders = rec.cloud || [];
-    if (folders.length === 0) { el.textContent = 'No deleted albums to recover from cloud storage.'; return; }
-    el.innerHTML = `<table class="sources-table"><thead><tr><th>Cloud folder</th><th>Deleted</th><th>Photos</th><th>Album name</th><th></th></tr></thead><tbody>${
+/** A table of recoverable cloud folders; `kind` is 'own' or 'unclaimed' (needs the shared-account warning). */
+function recoverCloudTable(folders, kind) {
+    return `<table class="sources-table"><thead><tr><th>Cloud folder</th><th>Deleted</th><th>Photos</th><th>Album name</th><th></th></tr></thead><tbody>${
         folders.map((f, i) => `<tr>
             <td><code>${escapeHtml(f.folder)}</code></td>
-            <td>${f.deleted_at ? new Date(f.deleted_at).toLocaleDateString() : ''}</td>
+            <td>${f.deleted_at ? new Date(f.deleted_at).toLocaleDateString() : (kind === 'own' ? '' : 'unknown')}</td>
             <td>${f.photo_count < 0 ? '?' : f.photo_count}</td>
-            <td><input class="form-input" id="recover-name-${i}" value="${escapeHtml(f.suggested_name)}" maxlength="50"></td>
-            <td><button class="btn-small" onclick="recoverFromCloud('${escapeHtml(f.folder)}', ${i}, ${f.photo_count})">Recover</button></td>
+            <td><input class="form-input" id="recover-name-${kind}-${i}" value="${escapeHtml(f.suggested_name)}" maxlength="50"></td>
+            <td><button class="btn-small" onclick="recoverFromCloud('${escapeHtml(f.folder)}', '${kind}', ${i}, ${f.photo_count})">Recover</button></td>
         </tr>`).join('')
     }</tbody></table>`;
+}
+
+function renderRecoverCloud(rec) {
+    const el = document.getElementById('recover-cloud');
+    const wrap = document.getElementById('recover-unclaimed-wrap');
+    const framesPart = document.getElementById('recover-frames-part');
+    wrap.style.display = 'none';
+    framesPart.style.display = 'none';
+    if (rec.cloud_error) { el.textContent = rec.cloud_error; return; }
+
+    // On an account only this frame uses, unclaimed folders are this frame's too: list them with its own
+    const own = rec.unclaimed_needs_confirm ? (rec.cloud || []) : (rec.cloud || []).concat(rec.unclaimed || []);
+    el.innerHTML = own.length ? recoverCloudTable(own, 'own') : 'No deleted albums to recover from cloud storage.';
+
+    const unclaimed = rec.unclaimed_needs_confirm ? (rec.unclaimed || []) : [];
+    if (unclaimed.length) {
+        const list = document.getElementById('recover-unclaimed');
+        const check = document.getElementById('recover-show-unclaimed');
+        document.getElementById('recover-unclaimed-count').textContent = unclaimed.length;
+        list.innerHTML = recoverCloudTable(unclaimed, 'unclaimed');
+        list.style.display = check.checked ? 'block' : 'none';
+        check.onchange = () => { list.style.display = check.checked ? 'block' : 'none'; };
+        wrap.style.display = 'block';
+    }
+    renderRecoverFrames(rec.frames || []);
+}
+
+let recoverFrames = [];
+
+function renderRecoverFrames(frames) {
+    const part = document.getElementById('recover-frames-part');
+    recoverFrames = frames;
+    if (frames.length === 0) return;
+    document.getElementById('recover-frames').innerHTML = `<table class="sources-table"><thead><tr><th>Frame</th><th>Last seen</th><th>Albums</th><th></th></tr></thead><tbody>${
+        frames.map((f, i) => `<tr>
+            <td>${escapeHtml(f.frame_name)} <span class="form-hint">${escapeHtml(f.short)}</span></td>
+            <td>${f.last_seen ? new Date(f.last_seen).toLocaleString() : 'never'}${f.recent ? ' <span class="source-status-badge disabled">recent</span>' : ''}</td>
+            <td>${f.albums}${f.deleted ? ` (${f.deleted} deleted)` : ''}</td>
+            <td><button class="btn-small" onclick="takeOverFrame(${i})">Take over</button></td>
+        </tr>`).join('')
+    }</tbody></table>`;
+    part.style.display = 'block';
+}
+
+async function takeOverFrame(index) {
+    const { serial, frame_name: name, recent, albums } = recoverFrames[index];
+    let confirmName = '';
+    if (recent) {
+        const typed = prompt(`${name} checked in within the last 24 hours, so it may still be running.\n\nTaking it over lets this frame recover its ${plural(albums, 'album')}. Type ${name} to confirm:`);
+        if (typed === null) return;
+        if (typed.trim().toLowerCase() !== name.trim().toLowerCase()) { alert(`That doesn't match "${name}". Nothing was changed.`); return; }
+        confirmName = typed;
+    } else if (!confirm(`Take over ${name}'s albums?\n\nThis frame will be able to recover its ${plural(albums, 'album')}, and ${name}'s cloud record is marked as replaced by this Pi. Nothing is deleted.`)) {
+        return;
+    }
+    showRecoverStatus('info', `Taking over ${name}…`);
+    try {
+        const data = await apiFetch('/api/albums/take-over', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ serial, confirm_name: confirmName }),
+        });
+        if (!data.ok) { showRecoverStatus('error', data.error); return; }
+        showRecoverStatus('success', `Took over ${data.frame_name}: ${plural(data.albums_added, 'album')} added to this frame's list.`
+            + (data.cloud_updated ? '' : ' The cloud record will be updated when the cloud is reachable.'));
+        loadRecoverable();
+    } catch (e) {
+        showRecoverStatus('error', `Error: ${e.message}`);
+    }
 }
 
 function renderRecoverBackups(backups) {
@@ -3157,16 +3276,19 @@ function renderRecoverUploadTargets() {
         + '<option value="__new__">➕ New album…</option>';
 }
 
-async function recoverFromCloud(folder, index, count) {
-    const name = document.getElementById(`recover-name-${index}`).value.trim();
+async function recoverFromCloud(folder, kind, index, count) {
+    const name = document.getElementById(`recover-name-${kind}-${index}`).value.trim();
     if (!name) { alert('The album needs a name.'); return; }
     const photos = count < 0 ? 'its photos' : `${count} photo${count === 1 ? '' : 's'}`;
-    if (!confirm(`Add album "${name}" using cloud folder ${folder}?\n\n${photos} will sync to the frame.`)) return;
+    const warning = kind === 'unclaimed'
+        ? `\n\n⚠️ No frame has recorded ${folder}, and this cloud account is shared. If it's another frame's album, photos added here will show up on that frame too.`
+        : '';
+    if (!confirm(`Add album "${name}" using cloud folder ${folder}?\n\n${photos} will sync to the frame.${warning}`)) return;
     showRecoverStatus('info', `Recovering "${name}"…`);
     try {
         const data = await apiFetch('/api/albums/recover-cloud', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ folder, name }),
+            body: JSON.stringify({ folder, name, allow_unclaimed: kind === 'unclaimed' }),
         });
         if (!data.ok) { showRecoverStatus('error', data.error); return; }
         showRecoverStatus('success', `"${data.name}": ${data.message}`);

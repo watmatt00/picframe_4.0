@@ -163,11 +163,21 @@ curl https://<hostname>.<tailnet>.ts.net/health
 
 Delete Album removes an album's photos from the frame but keeps its cloud folder and backups. Dashboard → Tools → ♻️ Recover Albums (last card) brings it back:
 
-- **From cloud storage:** lists albums deleted **on this frame** whose cloud folder (`KFR_*`) still exists and no album uses. Recover re-adds the album pointed at that folder and syncs it. The Koofr account can be shared by several frames, so other frames' folders (and albums deleted before 2026-10-19) are never offered. Delete Album records each deletion in `~/.picframe/deleted_albums.yaml`.
+- **From cloud storage:** lists this frame's deleted albums whose cloud folder (`KFR_*`) still exists and no album uses. Recover re-adds the album pointed at that folder and syncs it. A folder another frame on the same Koofr account owns is never offered. Folders no frame owns (e.g. deleted before frames kept a list) appear automatically on an account only this frame uses, otherwise behind **Show unclaimed folders** with a warning.
 - **From a backup:** any backup in `~/Pictures/backups`, including a deleted album's, into an existing or a new album. Tools → Photo Backups also has Restore.
 - **Upload a .zip:** a .zip or .tar.gz of photos from your computer (up to 2 GB) into an existing or a new album.
 
 Restored photos are copied to the album's cloud folder first and then added on the frame, so the next sync doesn't remove them. Nothing is overwritten: a photo with the same name is saved as `name_1.jpg`. Only photos and videos are restored; other files are skipped.
+
+### Which albums are this frame's
+
+Each frame keeps a list of every album it has had (active or deleted) in `~/.picframe/frame_albums.yaml`, with a copy in Koofr at `.picframe/frames/<pi-serial>.yaml`. The Pi's board serial (`/proc/cpuinfo`) identifies the frame, so the list survives reflashing. Each frame writes only its own file; entries are marked deleted, never removed. `last_seen` is refreshed after a sync about once a day.
+
+- **Reinstall (same Pi, fresh SD card):** once Koofr is set up again, the frame reads its list back and every old album appears in Recover Albums.
+- **SD card moved to a new Pi:** the dashboard asks once whether the card was **moved** (keep every album; the old board's file is marked `replaced_by` the new one) or **copied** to start a second frame (it keeps only the albums on the card).
+- **New Pi and fresh SD card:** Recover Albums → *Other frames on this cloud account* → **Take over**. A frame that checked in within the last 24 hours may still be running, so you type its name to confirm.
+- **Taken over by mistake:** the running frame shows a banner with **Undo**. Nothing is deleted either way.
+- **Dedicated or shared account:** decided once, when the frame first writes its list. Dedicated only if every `KFR_*` folder in the account is this frame's; it counts as shared as soon as another frame's file appears.
 
 ---
 

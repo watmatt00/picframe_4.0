@@ -333,6 +333,64 @@ async def rclone_list_dirs(remote: str) -> list[str] | None:
         return None
 
 
+async def rclone_list_files(remote: str) -> list[str] | None:
+    """
+    List the files directly in a remote folder (e.g. "koofr:.picframe/frames").
+
+    Returns:
+        File names ([] if the folder doesn't exist), or None if the listing failed
+    """
+    if not _validate_remote(remote):
+        raise ValueError(f"Invalid remote: {remote}")
+    cmd = ["rclone", "lsjson", remote, "--files-only"]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+        if proc.returncode == 3:  # rclone: directory not found
+            return []
+        if proc.returncode != 0:
+            logger.error(f"rclone lsjson {remote} failed: {stderr.decode().strip()[:200]}")
+            return None
+        import json
+        return [entry["Name"] for entry in json.loads(stdout.decode() or "[]") if not entry.get("IsDir")]
+    except Exception as e:
+        logger.error(f"Failed to list remote files: {e}")
+        return None
+
+
+async def rclone_cat(remote_file: str, max_bytes: int = 1024 * 1024) -> bytes | None:
+    """
+    Read a small file from a remote.
+
+    Returns:
+        The file's contents, or None if it couldn't be read or is bigger than max_bytes
+    """
+    if not _validate_remote(remote_file):
+        raise ValueError(f"Invalid remote: {remote_file}")
+    cmd = ["rclone", "cat", remote_file, "--count", str(max_bytes + 1)]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+        if proc.returncode != 0:
+            logger.error(f"rclone cat {remote_file} failed: {stderr.decode().strip()[:200]}")
+            return None
+        if len(stdout) > max_bytes:
+            logger.error(f"rclone cat {remote_file}: file is bigger than {max_bytes} bytes")
+            return None
+        return stdout
+    except Exception as e:
+        logger.error(f"Failed to read remote file: {e}")
+        return None
+
+
 async def rclone_count(remote: str) -> int:
     """
     Count files in a remote.

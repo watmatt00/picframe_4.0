@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from src.api.app import app
 from src.auth import jwt_handler
 from src.auth.models import Device
-from src.services import album_service
+from src.services import album_service, frame_registry
 from src.services import source_manager as sm
 from src.services.source_manager import PhotoSource, SourceManager
 from src.services.sync_service import sync_service
@@ -34,14 +34,18 @@ def frame(tmp_path, monkeypatch):
         (pictures / "trip" / f"p{i}.jpg").write_bytes(b"x")
     (pictures / "backups" / "trip_backup.tar.gz").write_bytes(b"x")
 
+    # Frame registry in tmp, following this manager's changes
+    monkeypatch.setattr(frame_registry, "LOCAL_PATH", tmp_path / "frame_albums.yaml")
+    monkeypatch.setattr(frame_registry, "LEGACY_DELETED_PATH", tmp_path / "deleted_albums.yaml")
+    monkeypatch.setattr(frame_registry, "board_serial", lambda: "1000000002343a2b")
     manager = SourceManager(tmp_path / "sources.yaml")
+    manager.add_listener(frame_registry.note_change)
     manager._save_sources([
         PhotoSource(id="showing", name="Showing", local_path=str(pictures / "showing"), rclone_remote="kfr:KFR_showing"),
         PhotoSource(id="trip", name="Trip", local_path=str(pictures / "trip"), rclone_remote="kfr:KFR_trip"),
     ])
     monkeypatch.setattr(sm, "source_manager", manager)
     monkeypatch.setattr(album_service, "PICTURES_DIR", pictures)
-    monkeypatch.setattr(album_service, "DELETED_ALBUMS_PATH", tmp_path / "deleted_albums.yaml")
     monkeypatch.setattr(album_service, "get_settings",
                         lambda: SimpleNamespace(display=SimpleNamespace(current_source="showing")))
     monkeypatch.setattr(thumbnails, "THUMB_CACHE_DIR", tmp_path / "thumbs")
@@ -78,9 +82,10 @@ def test_delete_removes_album_and_photos(frame):
 
 def test_delete_is_recorded_for_recovery(frame):
     TestClient(app).delete("/api/v1/folders/trip", headers=frame.headers["admin"])
-    deleted = album_service.list_deleted_albums()
-    assert [(a["id"], a["name"], a["rclone_remote"]) for a in deleted] == [("trip", "Trip", "kfr:KFR_trip")]
-    assert (album_service.DELETED_ALBUMS_PATH.stat().st_mode & 0o777) == 0o600
+    albums = {a["folder"]: a for a in frame_registry.local_doc()["albums"]}
+    assert albums["KFR_trip"]["status"] == "deleted" and albums["KFR_trip"]["name"] == "Trip"
+    assert albums["KFR_showing"]["status"] == "active"
+    assert (frame_registry.LOCAL_PATH.stat().st_mode & 0o777) == 0o600
 
 
 def test_showing_album_is_refused(frame):

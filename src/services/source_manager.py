@@ -9,7 +9,7 @@ import logging
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from pydantic import BaseModel
 import yaml
@@ -63,6 +63,11 @@ class SourceManager:
 
     def __init__(self, sources_path: Path = SOURCES_PATH):
         self._path = sources_path
+        self._listeners: list[Callable[[list["PhotoSource"]], None]] = []
+
+    def add_listener(self, listener: Callable[[list["PhotoSource"]], None]) -> None:
+        """Call `listener(sources)` after every save (add, rename, delete…)."""
+        self._listeners.append(listener)
 
     def _load_sources(self) -> list[PhotoSource]:
         """Load sources from YAML file."""
@@ -88,6 +93,12 @@ class SourceManager:
         with open(temp_path, "w") as f:
             yaml.safe_dump(data, f, default_flow_style=False)
         temp_path.replace(self._path)
+
+        for listener in self._listeners:
+            try:
+                listener(sources)
+            except Exception as e:  # a listener must never undo or block the save
+                logger.error(f"Sources listener failed: {e}")
 
     def list_sources(self) -> list[PhotoSource]:
         """

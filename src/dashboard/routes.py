@@ -56,7 +56,7 @@ from src.utils.rclone import count_local_files, rclone_count, rclone_list_remote
 from src.services import photo_tools_service as photo_tools
 from src.services import backup_service
 from src.services.party_service import enable_party, disable_party
-from src.services import album_service, demo_service, power_service, recovery_service
+from src.services import album_service, demo_service, frame_registry, power_service, recovery_service
 
 logger = logging.getLogger(__name__)
 
@@ -370,6 +370,7 @@ async def dashboard_home(request: Request):
         "sleep_time": settings.display.sleep_time,
         "wake_time": settings.display.wake_time,
         "demo": demo,
+        "registry": frame_registry.banner(),
         "demo_qr": _demo_qr_codes(demo),
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
@@ -689,6 +690,7 @@ async def get_dashboard_status():
         "api_health_status": api_svc.status         if api_svc         else "unknown",
         "tailscale_status":  tailscale_status,
         "demo": demo_service.demo_status(),
+        "registry": frame_registry.banner(),
     }
 
 
@@ -1016,6 +1018,8 @@ async def list_remote_dirs(request: ListDirsRequest):
         dirs = []
         for line in stdout.decode().strip().split("\n"):
             line = line.strip().rstrip("/")
+            if not request.path and line == ".picframe":
+                continue  # frames' album registries (frame_registry), not photos
             if line:
                 # Check for invalid characters (like leading/trailing spaces)
                 trimmed = line.strip()
@@ -1644,9 +1648,21 @@ async def delete_source_backup(source_id: str, body: DeleteBackupRequest):
 # --- Recover albums (PL-147 follow-up) ---------------------------------------
 
 class RecoverCloudRequest(BaseModel):
-    """Re-add an album from an unused cloud folder."""
+    """Re-add an album from an unused cloud folder (allow_unclaimed: shared-account warning accepted)."""
     folder: str
     name: str
+    allow_unclaimed: bool = False
+
+
+class FrameSwapRequest(BaseModel):
+    """Answer to "did this SD card move to a new Pi?" (moved) or was it copied (not moved)."""
+    moved: bool
+
+
+class TakeOverRequest(BaseModel):
+    """Take over another frame's albums; confirm_name is needed if it checked in within 24 h."""
+    serial: str
+    confirm_name: str = ""
 
 
 class RestoreBackupRequest(BaseModel):
@@ -1659,7 +1675,8 @@ class RestoreBackupRequest(BaseModel):
 @router.get("/api/albums/recoverable")
 async def list_recoverable():
     """
-    Unused KFR_* cloud folders and every backup (deleted albums' too).
+    This frame's deleted albums in the cloud, unclaimed cloud folders, other
+    frames on the cloud account, and every backup (deleted albums' too).
 
     The cloud part can fail on its own (no Koofr, offline); backups are still listed.
     LAN-only, no JWT.
@@ -1668,16 +1685,44 @@ async def list_recoverable():
         cloud = await recovery_service.list_recoverable_cloud_folders()
         cloud_error = None
     except recovery_service.RecoveryError as e:
-        cloud, cloud_error = [], e.message
-    return {"ok": True, "cloud": cloud, "cloud_error": cloud_error, "backups": recovery_service.list_all_backups()}
+        cloud = {"cloud": [], "unclaimed": [], "unclaimed_needs_confirm": True, "frames": []}
+        cloud_error = e.message
+    return {"ok": True, **cloud, "cloud_error": cloud_error, "backups": recovery_service.list_all_backups()}
 
 
 @router.post("/api/albums/recover-cloud")
 async def recover_cloud_album(body: RecoverCloudRequest):
     """Re-add an album pointed at an unused cloud folder, then sync it. LAN-only, no JWT."""
     try:
-        return {"ok": True, **await recovery_service.recover_from_cloud(body.folder, body.name)}
+        return {"ok": True, **await recovery_service.recover_from_cloud(body.folder, body.name, body.allow_unclaimed)}
     except recovery_service.RecoveryError as e:
+        return {"ok": False, "error": e.message}
+
+
+@router.post("/api/albums/frame-swap")
+async def frame_swap(body: FrameSwapRequest):
+    """Confirm whether this SD card moved to a new Pi or was copied. LAN-only, no JWT."""
+    try:
+        return {"ok": True, **await frame_registry.resolve_swap(body.moved)}
+    except frame_registry.RegistryError as e:
+        return {"ok": False, "error": e.message}
+
+
+@router.post("/api/albums/take-over")
+async def take_over_frame(body: TakeOverRequest):
+    """Take over another frame's albums (new board, fresh SD card). LAN-only, no JWT."""
+    try:
+        return {"ok": True, **await frame_registry.take_over(body.serial, body.confirm_name)}
+    except frame_registry.RegistryError as e:
+        return {"ok": False, "error": e.message}
+
+
+@router.post("/api/albums/undo-takeover")
+async def undo_takeover():
+    """Clear another Pi's takeover of this frame. LAN-only, no JWT."""
+    try:
+        return {"ok": True, **await frame_registry.undo_takeover()}
+    except frame_registry.RegistryError as e:
         return {"ok": False, "error": e.message}
 
 

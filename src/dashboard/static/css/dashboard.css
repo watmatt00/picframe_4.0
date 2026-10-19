@@ -841,6 +841,18 @@ footer {
     font-size: 0.8rem;
     opacity: 0.85;
 }
+.registry-banner-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.recover-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #e2e8f0;
+    cursor: pointer;
+}
 
 /* Demo codes with their QR codes, side by side when there's room */
 .demo-code-grid {

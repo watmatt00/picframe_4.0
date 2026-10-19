@@ -29,7 +29,7 @@ from src.services.recovery_service import MAX_UPLOAD_BYTES as RECOVERY_MAX_UPLOA
 
 # Update service
 from src.services.update_service import start_update_scheduler
-from src.services import demo_service
+from src.services import demo_service, frame_registry
 
 
 @asynccontextmanager
@@ -37,6 +37,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan: start background tasks on startup."""
     asyncio.create_task(start_update_scheduler())
     demo_service.expire_if_due()
+    frame_registry.start()
     yield
 
 
