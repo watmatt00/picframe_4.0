@@ -21,6 +21,13 @@
         </div>
     </header>
 
+    <!-- Demo mode banner (PL-015) -->
+    <div id="demo-banner" class="demo-banner" {% if not (demo.allowed and demo.enabled) %}style="display:none;"{% endif %}>
+        <strong>DEMO MODE ON</strong>
+        <span id="demo-banner-text">{{ demo.days_left }} day{{ '' if demo.days_left == 1 else 's' }} left · {{ demo.demo_devices }} demo device{{ '' if demo.demo_devices == 1 else 's' }}</span>
+        <span class="demo-banner-hint">After review: turn off demo mode, then rotate the Koofr app password.</span>
+    </div>
+
     <!-- Tab Navigation -->
     <div class="tab-bar">
         <button class="tab-button active" data-tab="status">Frame Status</button>
@@ -424,6 +431,11 @@
 
                 <div class="advanced-section" id="pairing-section">
                 <div style="padding: 0 1.5rem 1.5rem;">
+                    {% if demo.allowed and demo.enabled %}
+                    <div class="status-message info" style="display:block;margin-bottom:1rem;">
+                        Demo mode is on: the demo codes in the Demo Mode card also pair phones.
+                    </div>
+                    {% endif %}
                     <div id="pairing-actions">
                         <button class="btn btn-primary" onclick="generatePairingCode()">Generate Pairing QR Code</button>
                         <button class="btn secondary" id="btn-toggle-devices" style="margin-left: 0.5rem;">Manage Devices</button>
@@ -436,7 +448,7 @@
                             <img id="pairing-qr" src="" alt="Pairing QR Code" style="width: 200px; height: 200px;">
                         </div>
                         <p style="margin-top: 0.75rem; color: #9ca3af;">Manual Code:</p>
-                        <p style="font-size: 1.5rem; font-weight: bold; letter-spacing: 0.1em;" id="pairing-code"></p>
+                        <p class="pairing-code-text" style="font-size: 1.5rem; font-weight: bold; letter-spacing: 0.1em;" id="pairing-code"></p>
                         <p style="color: #9ca3af;">Expires in <span id="pairing-countdown"></span> seconds</p>
 
                         <div style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px; text-align: left;">
@@ -673,6 +685,59 @@
                 </div> <!-- /padding -->
                 </div> <!-- /updates-section -->
             </section>
+
+            {% if demo.allowed %}
+            <!-- Demo Mode Card (PL-015) -->
+            <section class="card" style="margin-top: 1.5rem;">
+                <div class="card-header">
+                    <div>
+                        <div class="card-title">🍎 Demo Mode</div>
+                        <div class="card-subtitle">Reusable pairing codes for the App Store reviewer</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.75rem;">
+                        {% if demo.enabled %}
+                        <span class="badge" style="background:rgba(251,191,36,0.2);color:#fbbf24;font-size:0.7rem;letter-spacing:0.05em;">DEMO ON</span>
+                        {% endif %}
+                        <button class="advanced-toggle" id="demo-toggle">Show</button>
+                    </div>
+                </div>
+                <div class="advanced-section" id="demo-section">
+                <div style="padding: 0 1.5rem 1.5rem;">
+                    <p style="color:#94a3b8;font-size:0.9rem;margin:0 0 1rem;">
+                        While on, anyone with a demo code can pair from the internet: the Manager code as admin, the Contributor code as a contributor. Codes work for 14 days, then demo mode turns itself off. Turning it off (or the 14 days ending) revokes every phone that paired with a demo code.
+                    </p>
+                    {% if demo.enabled %}
+                    <div style="padding:1rem;background:rgba(255,255,255,0.05);border-radius:8px;margin-bottom:1rem;">
+                        <p style="color:#9ca3af;font-size:0.8rem;margin:0 0 0.25rem;">Manager app code (admin)</p>
+                        <p class="pairing-code-text demo-code" id="demo-admin-code">{{ demo.admin_code }}</p>
+                        <p style="color:#9ca3af;font-size:0.8rem;margin:0.75rem 0 0.25rem;">Contributor app code</p>
+                        <p class="pairing-code-text demo-code" id="demo-contributor-code">{{ demo.contributor_code }}</p>
+                        {% if funnel_url %}
+                        <p style="color:#e5e7eb;font-size:0.85rem;margin:0.75rem 0 0;"><span style="color:#9ca3af;">Frame URL:</span> {{ funnel_url }}</p>
+                        {% endif %}
+                        <p style="color:#e5e7eb;font-size:0.85rem;margin:0.5rem 0 0;">
+                            <span style="color:#9ca3af;">Expires:</span> <span id="demo-expires" data-expires="{{ demo.expires_at or '' }}"></span>
+                            ({{ demo.days_left }} day{{ '' if demo.days_left == 1 else 's' }} left) ·
+                            <span style="color:#9ca3af;">Demo devices:</span> {{ demo.demo_devices }}
+                        </p>
+                    </div>
+                    <button class="btn btn-primary" id="btn-demo-off" data-devices="{{ demo.demo_devices }}">Turn Off Demo Mode</button>
+                    <button class="btn secondary" id="btn-demo-regenerate" style="margin-left:0.5rem;">Generate New Codes</button>
+                    {% else %}
+                    <button class="btn btn-primary" id="btn-demo-on" style="background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.4);color:#fbbf24;">Turn On Demo Mode</button>
+                    {% endif %}
+                    <div id="demo-mode-status" class="status-message" style="display:none;margin-top:0.75rem;"></div>
+                    <div style="margin-top:1rem;padding:1rem;background:rgba(255,255,255,0.05);border-radius:8px;">
+                        <p style="font-weight:600;margin:0 0 0.5rem;">After the review:</p>
+                        <ol style="margin:0;padding-left:1.25rem;color:#d1d5db;font-size:0.85rem;line-height:1.6;">
+                            <li>Turn off demo mode (revokes the reviewer's phones)</li>
+                            <li>Rotate the Koofr app password (paired admin phones received it)</li>
+                        </ol>
+                    </div>
+                </div>
+                </div> <!-- /demo-section -->
+            </section>
+            {% endif %}
 
             <!-- Party Mode Card -->
             <section class="card" style="margin-top: 1.5rem;">

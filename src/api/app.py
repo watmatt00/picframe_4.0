@@ -28,12 +28,14 @@ from src.api.routes.contributor import MAX_UPLOAD_BYTES
 
 # Update service
 from src.services.update_service import start_update_scheduler
+from src.services import demo_service
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: start background tasks on startup."""
     asyncio.create_task(start_update_scheduler())
+    demo_service.expire_if_due()
     yield
 
 

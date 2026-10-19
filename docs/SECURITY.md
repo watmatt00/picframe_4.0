@@ -77,6 +77,24 @@ PicFrame 4.0 prioritizes security with:
 | **Expiry** | 5 minutes |
 | **Rate limit** | 3 codes per hour |
 
+### Demo Mode (App Store review, PL-015)
+
+Two reusable codes (Manager → admin, Contributor → contributor) so an App Store reviewer can pair at any time over the Funnel. While it's on, **anyone with a demo code becomes admin from the internet**, so:
+
+| Safeguard | Detail |
+|-----------|--------|
+| **Per-frame gate** | Works only where `demo.allowed: true` was added by hand to `~/.picframe/config.yaml` (review frame only). Otherwise the dashboard card is hidden, the routes return 403 and demo codes are ignored. Never set it on a frame with personal photos. |
+| **Not in git** | Codes are generated on the frame and stored only in its `config.yaml` (written `600`). The repo is public. |
+| **14-day limit** | Demo mode ends 14 days after it's turned on (or after "Generate New Codes"). Checked on every pair, API call and dashboard refresh. |
+| **Revoke on end** | Turning it off, or the 14 days ending, revokes every device paired with a demo code. |
+| **Visible** | Amber banner on every dashboard tab with days left and demo device count; `DEMO_*` and `PAIR … demo=True` lines in `security.log`. |
+
+**Accepted risk:** there's no global limit on failed `/pair` attempts (Funnel hides client IPs, so per-IP limits don't work). A 6-character code (36^6) for at most 14 days makes guessing impractical.
+
+**Admin phones receive the Koofr app password** (`GET /api/v1/cloud/credentials`), so the review frame must use a dedicated Koofr account with sample photos only.
+
+**After the review:** turn off demo mode (revokes the reviewer's phones), then rotate the Koofr app password.
+
 ## Logging
 
 ### Dual Log Strategy
@@ -93,6 +111,10 @@ PAIR_CODE_GENERATE_SUCCESS ip=100.64.1.5 admin=Matt's iPhone expires=2026-02-02T
 PAIR_ATTEMPT_SUCCESS ip=100.64.1.5 code=A3B*** device_name=New Device
 PAIR_SUCCESS ip=100.64.1.5 device_id=abc123 device_name=New Device
 PAIR_FAILURE ip=100.64.1.5 reason=invalid_or_expired_code
+PAIR_SUCCESS ip=127.0.0.1 device_id=def456 device_name=Reviewer iPhone role=admin demo=True
+PAIR_FAILURE ip=127.0.0.1 reason=demo_code_expired
+DEMO_ENABLE_SUCCESS expires=2026-11-02T12:00:00+00:00
+DEMO_DISABLE_SUCCESS reason=expired revoked=2
 TOKEN_REFRESH_SUCCESS ip=64.98.52.132 device_id=abc123 device_name=Matt's iPhone
 CLOUD_CREDENTIALS_FETCH_SUCCESS ip=64.98.52.132 device_id=abc123 device_name=Matt's iPhone
 ```

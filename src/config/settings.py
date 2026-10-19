@@ -4,11 +4,12 @@ PicFrame 4.0 - Application Settings.
 Pydantic settings with environment variable and YAML file support.
 """
 
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import yaml
 
@@ -64,6 +65,28 @@ class UpdatesConfig(BaseModel):
     available_commit: Optional[str] = Field(default=None, description="Short hash if update available")
 
 
+class DemoConfig(BaseModel):
+    """
+    Demo mode: reusable pairing codes for an App Store reviewer (PL-015).
+
+    Only `allowed` is set by hand (on the review frame); the dashboard manages the rest.
+    """
+    allowed: bool = Field(default=False, description="Set by hand on the review frame only; gates everything else")
+    enabled: bool = Field(default=False, description="Demo codes accepted for pairing")
+    admin_code: str = Field(default="", description="Reusable code for the Manager app (ABC-123)")
+    contributor_code: str = Field(default="", description="Reusable code for the Contributor app (ABC-123)")
+    expires_at: Optional[datetime] = Field(default=None, description="When demo mode turns itself off (UTC)")
+    previous_codes: list[str] = Field(default_factory=list, description="Replaced codes, answered as expired")
+
+    @field_validator("expires_at")
+    @classmethod
+    def assume_utc(cls, v: Optional[datetime]) -> Optional[datetime]:
+        """Treat a hand-edited time without a zone as UTC so comparisons never fail."""
+        if v is not None and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
+
+
 class Settings(BaseSettings):
     """
     Application settings.
@@ -85,6 +108,7 @@ class Settings(BaseSettings):
     tailscale: TailscaleConfig = Field(default_factory=TailscaleConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     updates: UpdatesConfig = Field(default_factory=UpdatesConfig)
+    demo: DemoConfig = Field(default_factory=DemoConfig)
 
     @classmethod
     def from_yaml(cls, path: Path = CONFIG_FILE) -> "Settings":

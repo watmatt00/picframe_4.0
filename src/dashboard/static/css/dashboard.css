@@ -807,3 +807,37 @@ footer {
     opacity: 0.4;
     cursor: not-allowed;
 }
+
+/* Pairing codes only: monospace with a slashed zero so 0/O and 1/I/L are easy to tell apart */
+.pairing-code-text {
+    font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+    font-variant-numeric: slashed-zero;
+    font-feature-settings: "zero" 1;
+}
+.demo-code {
+    font-size: 1.5rem;
+    font-weight: bold;
+    letter-spacing: 0.15em;
+    margin: 0;
+    color: #f1f5f9;
+}
+
+/* Demo mode banner (PL-015), shown on every tab */
+.demo-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    margin: 0.75rem 0;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    background: rgba(251, 191, 36, 0.15);
+    border: 1px solid rgba(251, 191, 36, 0.5);
+    color: #fbbf24;
+    font-size: 0.9rem;
+}
+.demo-banner-hint {
+    color: #fde68a;
+    font-size: 0.8rem;
+    opacity: 0.85;
+}

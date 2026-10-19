@@ -17,7 +17,7 @@ from pathlib import Path
 import httpx
 import yaml
 from fastapi import APIRouter, Query, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 
@@ -53,6 +53,7 @@ from src.utils.rclone import count_local_files, rclone_count, rclone_list_remote
 from src.services import photo_tools_service as photo_tools
 from src.services import backup_service
 from src.services.party_service import enable_party, disable_party
+from src.services import demo_service
 
 logger = logging.getLogger(__name__)
 
@@ -260,6 +261,7 @@ async def dashboard_home(request: Request):
 
     Shows status overview: file counts, sync state, service health.
     """
+    demo_service.expire_if_due()
     settings = get_settings()
 
     # Get current source info (shared logic)
@@ -341,6 +343,7 @@ async def dashboard_home(request: Request):
         "sleep_enabled": settings.display.sleep_enabled,
         "sleep_time": settings.display.sleep_time,
         "wake_time": settings.display.wake_time,
+        "demo": demo_service.demo_status(),
     }
     return templates.TemplateResponse(request, "dashboard.html", context)
 
@@ -598,6 +601,8 @@ async def get_dashboard_status():
 
     Returns sync status, file counts, service status, storage info.
     """
+    demo_service.expire_if_due()
+
     # Get current source info (shared logic)
     current_source_id, current_source = get_current_source()
 
@@ -660,6 +665,7 @@ async def get_dashboard_status():
         "lights_status":     lights_svc.status     if lights_svc     else "unknown",
         "api_health_status": api_svc.status         if api_svc         else "unknown",
         "tailscale_status":  tailscale_status,
+        "demo": demo_service.demo_status(),
     }
 
 
@@ -1285,6 +1291,48 @@ async def test_lights(request: Request):
         else:
             _light_overrides["wifi_connected"] = body["wifi_connected"]
     return {"ok": True, "overrides": _light_overrides}
+
+
+class DemoModeRequest(BaseModel):
+    """Request to turn demo mode on or off."""
+    enabled: bool
+
+
+@router.post("/api/settings/demo")
+async def toggle_demo_mode(request: DemoModeRequest):
+    """
+    Turn demo mode (reusable reviewer pairing codes, PL-015) on or off.
+
+    On: codes work for 14 days. Off: codes stop and demo-paired devices are revoked.
+    Only on frames with demo.allowed: true. LAN-only endpoint, no JWT auth required.
+    """
+    try:
+        if request.enabled:
+            demo_service.enable_demo()
+            return {"ok": True, "demo": demo_service.demo_status()}
+        revoked = demo_service.disable_demo()
+        return {"ok": True, "revoked": revoked, "demo": demo_service.demo_status()}
+    except demo_service.DemoNotAllowedError as e:
+        return JSONResponse(status_code=403, content={"ok": False, "error": str(e)})
+    except Exception as e:
+        logger.error(f"Failed to toggle demo mode: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+@router.post("/api/settings/demo/regenerate")
+async def regenerate_demo_codes():
+    """
+    Replace both demo codes and restart the 14 days. Already-paired demo phones stay paired.
+
+    Only on frames with demo.allowed: true. LAN-only endpoint, no JWT auth required.
+    """
+    try:
+        return {"ok": True, "demo": demo_service.regenerate_demo_codes()}
+    except demo_service.DemoNotAllowedError as e:
+        return JSONResponse(status_code=403, content={"ok": False, "error": str(e)})
+    except Exception as e:
+        logger.error(f"Failed to regenerate demo codes: {e}")
+        return {"ok": False, "error": str(e)}
 
 
 @router.post("/api/settings/party")

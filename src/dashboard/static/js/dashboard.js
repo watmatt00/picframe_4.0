@@ -237,6 +237,29 @@ function initAdvancedToggles() {
         updateHeaderCursor(updatesHeader, updatesSection);
     }
 
+    // Demo Mode card toggle
+    const demoToggle = document.getElementById('demo-toggle');
+    const demoSection = document.getElementById('demo-section');
+    if (demoToggle && demoSection) {
+        const demoHeader = demoToggle.closest('.card-header');
+        demoToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (demoSection.classList.contains('visible')) {
+                collapseSection(demoSection, demoToggle);
+            } else {
+                expandSection(demoSection, demoToggle);
+            }
+            updateHeaderCursor(demoHeader, demoSection);
+        });
+        demoHeader.addEventListener('click', () => {
+            if (!demoSection.classList.contains('visible')) {
+                expandSection(demoSection, demoToggle);
+                updateHeaderCursor(demoHeader, demoSection);
+            }
+        });
+        updateHeaderCursor(demoHeader, demoSection);
+    }
+
     // Party Mode card toggle
     const partyToggle = document.getElementById('party-toggle');
     const partySection = document.getElementById('party-section');
@@ -410,6 +433,7 @@ function initStatusDashboard() {
         try {
             const resp = await fetch("/dashboard/status");
             const data = await resp.json();
+            updateDemoBanner(data.demo);
 
             const nowStr = new Date().toLocaleString();
             if (bannerUpdated) bannerUpdated.textContent = "Updated: " + nowStr;
@@ -2889,4 +2913,84 @@ async function saveKoofrSetup() {
             applyPartyMode(false);
         }
     });
+})();
+
+
+// =============================================================================
+// Demo Mode (PL-015)
+// =============================================================================
+
+function plural(n, word) {
+    return `${n} ${word}${n === 1 ? '' : 's'}`;
+}
+
+/** Keep the demo banner in step with /dashboard/status (days left, expiry while open). */
+function updateDemoBanner(demo) {
+    const banner = document.getElementById('demo-banner');
+    const text = document.getElementById('demo-banner-text');
+    if (!banner || !demo) return;
+    const on = demo.allowed && demo.enabled;
+    banner.style.display = on ? '' : 'none';
+    if (on && text) {
+        text.textContent = `${plural(demo.days_left, 'day')} left · ${plural(demo.demo_devices, 'demo device')}`;
+    }
+}
+
+(function initDemoMode() {
+    const onBtn    = document.getElementById('btn-demo-on');
+    const offBtn   = document.getElementById('btn-demo-off');
+    const regenBtn = document.getElementById('btn-demo-regenerate');
+    const statusEl = document.getElementById('demo-mode-status');
+    const expires  = document.getElementById('demo-expires');
+
+    if (expires && expires.dataset.expires) {
+        expires.textContent = new Date(expires.dataset.expires).toLocaleString();
+    }
+
+    function showStatus(msg, type) {
+        statusEl.textContent = msg;
+        statusEl.className = 'status-message ' + type;
+        statusEl.style.display = 'block';
+    }
+
+    async function post(url, body, busyMsg) {
+        [onBtn, offBtn, regenBtn].forEach(b => { if (b) b.disabled = true; });
+        showStatus(busyMsg, 'info');
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            const data = await resp.json();
+            if (data.ok) {
+                location.reload();
+                return;
+            }
+            showStatus('Error: ' + (data.error || 'Unknown failure'), 'error');
+        } catch (err) {
+            showStatus('Network error. Please try again.', 'error');
+        }
+        [onBtn, offBtn, regenBtn].forEach(b => { if (b) b.disabled = false; });
+    }
+
+    if (onBtn) {
+        onBtn.addEventListener('click', () => {
+            if (!confirm('Turn on demo mode for 14 days? Anyone with a demo code can pair with this frame from the internet.')) return;
+            post('/api/settings/demo', { enabled: true }, 'Turning on demo mode…');
+        });
+    }
+    if (offBtn) {
+        offBtn.addEventListener('click', () => {
+            const n = parseInt(offBtn.dataset.devices || '0', 10);
+            if (!confirm(`Turn off demo mode? This revokes ${plural(n, 'demo device')}.`)) return;
+            post('/api/settings/demo', { enabled: false }, 'Turning off demo mode…');
+        });
+    }
+    if (regenBtn) {
+        regenBtn.addEventListener('click', () => {
+            if (!confirm('Generate new demo codes? The current codes stop working and the 14 days restart. Phones already paired stay paired.')) return;
+            post('/api/settings/demo/regenerate', null, 'Generating new codes…');
+        });
+    }
 })();

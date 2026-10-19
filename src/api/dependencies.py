@@ -10,6 +10,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from src.auth.jwt_handler import TokenClaims, verify_token
+from src.services import demo_service
 from src.storage.devices import device_storage
 
 security = HTTPBearer(auto_error=False)
@@ -49,6 +50,9 @@ async def get_current_device(
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Ends demo mode at its expiry, revoking demo devices before the lookup below
+    demo_service.expire_if_due()
 
     device = device_storage.get_device(claims.device_id)
     if device is None:

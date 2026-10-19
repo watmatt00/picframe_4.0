@@ -5,12 +5,16 @@ Generates and validates pairing codes for device enrollment.
 Codes are 6 alphanumeric characters (36^6 = 2.17B combinations).
 """
 
+import re
 import secrets
 import string
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from src.config.settings import DemoConfig
 
 # Code format: 6 alphanumeric, case-insensitive
 CODE_LENGTH = 6
@@ -134,6 +138,60 @@ def get_active_code() -> Optional[PairingCode]:
     # Return most recent active code
     if _active_codes:
         return max(_active_codes.values(), key=lambda pc: pc.created_at)
+    return None
+
+
+DEMO_CODE_RE = re.compile(r"^[A-Z0-9]{3}-[A-Z0-9]{3}$")
+
+
+def _new_code() -> str:
+    """Return a random code formatted as ABC-XYZ."""
+    code = "".join(secrets.choice(CODE_CHARS) for _ in range(CODE_LENGTH))
+    return f"{code[:3]}-{code[3:]}"
+
+
+def generate_demo_codes() -> tuple[str, str]:
+    """Return a new (admin_code, contributor_code) pair; the two always differ."""
+    admin_code = _new_code()
+    contributor_code = _new_code()
+    while contributor_code == admin_code:
+        contributor_code = _new_code()
+    return admin_code, contributor_code
+
+
+def _same_code(a: str, b: str) -> bool:
+    """Constant-time comparison of two normalized codes; invalid stored codes never match."""
+    b = b.upper().strip()
+    if not DEMO_CODE_RE.match(b):
+        return False
+    return secrets.compare_digest(a.encode(), b.encode())
+
+
+def match_demo_code(code: str, demo: "DemoConfig", now: Optional[datetime] = None) -> Optional[str]:
+    """
+    Check a code against the demo codes (PL-015).
+
+    Args:
+        code: The code the phone sent (case-insensitive)
+        demo: The frame's demo settings
+        now: Current time (for tests)
+
+    Returns:
+        "admin" or "contributor" for a live demo code, "expired" for a demo code this
+        frame issued that no longer works, or None when it isn't a demo code
+        (or demo mode isn't allowed on this frame).
+    """
+    if not demo.allowed:
+        return None
+    normalized = code.upper().strip()
+    now = now or datetime.now(timezone.utc)
+    live = demo.enabled and demo.expires_at is not None and now < demo.expires_at
+
+    for stored, role in ((demo.admin_code, "admin"), (demo.contributor_code, "contributor")):
+        if _same_code(normalized, stored):
+            return role if live else "expired"
+    if any(_same_code(normalized, old) for old in demo.previous_codes):
+        return "expired"
     return None
 
 

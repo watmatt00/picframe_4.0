@@ -15,14 +15,18 @@ from pydantic import BaseModel
 from src.api.dependencies import require_admin
 from src.auth.jwt_handler import create_token
 from src.auth.models import Device
-from src.auth.pairing import generate_pairing_code as gen_code, verify_pairing_code
+from src.auth.pairing import generate_pairing_code as gen_code, match_demo_code, verify_pairing_code
 from src.config.settings import get_settings
+from src.services import demo_service
 from src.storage.devices import device_storage
 from src.storage.invites import invite_storage
 from src.utils.logging import log_auth_event
 from src.utils.qr_generator import generate_pairing_qr
 
 router = APIRouter(tags=["pairing"])
+
+INVITE_IN_ADMIN_APP_DETAIL = "This is an invite code. Use the PicFrame Contributor app to pair with it."
+DEMO_EXPIRED_DETAIL = "This demo code has expired. Contact the frame owner for a new code."
 
 
 class PairRequest(BaseModel):
@@ -67,9 +71,19 @@ async def pair_device(request: PairRequest, http_request: Request):
         ip=client_ip,
     )
 
+    # Demo codes (PL-015) first: reusable, for the App Store reviewer
+    demo_service.expire_if_due()
+    demo_role = match_demo_code(request.code, get_settings().demo)
+    if demo_role == "expired":
+        log_auth_event("PAIR", success=False, details={"reason": "demo_code_expired"}, ip=client_ip)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=DEMO_EXPIRED_DETAIL)
+    if demo_role == "contributor" and request.requested_role == "admin":
+        log_auth_event("PAIR", success=False, details={"reason": "demo_contributor_code_in_admin_app"}, ip=client_ip)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=INVITE_IN_ADMIN_APP_DETAIL)
+
     # Validate the pairing code — check admin codes first, then contributor invites
-    role = "admin"
-    if not verify_pairing_code(request.code):
+    role = demo_role or "admin"
+    if demo_role is None and not verify_pairing_code(request.code):
         # The Manager (admin) app asks for admin: an invite code is for the Contributor
         # app, so refuse it without claiming it (invites are single-use)
         if request.requested_role == "admin":
@@ -82,7 +96,7 @@ async def pair_device(request: PairRequest, http_request: Request):
                 )
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="This is an invite code. Use the PicFrame Contributor app to pair with it.",
+                    detail=INVITE_IN_ADMIN_APP_DETAIL,
                 )
             log_auth_event(
                 "PAIR",
@@ -131,6 +145,7 @@ async def pair_device(request: PairRequest, http_request: Request):
         name=request.device_name,
         role=role,
         paired_at=datetime.now(timezone.utc),
+        demo=demo_role is not None,
     )
     device_storage.add_device(device)
 
@@ -138,7 +153,7 @@ async def pair_device(request: PairRequest, http_request: Request):
     log_auth_event(
         "PAIR",
         success=True,
-        details={"device_id": device_id, "device_name": request.device_name},
+        details={"device_id": device_id, "device_name": request.device_name, "role": role, "demo": demo_role is not None},
         ip=client_ip,
     )
 

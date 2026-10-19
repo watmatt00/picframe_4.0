@@ -5,6 +5,7 @@ Handles configuration file read/write with file locking.
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -66,6 +67,9 @@ class ConfigManager:
             try:
                 with open(temp_path, "w") as f:
                     yaml.safe_dump(config, f, default_flow_style=False)
+
+                # Owner-only: holds the demo pairing codes and the Koofr user
+                os.chmod(temp_path, 0o600)
 
                 # Atomic rename
                 temp_path.rename(self._path)

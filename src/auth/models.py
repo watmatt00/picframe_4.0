@@ -22,6 +22,7 @@ class Device(BaseModel):
     token_not_before: Optional[datetime] = Field(
         None, description="Issue time of the newest token; older tokens expire after a short grace"
     )
+    demo: bool = Field(default=False, description="Paired with a demo code; revoked when demo mode ends")
 
     @field_serializer("paired_at", "last_seen", "token_not_before")
     def serialize_dt(self, v: Optional[datetime]) -> Optional[str]:

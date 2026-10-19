@@ -159,6 +159,24 @@ curl https://<hostname>.<tailnet>.ts.net/health
 
 ---
 
+## Demo Mode (App Store review frame)
+
+Reusable pairing codes for an App Store reviewer (PL-015). See `docs/SECURITY.md` → Demo Mode for the risks.
+
+1. **Allow it on the review frame only.** Add this to `~/.picframe/config.yaml` on that frame, then `systemctl --user restart picframe-api`:
+   ```yaml
+   demo:
+     allowed: true
+   ```
+   Never on a frame with personal photos or a personal Koofr account.
+2. **Turn it on:** dashboard → Settings → 🍎 Demo Mode → Turn On Demo Mode. The card shows the Manager code, the Contributor code and the Frame URL to put in the App Review notes. An amber banner shows on every tab with the days left.
+3. **It lasts 14 days**, then turns itself off and revokes the demo phones. **Generate New Codes** replaces both codes and restarts the 14 days (paired phones stay paired); the old codes then report "expired".
+4. **After the review:** Turn Off Demo Mode (revokes demo phones), then rotate the Koofr app password.
+
+To stop allowing it, remove `allowed: true` (or set it false) and restart the API; demo mode ends and demo phones are revoked on the next check.
+
+---
+
 ## WiFi Recovery — Usage Guide
 
 ### How setup mode is triggered

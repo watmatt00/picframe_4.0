@@ -111,6 +111,16 @@ Exchange a pairing code for a JWT token.
 {"detail": "Invalid or expired pairing code"}
 ```
 
+**Demo codes (PL-015).** On a frame with `demo.allowed: true` and demo mode turned on (dashboard Settings → Demo Mode), two reusable codes also pair. They don't expire for 14 days, have no attempt or rate limits, and aren't used up:
+
+| Code | `requested_role: "admin"` (Manager) | `requested_role: "contributor"` (Contributor) |
+|------|------|------|
+| Demo admin code | 200, `role: "admin"` | 200, `role: "contributor"` |
+| Demo contributor code | 403 `"This is an invite code. Use the PicFrame Contributor app to pair with it."` | 200, `role: "contributor"` |
+| Demo code after demo mode ended, or replaced by new codes | 401 `"This demo code has expired. Contact the frame owner for a new code."` | same |
+
+Devices paired with a demo code are revoked when demo mode ends (turned off, or 14 days after it was turned on); their next call gets 401 `"Device has been revoked"`.
+
 ---
 
 ### POST /pairing/generate
@@ -455,6 +465,8 @@ The web dashboard at `http://<pi-ip>:8000` provides browser-based management acc
 | `/api/settings/log-level` | POST | Set log level |
 | `/api/settings/sleep-schedule` | POST | Save display sleep schedule (on/off times, systemd timers) |
 | `/api/settings/party` | POST | Enable or disable party mode |
+| `/api/settings/demo` | POST | Turn demo mode on (`{"enabled": true}`, 14 days) or off (revokes demo devices). 403 unless `demo.allowed` |
+| `/api/settings/demo/regenerate` | POST | New demo codes and a fresh 14 days; paired demo phones stay paired. 403 unless `demo.allowed` |
 | `/dashboard/test-lights` | POST | Override indicator light state for manual testing |
 | `/api/updates/settings` | GET | Get update check schedule settings |
 | `/api/updates/check` | POST | Check for available updates |
@@ -492,6 +504,8 @@ The web dashboard at `http://<pi-ip>:8000` provides browser-based management acc
 ## Dashboard Status Response
 
 **GET /dashboard/status**
+
+Includes a `demo` object: `allowed`, `enabled`, `admin_code`, `contributor_code` (empty unless allowed), `expires_at`, `days_left`, `demo_devices`.
 
 Returns real-time dashboard data for AJAX updates.
 

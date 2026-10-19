@@ -142,6 +142,30 @@ class DeviceStorage:
 
             return False
 
+    def remove_demo_devices(self) -> int:
+        """
+        Remove every device paired with a demo code.
+
+        Skips the last-admin guard on purpose: demo devices are temporary, and the
+        dashboard (LAN) can always pair a new admin.
+
+        Returns:
+            Number of devices removed
+        """
+        with self._lock:
+            devices = self._load()
+            kept = [d for d in devices if not d.demo]
+            removed = len(devices) - len(kept)
+            if removed:
+                self._save(kept)
+                logger.info(f"Removed {removed} demo device(s)")
+            return removed
+
+    def count_demo_devices(self) -> int:
+        """Count devices paired with a demo code."""
+        with self._lock:
+            return sum(1 for d in self._load() if d.demo)
+
     def update_last_seen(self, device_id: str):
         """
         Update the last_seen timestamp for a device.
