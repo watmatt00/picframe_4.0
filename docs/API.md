@@ -203,9 +203,19 @@ Authorization: Bearer <token>
     "total_bytes": 68719476736,
     "used_bytes": 13421772800,
     "free_bytes": 55297703936
+  },
+  "network": {
+    "lan_ip": "192.168.102.210",
+    "tailscale_ip": "100.100.168.66",
+    "funnel_url": "https://tkframe.whale-ayu.ts.net",
+    "local_connected": true,
+    "wifi_ssid": "7Oaks",
+    "remote_access": true
   }
 }
 ```
+
+`network` drives the app's Connection lights. `local_connected`: the frame has a LAN connection (same test as the frame's WiFi dot). `wifi_ssid`: "" when wired or unknown. `remote_access`: the frame answers on its Funnel URL from the public internet (checked through Tailscale's relay, cached 5 min when OK, 1 min when failing); `null` when no Funnel URL is set. The last three are missing on frames older than 5.0.0.
 
 ---
 

@@ -28,6 +28,8 @@ def test_status_includes_network(monkeypatch):
     })
     monkeypatch.setattr(status, "get_lan_ip", lambda: "192.168.102.210")
     monkeypatch.setattr(status, "get_tailscale_ip", lambda: "100.100.168.66")
+    monkeypatch.setattr(status, "get_wifi_ssid", lambda: "7Oaks")
+    monkeypatch.setattr(status, "check_remote_access", lambda url: url == "https://tkframe.whale-ayu.ts.net")
     monkeypatch.setattr(status, "get_settings", lambda: SimpleNamespace(frame=SimpleNamespace(
         id="f1", name="tkframe", funnel_url="https://tkframe.whale-ayu.ts.net")))
     app.dependency_overrides[require_admin] = lambda: {"role": "admin"}
@@ -41,4 +43,7 @@ def test_status_includes_network(monkeypatch):
         "lan_ip": "192.168.102.210",
         "tailscale_ip": "100.100.168.66",
         "funnel_url": "https://tkframe.whale-ayu.ts.net",
+        "local_connected": True,
+        "wifi_ssid": "7Oaks",
+        "remote_access": True,
     }

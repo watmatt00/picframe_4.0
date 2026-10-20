@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from src.api.dependencies import require_admin
 from src.config.settings import get_settings
 from src.services.sync_service import sync_service
-from src.utils.network import get_lan_ip, get_tailscale_ip
+from src.utils.network import check_remote_access, get_lan_ip, get_tailscale_ip, get_wifi_ssid
 from src.services.status_service import (
     get_current_source,
     get_photo_counts,
@@ -62,6 +62,10 @@ class NetworkInfo(BaseModel):
     lan_ip: str
     tailscale_ip: str
     funnel_url: str
+    # Connection lights in the app (newer frames only)
+    local_connected: bool = False
+    wifi_ssid: str = ""
+    remote_access: Optional[bool] = None  # None = no Funnel URL configured
 
 
 class FrameStatus(BaseModel):
@@ -148,14 +152,20 @@ async def get_status(admin=Depends(require_admin)):
     capacity = CapacityInfo(**capacity_data)
 
     # Addresses for the app's connection info (tailscale call is a blocking subprocess)
-    lan_ip, tailscale_ip = await asyncio.gather(
+    funnel_url = settings.frame.funnel_url or ""
+    lan_ip, tailscale_ip, wifi_ssid, remote_access = await asyncio.gather(
         asyncio.to_thread(get_lan_ip),
         asyncio.to_thread(get_tailscale_ip),
+        asyncio.to_thread(get_wifi_ssid),
+        asyncio.to_thread(check_remote_access, funnel_url),
     )
     network = NetworkInfo(
         lan_ip=lan_ip,
         tailscale_ip=tailscale_ip,
-        funnel_url=settings.frame.funnel_url or "",
+        funnel_url=funnel_url,
+        local_connected=bool(lan_ip),
+        wifi_ssid=wifi_ssid,
+        remote_access=remote_access,
     )
 
     return FrameStatus(

@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 
-from src.utils.network import get_lan_ip, get_tailscale_ip
+from src.utils.network import get_lan_ip, get_tailscale_ip, get_wifi_ssid
 from src.utils import thumbnails
 from src.config.settings import get_settings, reload_settings
 from src.config.manager import config_manager
@@ -231,29 +231,12 @@ def _get_picframe_config() -> dict:
 # Kept under the old names; the shared versions live in src/utils/network.py
 _get_tailscale_ip = get_tailscale_ip
 _get_lan_ip = get_lan_ip
+_get_wifi_ssid = get_wifi_ssid
 
 
 def _is_wifi_connected() -> bool:
     """Return True if the frame has a non-loopback network connection."""
     return bool(_get_lan_ip())
-
-
-def _get_wifi_ssid() -> str:
-    """Get the currently connected WiFi SSID via nmcli."""
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["nmcli", "-t", "-f", "active,ssid", "dev", "wifi"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode == 0:
-            for line in result.stdout.splitlines():
-                parts = line.split(":", 1)
-                if len(parts) == 2 and parts[0] == "yes":
-                    return parts[1].strip()
-    except Exception as e:
-        logger.warning(f"Failed to get WiFi SSID: {e}")
-    return ""
 
 
 
