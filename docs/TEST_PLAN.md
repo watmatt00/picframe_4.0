@@ -121,7 +121,7 @@ systemctl --user start wanderwall-api picframe
 **Endpoints:** `GET /health`, `GET /version`
 
 - [ ] `GET http://192.168.102.210:8000/health` returns `{"status": "ok"}` with HTTP 200
-- [ ] `GET http://192.168.102.210:8000/version` returns `{"version": "4.0.0", "api": "picframe"}` with HTTP 200
+- [ ] `GET http://192.168.102.210:8000/version` returns `{"version": "5.0.0", "api": "wanderwall"}` with HTTP 200
 - [ ] Dashboard loads at `http://192.168.102.210:8000/` without authentication
 - [ ] **Negative:** Request to unreachable IP times out gracefully (no crash)
 - [ ] **Negative:** Request to wrong port returns connection refused
@@ -717,11 +717,11 @@ curl -s http://192.168.102.210:8000/health
 
 # 5.2 Version
 curl -s http://192.168.102.210:8000/version
-# Expected: {"version":"4.0.0","api":"picframe"}
+# Expected: {"version":"5.0.0","api":"wanderwall"}
 ```
 
 - [ ] 5.1 Health returns `{"status": "ok"}` with HTTP 200
-- [ ] 5.2 Version returns `{"version": "4.0.0", "api": "picframe"}` with HTTP 200
+- [ ] 5.2 Version returns `{"version": "5.0.0", "api": "wanderwall"}` with HTTP 200
 
 ### Pairing Flow
 

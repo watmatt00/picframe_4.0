@@ -112,7 +112,7 @@ curl http://localhost:8000/version
 
 ### Reconfigure via hotspot (phone/laptop)
 
-1. Look for `WanderWall-<framename>` in WiFi networks — password: `picframe`
+1. Look for `WanderWall-<framename>` in WiFi networks — the password is shown on the frame's screen
 2. Connect and open `http://192.168.4.1` (captive portal auto-opens on most phones)
 3. Enter your home WiFi SSID and password, then submit
 4. Frame reboots and reconnects
