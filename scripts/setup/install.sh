@@ -17,6 +17,10 @@ set -euo pipefail
 #   --frame-name=NAME             Frame hostname (prompted if omitted)
 #   --with-samba                  Install Samba file sharing
 #   --with-mqtt                   Install Mosquitto MQTT broker
+#   --from-v4                     Reinstall an existing PicFrame v4 frame as WanderWall:
+#                                 keeps the OS, Tailscale, WiFi and display engine, copies
+#                                 settings and albums, no reboots. Phones pair again.
+#                                 Undo with scripts/setup/rollback_v4.sh.
 
 # ── Guard ─────────────────────────────────────────────────────────────────────
 if [[ $EUID -ne 0 ]]; then
@@ -34,12 +38,14 @@ TS_AUTHKEY=""
 KOOFR_EMAIL=""
 KOOFR_PASS=""
 FUNNEL_URL=""
+FROM_V4="false"
 
 for arg in "$@"; do
     case $arg in
         --user=*)        ACTUAL_USER="${arg#--user=}" ;;
         --with-samba)    WITH_SAMBA="true" ;;
         --with-mqtt)     WITH_MQTT="true" ;;
+        --from-v4)       FROM_V4="true" ;;
         --branch=*)      BRANCH="${arg#--branch=}" ;;
         --frame-name=*)  FRAME_NAME="${arg#--frame-name=}" ;;
         --ts-authkey=*)  TS_AUTHKEY="${arg#--ts-authkey=}" ;;
@@ -114,6 +120,7 @@ save_state() {
         printf 'WITH_SAMBA=%q\n'  "$WITH_SAMBA"
         printf 'WITH_MQTT=%q\n'   "$WITH_MQTT"
         printf 'FUNNEL_URL=%q\n'  "$FUNNEL_URL"
+        printf 'FROM_V4=%q\n'     "$FROM_V4"
     } > "$STATE_ENV"
     chown "$ACTUAL_USER:$ACTUAL_USER" "$STATE_ENV"
     chmod 600 "$STATE_ENV"
@@ -248,6 +255,78 @@ check_funnel_dns() {
 # ── Main ──────────────────────────────────────────────────────────────────────
 LAST=$(last_step)
 log "=== WanderWall install | user=$ACTUAL_USER step=$LAST frame=${FRAME_NAME:-?} branch=${BRANCH:-?} ==="
+
+# ── v4 reinstall (--from-v4): replaces Phases 0–5 ────────────────────────────
+# The OS, Tailscale/Funnel, WiFi, rclone remote and display engine stay. v4 data
+# is copied, not moved, and v4 unit files go to $V4_BACKUP, so rollback_v4.sh can
+# bring v4 back. Pairings (devices.json, jwt_secret, invites.json) are not copied.
+V4_DATA="$ACTUAL_HOME/.picframe"
+V4_STATE="/var/lib/picframe/state.yaml"
+V4_BACKUP="$ACTUAL_HOME/picframe_v4_backup"
+if [[ "$FROM_V4" == "true" && "$LAST" -lt 1 ]]; then
+    log "--- v4 reinstall: import settings, stop v4 services ---"
+    [[ -f "$V4_DATA/config.yaml" ]] || { log "ERROR: $V4_DATA/config.yaml not found — not a v4 frame"; exit 1; }
+    [[ -x "$ACTUAL_HOME/venv_picframe/bin/picframe" ]] || { log "ERROR: display engine not found in $ACTUAL_HOME/venv_picframe"; exit 1; }
+    check_internet
+
+    FRAME_NAME="${FRAME_NAME:-$(hostname)}"
+    FUNNEL_URL=$(python3 - "$V4_DATA/config.yaml" <<'PYEOF'
+import sys, yaml
+with open(sys.argv[1]) as f:
+    cfg = yaml.safe_load(f) or {}
+print((cfg.get("frame") or {}).get("funnel_url") or "")
+PYEOF
+)
+    [[ -n "$FUNNEL_URL" ]] || FUNNEL_URL=$(tailscale funnel status 2>/dev/null | grep "^https://" | awk '{print $1}' | head -1 || true)
+    log "  Frame name : $FRAME_NAME"
+    log "  Funnel URL : ${FUNNEL_URL:-not found}"
+
+    # v4 user units: stop (the new API needs port 8000) and keep the files.
+    # picframe.service is the display engine and stays.
+    install -d -o "$ACTUAL_USER" -g "$ACTUAL_USER" "$V4_BACKUP" "$V4_BACKUP/user-units"
+    install -d "$V4_BACKUP/system"
+    for unit in "$ACTUAL_HOME"/.config/systemd/user/picframe-*.service "$ACTUAL_HOME"/.config/systemd/user/picframe-*.timer; do
+        [[ -f "$unit" ]] || continue
+        name="$(basename "$unit")"
+        user_systemctl disable --now "$name" 2>/dev/null || true
+        mv "$unit" "$V4_BACKUP/user-units/"
+        log "  Stopped v4 $name"
+    done
+    user_systemctl daemon-reload
+
+    # v4 system units, tools and config files
+    for f in /etc/systemd/system/picframe-* /etc/polkit-1/rules.d/50-picframe.rules \
+             /usr/local/bin/picframe-config /etc/hostapd/picframe-hostapd.conf; do
+        [[ -e "$f" ]] || continue
+        [[ "$f" == /etc/systemd/system/*.service ]] && { systemctl disable --now "$(basename "$f")" 2>/dev/null || true; }
+        mv "$f" "$V4_BACKUP/system/"
+        log "  Moved v4 $f"
+    done
+    systemctl daemon-reload
+    [[ -f /etc/issue.picframe-backup ]] && mv /etc/issue.picframe-backup /etc/issue.wanderwall-backup
+    if nmcli -t -f NAME con show 2>/dev/null | grep -qx 'picframe-wifi'; then
+        nmcli con modify picframe-wifi connection.id wanderwall-wifi
+        log "  WiFi profile renamed picframe-wifi → wanderwall-wifi"
+    fi
+
+    # Settings and albums
+    install -d -m 700 -o "$ACTUAL_USER" -g "$ACTUAL_USER" "$ACTUAL_HOME/.wanderwall"
+    for f in config.yaml sources.yaml frame_albums.yaml deleted_albums.yaml; do
+        [[ -f "$V4_DATA/$f" ]] || continue
+        install -m 600 -o "$ACTUAL_USER" -g "$ACTUAL_USER" "$V4_DATA/$f" "$ACTUAL_HOME/.wanderwall/$f"
+        log "  Copied $f"
+    done
+    install -d -m 775 -o root -g sudo /var/lib/wanderwall
+    if [[ -f "$V4_STATE" ]]; then
+        install -m 664 -o root -g sudo "$V4_STATE" /var/lib/wanderwall/state.yaml
+        log "  Copied state.yaml"
+    fi
+
+    save_state
+    save_step 6
+    LAST=6
+    log "  ✓ v4 settings imported (v4 kept in $V4_DATA and $V4_BACKUP)"
+fi
 
 # ── Phase 0: Preflight interview + pre-reboot setup ──────────────────────────
 # All interactive prompts happen here, before any reboot.
@@ -564,7 +643,8 @@ PYEOF
 fi
 
 # ── Phase 8: start_picframe.sh + labwc + picframe display service ─────────────
-if [[ "$LAST" -lt 9 ]]; then
+# Skipped for --from-v4: the display engine is already set up.
+if [[ "$LAST" -lt 9 && "$FROM_V4" != "true" ]]; then
     log "--- Phase 8: labwc display service ---"
 
     # start_picframe.sh — called by labwc autostart
@@ -699,6 +779,8 @@ PYEOF
             log "  WARNING: Koofr setup failed: $KOOFR_ERR"
             log "  Configure Koofr later at: http://$FRAME_NAME.local:8000"
         fi
+    elif [[ "$FROM_V4" == "true" ]]; then
+        log "  Koofr settings kept from v4"
     else
         log "  Koofr credentials not provided — configure via dashboard"
     fi
@@ -713,9 +795,10 @@ fi
 # ── Phase 11: Final cleanup ────────────────────────────────────────────────────
 log "--- Phase 11: Final cleanup ---"
 
-# Apply display defaults first — while script is still intact, before any cleanup
+# Apply display defaults first — while script is still intact, before any cleanup.
+# Not for --from-v4: the frame keeps its own display settings.
 PCONF="$ACTUAL_HOME/picframe_data/config/configuration.yaml"
-if [[ -f "$PCONF" ]]; then
+if [[ -f "$PCONF" && "$FROM_V4" != "true" ]]; then
     apply_picframe_defaults "$PCONF" >> "$LOG_FILE" 2>&1 || true
     ACTUAL_UID=$(id -u "$ACTUAL_USER")
     timeout 30 sudo -u "$ACTUAL_USER" \
