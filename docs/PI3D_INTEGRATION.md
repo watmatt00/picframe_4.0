@@ -1,4 +1,4 @@
-# PicFrame 4.0 - Pi3D PictureFrame Integration
+# WanderWall - Pi3D PictureFrame Integration
 
 ## Overview
 
@@ -20,7 +20,7 @@ Reference: [TheDigitalPictureFrame.com Installation Guide](https://www.thedigita
 The upstream helgeerbe install script no longer exists. We maintain a combined installer at `scripts/setup/install.sh` that handles the full stack (display engine + API + Tailscale + Koofr + WiFi recovery) in a single command.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/main/scripts/setup/install.sh \
+curl -fsSL https://raw.githubusercontent.com/watmatt00/wanderwall_frame/main/scripts/setup/install.sh \
   -o /tmp/install.sh && sudo bash /tmp/install.sh
 
 # With optional services:
@@ -105,7 +105,7 @@ http:
 
 ## Control Methods
 
-### How picframe_4.0 Controls Pi3D
+### How wanderwall_frame Controls Pi3D
 
 | Control Method | How We Use It |
 |----------------|---------------|
@@ -170,7 +170,7 @@ client.publish("picframe/subdirectory", "vacation/hawaii")
 
 ## Source Switching Strategy
 
-picframe_4.0 manages multiple photo sources as directories under `~/Pictures/`:
+wanderwall_frame manages multiple photo sources as directories under `~/Pictures/`:
 
 ```
 ~/Pictures/
@@ -180,7 +180,7 @@ picframe_4.0 manages multiple photo sources as directories under `~/Pictures/`:
   └── spotlight/           <- Temporary spotlight dir (permanent, never deleted)
 ```
 
-To switch sources, picframe_4.0 uses Pi3D's HTTP API:
+To switch sources, wanderwall_frame uses Pi3D's HTTP API:
 
 ```
 GET http://localhost:9000/?subdirectory=koofr_main
@@ -198,7 +198,7 @@ http:
   port: 9000
 ```
 
-**picframe_4.0 uses this as the primary control method** — it accepts `GET /?<key>=<value>` to change settings without any service restart, producing seamless fade transitions.
+**wanderwall_frame uses this as the primary control method** — it accepts `GET /?<key>=<value>` to change settings without any service restart, producing seamless fade transitions.
 
 ### HTTP API Commands
 

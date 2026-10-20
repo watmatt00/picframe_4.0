@@ -1,12 +1,12 @@
-# PicFrame Ecosystem - Comprehensive Test Plan
+# WanderWall Ecosystem - Comprehensive Test Plan
 
 ## 1. Overview & How to Use This Plan
 
 ### Purpose
 
-This document is the master test plan for the PicFrame ecosystem covering:
-- **Raspberry Pi Backend** (`picframe_4.0`) - FastAPI, web dashboard, services
-- **iOS Manager App** (`picframe_mgr`) - SwiftUI mobile management app
+This document is the master test plan for the WanderWall ecosystem covering:
+- **Raspberry Pi Backend** (`wanderwall_frame`) - FastAPI, web dashboard, services
+- **iOS Manager App** (`wanderwall_app`) - SwiftUI mobile management app
 
 It validates every screen, every displayed data element, every configurable setting, and the interactions between the web dashboard and the iOS app.
 
@@ -62,7 +62,7 @@ These are invisible in rendered markdown but searchable with `grep "FAIL:"`.
 
 | Item | Required | Notes |
 |------|----------|-------|
-| Raspberry Pi 4/5 | Yes | Running picframe_4.0 backend |
+| Raspberry Pi 4/5 | Yes | Running wanderwall_frame backend |
 | Tailscale | Yes | Funnel enabled on Pi |
 | Mac with Xcode | Yes | For iOS simulator builds |
 | iPhone Simulator | Yes | iPhone 14 Pro recommended |
@@ -88,16 +88,16 @@ All commands in this plan use hardcoded values for tkframe. If testing a differe
 **Pi backend:**
 ```bash
 # Stop services
-systemctl --user stop picframe-api picframe
+systemctl --user stop wanderwall-api picframe
 
 # Clear paired devices
-rm ~/.picframe/devices.json
+rm ~/.wanderwall/devices.json
 
 # Reset config to defaults
-# (backup first, then edit ~/.picframe/config.yaml)
+# (backup first, then edit ~/.wanderwall/config.yaml)
 
 # Restart
-systemctl --user start picframe-api picframe
+systemctl --user start wanderwall-api picframe
 ```
 
 **iOS app (Simulator):**
@@ -188,8 +188,8 @@ systemctl --user start picframe-api picframe
 
 #### Service Health
 
-- [ ] PicFrame Display service status shown (running/stopped)
-- [ ] PicFrame API service status shown (running/stopped)
+- [ ] WanderWall Display service status shown (running/stopped)
+- [ ] WanderWall API service status shown (running/stopped)
 
 #### Storage
 
@@ -201,7 +201,7 @@ systemctl --user start picframe-api picframe
 - [ ] "Sync Now" button triggers sync → traffic light goes BLUE
 - [ ] After sync completes, traffic light returns to appropriate color
 - [ ] "Restart Frame" button restarts picframe service
-- [ ] "Restart API" button restarts picframe-api service (page may briefly disconnect)
+- [ ] "Restart API" button restarts wanderwall-api service (page may briefly disconnect)
 - [ ] "Refresh" button updates all displayed data
 
 #### Source Switching
@@ -346,7 +346,7 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 
 #### Services Section (Admin only)
 
-- [ ] Lists services: PicFrame Display, PicFrame API
+- [ ] Lists services: WanderWall Display, WanderWall API
 - [ ] Each service shows running/stopped status with colored dot
 - [ ] Restart button present for each service
 - [ ] Tap restart → confirmation → service restarts → status updates
@@ -650,8 +650,8 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 
 - [ ] Open app Settings → "View Logs" → operations log loads
 - [ ] Switch to security log → security events displayed
-- [ ] Restart PicFrame Display service from app → service recovers
-- [ ] Restart PicFrame API service from app → brief disconnect, then reconnects
+- [ ] Restart WanderWall Display service from app → service recovers
+- [ ] Restart WanderWall API service from app → brief disconnect, then reconnects
 - [ ] Check sync status after restart → services resume normally
 - [ ] Trigger manual sync → verify it completes and counts match
 
@@ -693,7 +693,7 @@ Most curl commands below require a JWT token. Set it once in your terminal sessi
 
 **Option A** — Pull from the Pi's device file (if already paired):
 ```bash
-TOKEN=$(ssh matt@192.168.102.210 "python3 -c \"import json; d=json.load(open('.picframe/devices.json')); print(d['devices'][0]['token'])\"")
+TOKEN=$(ssh matt@192.168.102.210 "python3 -c \"import json; d=json.load(open('.wanderwall/devices.json')); print(d['devices'][0]['token'])\"")
 ```
 
 **Option B** — Pair via curl (run tests 5.3 + 5.4 first, then copy the token from the response):
@@ -750,7 +750,7 @@ curl -s http://192.168.102.210:8000/api/v1/status \
 ```
 
 - [ ] 5.5 Status returns frame_id, frame_name, current_source, photo_count, services array, sync object, capacity object
-- [ ] 5.5 Services array contains picframe and picframe-api entries
+- [ ] 5.5 Services array contains picframe and wanderwall-api entries
 - [ ] 5.5 Capacity includes total_bytes, used_bytes, free_bytes, percent_used
 
 ### Folder/Source Management
@@ -911,7 +911,7 @@ curl -s http://192.168.102.210:8000/api/v1/services \
 # Expected: array of services with name, display_name, active, status, can_restart
 ```
 
-- [ ] 5.23 Services list returns picframe and picframe-api with status fields
+- [ ] 5.23 Services list returns picframe and wanderwall-api with status fields
 
 ### Display Folder (GET)
 

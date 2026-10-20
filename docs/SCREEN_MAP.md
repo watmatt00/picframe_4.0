@@ -1,6 +1,6 @@
 # Screen Map
 
-Single source of truth for all screens/pages across PicFrame Manager (iOS app) and PicFrame Dashboard (web).
+Single source of truth for all screens/pages across WanderWall (iOS app) and WanderWall Dashboard (web).
 
 ## How to Use Screen IDs
 
@@ -20,7 +20,7 @@ Use these stable IDs in test plans, bug reports, and development references:
 - **Presentation:** App launch (root view via `ContentView.swift` > `SplashView`)
 - **UI Elements:**
   - App icon (photo.on.rectangle.angled)
-  - "PicFrame" title + "Manager" subtitle
+  - "WanderWall" title + "Manager" subtitle
   - Tagline: "Share memories with your frames"
 - **Behavior:** Animates in (scale + fade), auto-transitions to IOS-MAIN after 2 seconds
 - **Navigation:** Replaces self with `MainContentView` (IOS-MAIN)
@@ -43,7 +43,7 @@ Use these stable IDs in test plans, bug reports, and development references:
 - **File:** `MainMenuView.swift`
 - **Presentation:** Embedded in IOS-MAIN
 - **UI Elements:**
-  - Header: App icon, "PicFrame Manager", user email (if connected)
+  - Header: App icon, "WanderWall", user email (if connected)
   - Koofr Storage quota card (usage bar, free/used/total)
   - Your Frames summary card (`PairedFramesSummary`):
     - Empty state: "No frames paired. Tap to pair a frame."
@@ -281,7 +281,7 @@ Use these stable IDs in test plans, bug reports, and development references:
     - "Unpair All Frames" button (red, disabled if no frames)
     - "Clear All Data" button (red)
   - Success/error message sections
-  - App version footer: "PicFrame Manager v1.0.0"
+  - App version footer: "WanderWall v1.0.0"
 - **Conditional States:**
   - Admin vs viewer (frame actions and sync settings visible for admin only)
   - Loading settings state for sync interval slider
@@ -318,7 +318,7 @@ Use these stable IDs in test plans, bug reports, and development references:
   - Nav title: "About"
   - Toolbar: Done (dismiss)
   - App icon (blue gradient rounded rectangle with photo icon)
-  - "PicFrame Manager" + "Version 1.0.0"
+  - "WanderWall" + "Version 1.0.0"
   - About section: App description
   - How It Works section: 4-step numbered list
   - Support section: Contact info + Koofr Web Interface link

@@ -1,8 +1,8 @@
-# PicFrame 4.0 - Security Model
+# WanderWall - Security Model
 
 ## Overview
 
-PicFrame 4.0 prioritizes security with:
+WanderWall prioritizes security with:
 - **JWT authentication** for all API access
 - **Tailscale Funnel** for secure HTTPS-only remote access
 - **Time-limited pairing codes** with rate limiting
@@ -54,7 +54,7 @@ PicFrame 4.0 prioritizes security with:
 |----------|-------|
 | **Algorithm** | HS256 |
 | **Secret** | 256-bit random, unique per Pi |
-| **Secret Location** | `~/.picframe/jwt_secret` (600 permissions) |
+| **Secret Location** | `~/.wanderwall/jwt_secret` (600 permissions) |
 | **Expiry** | 90 days; the app refreshes via `POST /api/v1/auth/refresh` when under 30 days remain |
 | **Rotation** | A refresh records the new token's issue time on the device (`token_not_before`); older tokens stop working 2 minutes later |
 | **Revocation** | Removing a device (dashboard Devices list or `DELETE /api/v1/devices/{id}`) rejects its tokens immediately |
@@ -83,7 +83,7 @@ Two reusable codes (Manager → admin, Contributor → contributor) so an App St
 
 | Safeguard | Detail |
 |-----------|--------|
-| **Per-frame gate** | Works only where `demo.allowed: true` was added by hand to `~/.picframe/config.yaml` (review frame only). Otherwise the dashboard card is hidden, the routes return 403 and demo codes are ignored. Never set it on a frame with personal photos. |
+| **Per-frame gate** | Works only where `demo.allowed: true` was added by hand to `~/.wanderwall/config.yaml` (review frame only). Otherwise the dashboard card is hidden, the routes return 403 and demo codes are ignored. Never set it on a frame with personal photos. |
 | **Not in git** | Codes are generated on the frame and stored only in its `config.yaml` (written `600`). The repo is public. |
 | **14-day limit** | Demo mode ends 14 days after it's turned on (or after "Generate New Codes"). Checked on every pair, API call and dashboard refresh. |
 | **Revoke on end** | Turning it off, or the 14 days ending, revokes every device paired with a demo code. |
@@ -101,8 +101,8 @@ Two reusable codes (Manager → admin, Contributor → contributor) so an App St
 
 | Log | Purpose | Location | Retention |
 |-----|---------|----------|-----------|
-| `picframe.log` | Operations (sync, display, errors) | `~/.picframe/logs/` | 7 days |
-| `security.log` | Auth events, API access, failures | `~/.picframe/logs/` | 90 days |
+| `wanderwall.log` | Operations (sync, display, errors) | `~/.wanderwall/logs/` | 7 days |
+| `security.log` | Auth events, API access, failures | `~/.wanderwall/logs/` | 90 days |
 
 ### Security Log Events
 
@@ -136,7 +136,7 @@ Admin phones upload, list and delete photos directly with Koofr, so `GET /api/v1
 - [x] Config files: 600 permissions, YAML (no code execution)
 - [x] Pairing codes: cryptographically random, 3 attempts, 5-min expiry
 - [ ] Last admin protection: cannot remove last admin
-- [ ] SSH recovery: `picframe-cli emergency-reset` command
+- [ ] SSH recovery: `wanderwall-cli emergency-reset` command
 - [x] Input validation: Pydantic models for all inputs
 - [ ] Path validation: No traversal in folder operations
 - [ ] Rate limiting: Per-endpoint limits

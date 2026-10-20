@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="WanderWall API",
     description="Secure mobile management for Raspberry Pi picture frames",
-    version="4.0.0",
+    version="5.0.0",
     lifespan=lifespan,
 )
 
@@ -76,7 +76,7 @@ async def health():
 @app.get("/version")
 async def version():
     """API version endpoint."""
-    return {"version": "4.0.0", "api": "wanderwall"}
+    return {"version": "5.0.0", "api": "wanderwall"}
 
 
 # Include dashboard routes (LAN only, no auth)

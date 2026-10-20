@@ -1,4 +1,4 @@
-# PicFrame 4.0 - API Reference
+# WanderWall - API Reference
 
 ## Base URL
 
@@ -80,7 +80,7 @@ API version endpoint.
 
 **Response:**
 ```json
-{"version": "4.0.0", "api": "picframe"}
+{"version": "5.0.0", "api": "wanderwall"}
 ```
 
 ---
@@ -118,7 +118,7 @@ Exchange a pairing code for a JWT token.
 | Code | `requested_role: "admin"` (Manager) | `requested_role: "contributor"` (Contributor) |
 |------|------|------|
 | Demo admin code | 200, `role: "admin"` | 200, `role: "contributor"` |
-| Demo contributor code | 403 `"This is an invite code. Use the PicFrame Contributor app to pair with it."` | 200, `role: "contributor"` |
+| Demo contributor code | 403 `"This is an invite code. Use the WanderWall Share app to pair with it."` | 200, `role: "contributor"` |
 | Demo code after demo mode ended, or replaced by new codes | 401 `"This demo code has expired. Contact the frame owner for a new code."` | same |
 
 Devices paired with a demo code are revoked when demo mode ends (turned off, or 14 days after it was turned on); their next call gets 401 `"Device has been revoked"`.
@@ -174,14 +174,14 @@ Authorization: Bearer <token>
   "services": [
     {
       "name": "picframe.service",
-      "display_name": "PicFrame Display",
+      "display_name": "WanderWall Display",
       "active": true,
       "status": "running",
       "can_restart": true
     },
     {
-      "name": "picframe-api.service",
-      "display_name": "PicFrame API",
+      "name": "wanderwall-api.service",
+      "display_name": "WanderWall API",
       "active": true,
       "status": "running",
       "can_restart": true
@@ -285,7 +285,7 @@ Revoke a paired device. Admin only.
 
 Restart a service. Admin only.
 
-**Allowed services:** `picframe`, `picframe-api`
+**Allowed services:** `picframe`, `wanderwall-api`
 
 **Response (200):**
 ```json
@@ -497,7 +497,7 @@ The web dashboard at `http://<pi-ip>:8000` provides browser-based management acc
 | `/current-image` | GET | Proxy current image from Pi3D (port 9000) |
 | `/sync` | POST | Trigger manual sync |
 | `/switch-source` | POST | Switch display source |
-| `/services/{name}/restart` | POST | Restart service (picframe, picframe-api) |
+| `/services/{name}/restart` | POST | Restart service (picframe, wanderwall-api) |
 | `/api/settings` | POST | Save frame settings |
 | `/api/settings/log-level` | POST | Set log level |
 | `/api/settings/sleep-schedule` | POST | Save display sleep schedule (on/off times, systemd timers) |
@@ -562,7 +562,7 @@ Returns real-time dashboard data for AJAX updates.
   "current_source": "Family Photos",
   "services": [
     {"name": "picframe", "active": true, "status": "running"},
-    {"name": "picframe-api", "active": true, "status": "running"}
+    {"name": "wanderwall-api", "active": true, "status": "running"}
   ],
   "storage_used": 12.5,
   "storage_total": 64.0,

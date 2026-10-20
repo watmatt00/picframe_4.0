@@ -1,10 +1,10 @@
-# PicFrame 4.0
+# WanderWall
 
 Secure mobile management for Raspberry Pi picture frames.
 
 ## Overview
 
-PicFrame 4.0 is a complete rewrite providing:
+WanderWall is a complete rewrite providing:
 - **FastAPI backend** with JWT authentication
 - **Web dashboard** for LAN-based management
 - **Mobile app support** via Tailscale Funnel (no VPN needed)
@@ -39,7 +39,7 @@ WiFi lost ──────────────────────> Ho
 | WiFi watchdog | ✅ Done |
 | AP captive portal | ✅ Done |
 | BLE setup service | ✅ Done |
-| `picframe-config` CLI | ✅ Done |
+| `wanderwall-config` CLI | ✅ Done |
 
 ### Web Dashboard Features
 - **Frame Status Tab**: Photo sync status, cloud/local photo counts, traffic light indicator, current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API)
@@ -52,11 +52,11 @@ WiFi lost ──────────────────────> Ho
 ### WiFi Recovery (Phase 6)
 When a frame loses WiFi for more than 10 minutes (or on first boot), it automatically enters setup mode:
 1. Photo display stops; the console shows connection instructions
-2. Frame broadcasts a `PicFrame-<name>` WiFi hotspot
+2. Frame broadcasts a `WanderWall-<name>` WiFi hotspot
 3. Connect a phone or laptop to that network and open `http://192.168.4.1`
 4. Enter new WiFi credentials — frame reboots and reconnects
 
-SSH/command-line access is preserved throughout via the `picframe-config` tool.
+SSH/command-line access is preserved throughout via the `wanderwall-config` tool.
 
 ## Quick Start
 
@@ -69,8 +69,8 @@ SSH/command-line access is preserved throughout via the `picframe-config` tool.
 
 ```bash
 # Clone repo
-git clone https://github.com/watmatt00/picframe_4.0.git
-cd picframe_4.0
+git clone https://github.com/watmatt00/wanderwall_frame.git
+cd wanderwall_frame
 
 # Create virtual environment
 python3 -m venv venv
@@ -112,25 +112,25 @@ curl http://localhost:8000/version
 
 ### Reconfigure via hotspot (phone/laptop)
 
-1. Look for `PicFrame-<framename>` in WiFi networks — password: `picframe`
+1. Look for `WanderWall-<framename>` in WiFi networks — password: `picframe`
 2. Connect and open `http://192.168.4.1` (captive portal auto-opens on most phones)
 3. Enter your home WiFi SSID and password, then submit
 4. Frame reboots and reconnects
 
-### Reconfigure via SSH / `picframe-config`
+### Reconfigure via SSH / `wanderwall-config`
 
 ```bash
 # Update WiFi credentials
-sudo picframe-config --wifi-ssid "MyNetwork" --wifi-password "secret"
+sudo wanderwall-config --wifi-ssid "MyNetwork" --wifi-password "secret"
 
 # Show current state
-sudo picframe-config --show
+sudo wanderwall-config --show
 
 # Manually trigger setup mode on next reboot
-sudo picframe-config --force-setup
+sudo wanderwall-config --force-setup
 
 # Cancel a pending setup mode
-sudo picframe-config --clear-setup
+sudo wanderwall-config --clear-setup
 ```
 
 ## Documentation

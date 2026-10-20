@@ -1,11 +1,11 @@
-# PicFrame 4.0 - Security & Mobile Management
+# WanderWall - Security & Mobile Management
 
 ## Project Overview
 
 **New project, new repo, clean slate.**
 
-- **Repo**: `picframe_4.0` (new)
-- **Mobile**: `picframe_mgr` (existing, updated for 4.0 API)
+- **Repo**: `wanderwall_frame` (new)
+- **Mobile**: `wanderwall_app` (existing, updated for 4.0 API)
 - **Display Engine**: [Pi3D PictureFrame](https://github.com/helgeerbe/picframe) (existing open-source)
 - **Approach**: Pure Python implementation, no shell scripts
 - **Development**: New Pi, built from ground up
@@ -40,7 +40,7 @@
 │  (Browser)      │─────────────────────────────>│              │               │
 │  http://pi:8000 │                              │              ▼               │
 └─────────────────┘                              │  ┌────────────────────────┐  │
-                                                 │  │ picframe_4.0 API       │  │
+                                                 │  │ wanderwall_frame API       │  │
 ┌─────────────────┐                              │  │ (FastAPI)              │  │
 │  Contributor    │      Koofr API               │  │ - Auth/Pairing         │  │
 │  (upload only)  │─────────────────> Koofr ────>│  │ - Sync Engine          │  │
@@ -59,7 +59,7 @@
                                                  │  └────────────────────────┘  │
                                                  │                              │
                                                  │  Logs:                       │
-                                                 │  - picframe.log              │
+                                                 │  - wanderwall.log              │
                                                  │  - security.log              │
                                                  └──────────────────────────────┘
 ```
@@ -218,7 +218,7 @@ http:
   port: 9000
 ```
 
-### How picframe_4.0 Controls Pi3D
+### How wanderwall_frame Controls Pi3D
 
 | Control Method | How We Use It |
 |----------------|---------------|
@@ -246,10 +246,10 @@ http:
 
 ## Repository Structure
 
-### picframe_4.0 (New - Pi-side)
+### wanderwall_frame (New - Pi-side)
 
 ```
-picframe_4.0/
+wanderwall_frame/
 ├── src/
 │   ├── __init__.py
 │   ├── main.py                 # Entry point
@@ -339,12 +339,12 @@ picframe_4.0/
 └── README.md
 ```
 
-### picframe_mgr (iOS Mobile App)
+### wanderwall_app (iOS Mobile App)
 
 **iOS only. Android is permanently on hold.**
 
 ```
-picframe_mgr/
+wanderwall_app/
 ├── iosApp/
 │   ├── iosApp/
 │   │   ├── FrameClient.swift           # HTTP client for Pi API (/api/v1)
@@ -398,7 +398,7 @@ picframe_mgr/
 ### JWT Security
 
 - **Algorithm**: HS256 with 256-bit secret
-- **Secret**: Per-Pi, stored at `~/.picframe/jwt_secret` (600 perms)
+- **Secret**: Per-Pi, stored at `~/.wanderwall/jwt_secret` (600 perms)
 - **Expiry**: 1 year with refresh capability
 - **Claims**: device_id, device_name, role, frame_id, iat, exp
 
@@ -441,14 +441,14 @@ picframe_mgr/
 
 ### Config Files
 
-PicFrame 4.0 uses two configuration files:
+WanderWall uses two configuration files:
 
 | File | Purpose |
 |------|---------|
-| `~/.picframe/config.yaml` | Dashboard settings (frame name, sync interval, current source) |
+| `~/.wanderwall/config.yaml` | Dashboard settings (frame name, sync interval, current source) |
 | `~/picframe_data/config/configuration.yaml` | Pi3D PictureFrame settings (rotation interval, display options) |
 
-### Dashboard Config: `~/.picframe/config.yaml`
+### Dashboard Config: `~/.wanderwall/config.yaml`
 
 ```yaml
 frame:
@@ -490,7 +490,7 @@ When the rotation interval is changed via the dashboard, the picframe service is
 ### Sources Format: YAML
 
 ```yaml
-# ~/.picframe/sources.yaml
+# ~/.wanderwall/sources.yaml
 
 sources:
   - id: "koofr_main"
@@ -502,7 +502,7 @@ sources:
   - id: "google_drive"
     name: "Google Drive"
     local_path: "/home/pi/Pictures/gdrive"
-    rclone_remote: "gdrive:PicFrame"
+    rclone_remote: "gdrive:WanderWall"
     enabled: false
 ```
 
@@ -514,13 +514,13 @@ sources:
 
 | Log | Purpose | Location | Retention |
 |-----|---------|----------|-----------|
-| `picframe.log` | Operations (sync, display, errors) | `~/.picframe/logs/` | 7 days |
-| `security.log` | Auth events, API access, failures | `~/.picframe/logs/` | 90 days |
+| `wanderwall.log` | Operations (sync, display, errors) | `~/.wanderwall/logs/` | 7 days |
+| `security.log` | Auth events, API access, failures | `~/.wanderwall/logs/` | 90 days |
 
 ### Log Format
 
 ```
-# picframe.log
+# wanderwall.log
 2026-01-30 10:00:00 INFO  [sync] Sync started for source 'koofr_main'
 2026-01-30 10:00:15 INFO  [sync] Sync complete: 3 new files
 2026-01-30 10:00:16 INFO  [display] Restarted display service
@@ -535,7 +535,7 @@ sources:
 
 ## Implementation Phases
 
-### Phase 1: Pi Core (picframe_4.0)
+### Phase 1: Pi Core (wanderwall_frame)
 1. Project setup (pyproject.toml, structure)
 2. Config management (YAML, Pydantic validation)
 3. Logging setup (dual logs)
@@ -543,14 +543,14 @@ sources:
 5. JWT auth module
 6. Pairing system with QR generation
 
-### Phase 2: Pi Services (picframe_4.0)
+### Phase 2: Pi Services (wanderwall_frame)
 7. rclone wrapper (Python)
 8. Sync service
 9. systemd service wrapper
 10. Display/source management (Pi3D integration)
 11. Status endpoint
 
-### Phase 3: Web Dashboard (picframe_4.0)
+### Phase 3: Web Dashboard (wanderwall_frame)
 12. Dashboard base template and routing
 13. Status/home page (file counts, service status)
 14. Source switcher UI
@@ -559,14 +559,14 @@ sources:
 17. Device management page
 18. Pairing QR display page
 
-### Phase 4: Pi Deployment (picframe_4.0)
+### Phase 4: Pi Deployment (wanderwall_frame)
 19. Tailscale Funnel setup script
 20. systemd service file
 21. Install script for fresh Pi
 22. Integration tests (API endpoints)
 23. Dashboard tests (page loads, form submissions, UI interactions)
 
-### Phase 5: Mobile App (picframe_mgr - iOS only)
+### Phase 5: Mobile App (wanderwall_app - iOS only)
 
 **Note: Android is permanently on hold. iOS only.**
 
@@ -596,7 +596,7 @@ sources:
 
 ## Dependencies
 
-### picframe_4.0 (Pi)
+### wanderwall_frame (Pi)
 
 ```toml
 [project]
@@ -624,7 +624,7 @@ dev = [
 ]
 ```
 
-### picframe_mgr (iOS)
+### wanderwall_app (iOS)
 
 **iOS**: SwiftUI, Foundation (URLSession), AVFoundation (future QR scanning) - no external dependencies
 
@@ -636,7 +636,7 @@ dev = [
 - [ ] Config files: 600 permissions, YAML (no code execution)
 - [ ] Pairing codes: cryptographically random, 3 attempts, 5-min expiry
 - [ ] Last admin protection: cannot remove last admin
-- [ ] SSH recovery: `picframe-cli emergency-reset` command
+- [ ] SSH recovery: `wanderwall-cli emergency-reset` command
 - [ ] Input validation: Pydantic models for all inputs
 - [ ] Path validation: No traversal in folder operations
 - [ ] Rate limiting: Per-endpoint limits
@@ -705,12 +705,12 @@ sudo tailscale funnel 443 / http://localhost:8000
 tailscale funnel status
 ```
 
-#### Step 6: picframe_4.0 Installation
+#### Step 6: wanderwall_frame Installation
 ```bash
 # Clone repo
 cd ~
-git clone https://github.com/<your-org>/picframe_4.0.git
-cd picframe_4.0
+git clone https://github.com/<your-org>/wanderwall_frame.git
+cd wanderwall_frame
 
 # Create virtual environment
 python3 -m venv venv
@@ -723,15 +723,15 @@ pip install -e .
 ./scripts/install.sh
 
 # Start service
-systemctl --user enable picframe-api.service
-systemctl --user start picframe-api.service
+systemctl --user enable wanderwall-api.service
+systemctl --user start wanderwall-api.service
 ```
 
 #### Step 7: Verify Installation
 ```bash
 # Check services
 systemctl --user status picframe.service      # Pi3D display
-systemctl --user status picframe-api.service  # Our API
+systemctl --user status wanderwall-api.service  # Our API
 
 # Test API locally
 curl http://localhost:8000/health
@@ -784,8 +784,8 @@ Once 4.0 is stable and tested:
 
 ```bash
 # On your development machine
-mkdir picframe_4.0
-cd picframe_4.0
+mkdir wanderwall_frame
+cd wanderwall_frame
 git init
 
 # Create initial structure
@@ -834,14 +834,14 @@ Based on Repository Structure section, create empty files with docstrings:
 ```python
 # src/api/app.py
 """
-PicFrame 4.0 API - FastAPI Application
+WanderWall API - FastAPI Application
 
 See docs/SPECIFICATION.md for full details.
 """
 from fastapi import FastAPI
 
 app = FastAPI(
-    title="PicFrame 4.0 API",
+    title="WanderWall API",
     description="Secure mobile management for Raspberry Pi picture frames",
     version="4.0.0"
 )
@@ -850,9 +850,9 @@ app = FastAPI(
 ### Step 6: Set Up GitHub Repository
 
 ```bash
-# Create repo on GitHub (picframe_4.0)
+# Create repo on GitHub (wanderwall_frame)
 # Add remote
-git remote add origin https://github.com/<your-org>/picframe_4.0.git
+git remote add origin https://github.com/<your-org>/wanderwall_frame.git
 
 # Initial commit
 git add .
@@ -878,9 +878,9 @@ Convert each implementation phase to GitHub issues:
 ### Step 8: Link Mobile Repo
 
 ```bash
-# In picframe_mgr repo, create tracking issue
-# Title: "Support PicFrame 4.0 API"
-# Reference picframe_4.0 repo
+# In wanderwall_app repo, create tracking issue
+# Title: "Support WanderWall API"
+# Reference wanderwall_frame repo
 # List mobile changes needed (from Phase 4 of this plan)
 ```
 
@@ -888,7 +888,7 @@ Convert each implementation phase to GitHub issues:
 
 ```bash
 # When starting implementation, use Claude Code with context:
-cd picframe_4.0
+cd wanderwall_frame
 claude
 
 # Point Claude to the specification:
@@ -910,7 +910,7 @@ claude
 
 ## Open Questions (Resolved)
 
-- ✅ Approach: Option B - Pure Python, new repo (picframe_4.0)
+- ✅ Approach: Option B - Pure Python, new repo (wanderwall_frame)
 - ✅ Migration: None - clean slate, 3.0 stays as-is
 - ✅ Development: New Pi, fresh build
 - ✅ Display Engine: Pi3D PictureFrame (wrap, don't rewrite)

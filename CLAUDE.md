@@ -1,11 +1,11 @@
-# PicFrame 4.0 - Project Context
+# WanderWall - Project Context
 
 ## Overview
 
-PicFrame 4.0 is a Raspberry Pi picture frame management system:
+WanderWall is a Raspberry Pi picture frame management system:
 - **FastAPI backend** with JWT authentication (port 8000)
 - **Web dashboard** for LAN-based management (no auth, Jinja2 + vanilla JS)
-- **Mobile app** via Tailscale Funnel (separate repo: `picframe_mgr`)
+- **Mobile app** via Tailscale Funnel (separate repo: `wanderwall_app`)
 - **Pi3D PictureFrame** integration for GPU-accelerated display
 - **rclone sync** for cloud photo synchronization
 
@@ -35,19 +35,19 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 | File | Purpose |
 |------|---------|
 | `~/picframe_data/config/configuration.yaml` | Pi3D display config (rotation interval, pic_dir, etc.) |
-| `~/.picframe/config.yaml` | Dashboard config (frame name, sync interval, current source) |
-| `~/.picframe/sources.yaml` | Photo source definitions |
-| `~/.picframe/frame_albums.yaml` | Albums this frame owns (active/deleted), mirrored to Koofr `.picframe/frames/<pi-serial>.yaml` — Recover Albums ownership (PL-147) |
-| `~/.picframe/logs/picframe.log` | Operations log |
-| `~/.picframe/logs/security.log` | Auth/security log |
-| `~/.local/share/systemd/timers/stamp-picframe-sync.timer` | Last sync timestamp |
-| `~/.config/systemd/user/picframe-api.service` | API service unit |
-| `~/.config/systemd/user/picframe-sync.service` | Sync service unit (calls POST /sync) |
-| `~/.config/systemd/user/picframe-sync.timer` | Sync timer unit |
+| `~/.wanderwall/config.yaml` | Dashboard config (frame name, sync interval, current source) |
+| `~/.wanderwall/sources.yaml` | Photo source definitions |
+| `~/.wanderwall/frame_albums.yaml` | Albums this frame owns (active/deleted), mirrored to Koofr `.picframe/frames/<pi-serial>.yaml` — Recover Albums ownership (PL-147) |
+| `~/.wanderwall/logs/wanderwall.log` | Operations log |
+| `~/.wanderwall/logs/security.log` | Auth/security log |
+| `~/.local/share/systemd/timers/stamp-wanderwall-sync.timer` | Last sync timestamp |
+| `~/.config/systemd/user/wanderwall-api.service` | API service unit |
+| `~/.config/systemd/user/wanderwall-sync.service` | Sync service unit (calls POST /sync) |
+| `~/.config/systemd/user/wanderwall-sync.timer` | Sync timer unit |
 | `~/.config/systemd/user/picframe.service` | Pi3D display service unit |
-| `/var/lib/picframe/state.yaml` | Phase 6 state (provisioned, koofr_configured, needs_setup, frame_name) |
-| `/var/lib/picframe/install.conf` | Written by install_setup.sh — frame user, home dir, project path |
-| `/etc/hostapd/picframe-hostapd.conf` | AP hotspot config (SSID, random password from Pi serial) |
+| `/var/lib/wanderwall/state.yaml` | Phase 6 state (provisioned, koofr_configured, needs_setup, frame_name) |
+| `/var/lib/wanderwall/install.conf` | Written by install_setup.sh — frame user, home dir, project path |
+| `/etc/hostapd/wanderwall-hostapd.conf` | AP hotspot config (SSID, random password from Pi serial) |
 | `~/picframe_data/data/no_pictures.jpg` | Shown by Pi3D when no photos exist; replaced with setup instruction image during first-run |
 | `~/Pictures/spotlight/` | Persistent spotlight dir — Pi3D keeps it indexed; contents cleared after each spotlight |
 
@@ -62,31 +62,31 @@ Pi frames are **pull-only** from GitHub. All dev/push happens on PC.
 ### Dev Branch (daily work → tkframe)
 1. Work on `dev` branch on PC
 2. `git add && git commit && git push origin dev`
-3. Pull on tkframe: `ssh pi@192.168.102.210 "cd ~/picframe_4.0 && git pull"`
-4. Restart API: `ssh pi@192.168.102.210 "systemctl --user restart picframe-api"`
+3. Pull on tkframe: `ssh pi@192.168.102.210 "cd ~/wanderwall_frame && git pull"`
+4. Restart API: `ssh pi@192.168.102.210 "systemctl --user restart wanderwall-api"`
 5. Test dashboard: `http://192.168.102.210:8000`
 
 ### Promoting dev → main (kframe, mnbframe)
 1. Tag the commit: `git tag v4.0.X && git push origin v4.0.X`
 2. Merge to main: `git checkout main && git merge dev && git push origin main`
 3. Prod frames pull on next scheduled check, or manually:
-   - kframe: `ssh pi@192.168.102.200 "cd ~/picframe_4.0 && git pull"`
-   - mnbframe: `ssh pi@100.125.51.92 "cd ~/picframe_4.0 && git pull"`
+   - kframe: `ssh pi@192.168.102.200 "cd ~/wanderwall_frame && git pull"`
+   - mnbframe: `ssh pi@100.125.51.92 "cd ~/wanderwall_frame && git pull"`
 4. Restart API on prod frames as needed
 5. `git checkout dev` to return to dev work
 
 ### One-Time Branch Setup (tkframe)
 ```bash
-ssh pi@192.168.102.210 "cd ~/picframe_4.0 && git fetch origin && git checkout dev"
+ssh pi@192.168.102.210 "cd ~/wanderwall_frame && git fetch origin && git checkout dev"
 ```
 kframe and mnbframe are already on `main` — no action needed.
 
-User services (`systemctl --user`): `picframe-api`, `picframe-sync`, `picframe-sync.timer`, `picframe`
+User services (`systemctl --user`): `wanderwall-api`, `wanderwall-sync`, `wanderwall-sync.timer`, `picframe`
 
 **Phase 6 system services** (run as root, `systemctl` without `--user`):
-- `picframe-watchdog` — WiFi monitor, enabled at boot
-- `picframe-ble-setup` — BLE WiFi setup, started on demand by watchdog
-- `picframe-ap-setup` — AP hotspot + captive portal, started on demand by watchdog
+- `wanderwall-watchdog` — WiFi monitor, enabled at boot
+- `wanderwall-ble-setup` — BLE WiFi setup, started on demand by watchdog
+- `wanderwall-ap-setup` — AP hotspot + captive portal, started on demand by watchdog
 
 ## Dashboard Architecture
 
@@ -122,10 +122,10 @@ The iOS app has been built in Xcode and tested on simulator against live tkframe
 
 | Repo | Purpose | API Role |
 |------|---------|----------|
-| `picframe_4.0` (this) | Pi backend + dashboard | Defines API |
-| `picframe_mgr` | Mobile app (iOS only) | Consumes API |
+| `wanderwall_frame` (this) | Pi backend + dashboard | Defines API |
+| `wanderwall_app` | Mobile app (iOS only) | Consumes API |
 
-Known issues and parking lot for BOTH repos: `picframe_mgr/docs/PARKING_LOT.md` (single source of truth; frame items tagged `frame`). Do not add items to `docs/PARKING_LOT.md` here — it is only a pointer.
+Known issues and parking lot for BOTH repos: `wanderwall_app/docs/PARKING_LOT.md` (single source of truth; frame items tagged `frame`). Do not add items to `docs/PARKING_LOT.md` here — it is only a pointer.
 Phase 4, 5 & 6 plan in `docs/PHASE_4_5_PLAN.md` - **always reference this for next steps**.
 Test plan in `docs/TEST_PLAN.md` - covers backend, dashboard, and iOS app. Test runs stored in `docs/test_runs/`.
 Phase 6 setup guide in `docs/PI_SETUP.md` — includes WiFi recovery usage guide and troubleshooting.
@@ -133,7 +133,7 @@ Phase 6 setup guide in `docs/PI_SETUP.md` — includes WiFi recovery usage guide
 ## Phase 6: First-Run & WiFi Recovery
 
 Two-step first-run flow:
-1. **Portal (Step 1):** Frame broadcasts `PicFrame-[name]` AP hotspot. User connects, enters WiFi SSID/password + frame name. Frame reboots.
+1. **Portal (Step 1):** Frame broadcasts `WanderWall-[name]` AP hotspot. User connects, enters WiFi SSID/password + frame name. Frame reboots.
 2. **Dashboard banner (Step 2):** After WiFi connects, dashboard shows Koofr setup banner. User enters Koofr email + password (validated live). Once saved, normal operation begins.
 
 While waiting for Step 2, Pi3D displays a PIL instruction image (`no_pictures.jpg`) with the dashboard URL. Image is restored to the original once Koofr is configured.

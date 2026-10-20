@@ -1,4 +1,4 @@
-# PicFrame 4.0 - Pi Setup Guide
+# WanderWall - Pi Setup Guide
 
 Complete setup guide for a fresh Raspberry Pi.
 
@@ -67,13 +67,13 @@ Before running, generate a **Tailscale pre-auth key** to skip browser auth:
 Run the installer for Main:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/main/scripts/setup/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh
+curl -fsSL https://raw.githubusercontent.com/watmatt00/wanderwall_frame/main/scripts/setup/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh
 ```
 
 Run the installer for Dev:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh
+curl -fsSL https://raw.githubusercontent.com/watmatt00/wanderwall_frame/dev/scripts/setup/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh
 ```
 
 > **Note:** Keep this as a single line — the `\` line-continuation form breaks when pasted into a terminal. Process substitution (`sudo bash <(curl ...)`) also fails on Pi OS.
@@ -89,12 +89,12 @@ Then it runs fully automatically through 4 reboots (~15–20 minutes total). It 
 2. **Console mode** — no desktop environment needed
 3. **Core packages** — labwc (Wayland compositor), SDL2, VLC, FFmpeg
 4. **picframe** — display engine via pip, initialized with display defaults
-5. **picframe_4.0** — repo cloned, venv created, API installed
-6. **Config** — `~/.picframe/config.yaml` written with frame name + Funnel URL
+5. **wanderwall_frame** — repo cloned, venv created, API installed
+6. **Config** — `~/.wanderwall/config.yaml` written with frame name + Funnel URL
 7. **labwc** — Wayland compositor + systemd user service wired up
-8. **API/sync/lights** — `picframe-api`, `picframe-sync`, `picframe-lights` services started
+8. **API/sync/lights** — `wanderwall-api`, `wanderwall-sync`, `wanderwall-lights` services started
 9. **Koofr** — credentials validated and configured (no dashboard step needed)
-10. **Phase 6** — WiFi watchdog, AP portal, `picframe-config` tool installed
+10. **Phase 6** — WiFi watchdog, AP portal, `wanderwall-config` tool installed
 
 Optional services (pass as flags):
 ```bash
@@ -110,6 +110,22 @@ tail -f ~/install_log.txt
 
 ---
 
+## Reinstall a PicFrame v4 frame as WanderWall v5
+
+v5 renamed the app's services, folders and repo, so a v4 frame gets a one-time reinstall instead of `git pull`. It runs on the existing OS over SSH: Tailscale, Funnel, WiFi, the Koofr remote, the display engine and its settings all stay. No reboots.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/watmatt00/wanderwall_frame/main/scripts/setup/install.sh -o /tmp/install.sh
+sudo bash /tmp/install.sh --from-v4 --branch=main
+```
+
+- Copies `config.yaml`, `sources.yaml`, `frame_albums.yaml` from `~/.picframe` to `~/.wanderwall`, and `state.yaml` from `/var/lib/picframe` to `/var/lib/wanderwall`.
+- Does **not** copy pairings (`devices.json`, `jwt_secret`, `invites.json`): pair each phone again afterwards.
+- Stops the v4 services and moves their unit files to `~/picframe_v4_backup`. `~/picframe_4.0` and `~/.picframe` are left as they were.
+- Undo: `sudo bash ~/wanderwall_frame/scripts/setup/rollback_v4.sh` (restores and restarts v4).
+
+---
+
 ## Step 10: Verify Installation
 
 **PROMPT USER**: "Let's verify everything is working."
@@ -120,7 +136,7 @@ Check services:
 systemctl --user status picframe.service
 
 # API (if running via systemd)
-systemctl --user status picframe-api.service
+systemctl --user status wanderwall-api.service
 ```
 
 Test API locally:
@@ -129,7 +145,7 @@ curl http://localhost:8000/health
 # {"status":"ok"}
 
 curl http://localhost:8000/version
-# {"version":"4.0.0","api":"picframe"}
+# {"version":"5.0.0","api":"wanderwall"}
 ```
 
 Test via Tailscale Funnel:
@@ -148,12 +164,12 @@ curl https://<hostname>.<tailnet>.ts.net/health
 - [ ] `systemctl --user status picframe.service` shows loaded
 - [ ] `rclone version` shows installed
 - [ ] `tailscale status` shows connected
-- [ ] `~/picframe_4.0/venv/` exists
-- [ ] `~/.picframe/config.yaml` exists
+- [ ] `~/wanderwall_frame/venv/` exists
+- [ ] `~/.wanderwall/config.yaml` exists
 - [ ] `curl http://localhost:8000/health` returns `{"status":"ok"}`
 - [ ] `curl https://<hostname>.<tailnet>.ts.net/health` returns `{"status":"ok"}`
-- [ ] `sudo systemctl status picframe-watchdog` shows active (running)
-- [ ] `sudo picframe-config --show` prints state without errors
+- [ ] `sudo systemctl status wanderwall-watchdog` shows active (running)
+- [ ] `sudo wanderwall-config --show` prints state without errors
 
 ---
 
@@ -171,7 +187,7 @@ Restored photos are copied to the album's cloud folder first and then added on t
 
 ### Which albums are this frame's
 
-Each frame keeps a list of every album it has had (active or deleted) in `~/.picframe/frame_albums.yaml`, with a copy in Koofr at `.picframe/frames/<pi-serial>.yaml`. The Pi's board serial (`/proc/cpuinfo`) identifies the frame, so the list survives reflashing. Each frame writes only its own file; entries are marked deleted, never removed. `last_seen` is refreshed after a sync about once a day.
+Each frame keeps a list of every album it has had (active or deleted) in `~/.wanderwall/frame_albums.yaml`, with a copy in Koofr at `.picframe/frames/<pi-serial>.yaml`. The Pi's board serial (`/proc/cpuinfo`) identifies the frame, so the list survives reflashing. Each frame writes only its own file; entries are marked deleted, never removed. `last_seen` is refreshed after a sync about once a day.
 
 - **Reinstall (same Pi, fresh SD card):** once Koofr is set up again, the frame reads its list back and every old album appears in Recover Albums.
 - **SD card moved to a new Pi:** the dashboard asks once whether the card was **moved** (keep every album; the old board's file is marked `replaced_by` the new one) or **copied** to start a second frame (it keeps only the albums on the card).
@@ -186,7 +202,7 @@ Each frame keeps a list of every album it has had (active or deleted) in `~/.pic
 Reboot Frame (dashboard Frame Status quick actions, or the Manager app's Frame Settings) needs a polkit rule that `install_setup.sh` installs. On a frame set up before 2026-10-19, pull, then re-run it once:
 
 ```bash
-cd ~/picframe_4.0 && git pull
+cd ~/wanderwall_frame && git pull
 sudo bash scripts/setup/install_setup.sh
 ```
 
@@ -198,7 +214,7 @@ Until then, Reboot Frame answers "Reboot isn't set up on this frame yet". Re-run
 
 Reusable pairing codes for an App Store reviewer (PL-015). See `docs/SECURITY.md` → Demo Mode for the risks.
 
-1. **Allow it on the review frame only.** Add this to `~/.picframe/config.yaml` on that frame, then `systemctl --user restart picframe-api`:
+1. **Allow it on the review frame only.** Add this to `~/.wanderwall/config.yaml` on that frame, then `systemctl --user restart wanderwall-api`:
    ```yaml
    demo:
      allowed: true
@@ -220,19 +236,19 @@ To stop allowing it, remove `allowed: true` (or set it false) and restart the AP
 |-----------|------|
 | First boot (`provisioned=false`) | Immediately on boot |
 | WiFi lost > 10 minutes | `needs_setup` flag set; setup mode on next reboot if WiFi is still unavailable 90 s after boot |
-| Manual trigger | `sudo picframe-config --force-setup` then reboot |
+| Manual trigger | `sudo wanderwall-config --force-setup` then reboot |
 
 ### What the frame does in setup mode
 
 1. Photo display stops
-2. Console (`/etc/issue`) shows a box with the hotspot name, AP password, and portal URL — visible above the login prompt. After an outage the box reads **"PicFrame - No WiFi"**: photos resume automatically when WiFi is back, and the hotspot steps are only for a changed WiFi name or password
-3. Frame broadcasts a WiFi hotspot: `PicFrame-<framename>` with a unique 8-character password derived from the Pi's serial number
+2. Console (`/etc/issue`) shows a box with the hotspot name, AP password, and portal URL — visible above the login prompt. After an outage the box reads **"WanderWall - No WiFi"**: photos resume automatically when WiFi is back, and the hotspot steps are only for a changed WiFi name or password
+3. Frame broadcasts a WiFi hotspot: `WanderWall-<framename>` with a unique 8-character password derived from the Pi's serial number
 4. Any URL resolves to `http://192.168.4.1` (DNS hijack via dnsmasq)
 5. **Outage-triggered setup mode leaves by itself:** every 15 minutes the hotspot stops for up to 90 s while the frame tries to rejoin home WiFi (the watchdog re-enables NetworkManager autoconnect first). If it connects, the slideshow resumes without a reboot, the clock is re-synced and a photo sync runs right away (clearing the sync error from the outage); otherwise the hotspot comes back. First-run and manual setup mode wait for the setup page.
 
 ### Reconfiguring WiFi via hotspot
 
-1. On your phone or laptop, connect to `PicFrame-<framename>` (password shown on console)
+1. On your phone or laptop, connect to `WanderWall-<framename>` (password shown on console)
 2. A captive portal should open automatically — or open a browser to `http://192.168.4.1`
 3. Enter your home WiFi SSID and password
 4. Frame reboots and reconnects; gallery resumes
@@ -243,36 +259,36 @@ To stop allowing it, remove `allowed: true` (or set it false) and restart the AP
 
 **Step 2 — Dashboard:** Rejoin your home WiFi, open `http://<framename>.local:8000` in a browser. A Koofr setup banner appears — enter your Koofr email and password. The frame validates credentials and starts syncing photos.
 
-### Reconfiguring WiFi via SSH / `picframe-config`
+### Reconfiguring WiFi via SSH / `wanderwall-config`
 
 If you can reach the frame over Tailscale or Ethernet:
 
 ```bash
 # Update WiFi credentials (creates a NetworkManager connection profile)
-sudo picframe-config --wifi-ssid "MyNetwork" --wifi-password "mysecret"
+sudo wanderwall-config --wifi-ssid "MyNetwork" --wifi-password "mysecret"
 sudo reboot
 
 # Show current frame state
-sudo picframe-config --show
+sudo wanderwall-config --show
 
 # Other commands
-sudo picframe-config --frame-name "kframe"
-sudo picframe-config --koofr-user "user@example.com" --koofr-pass "secret"
-sudo picframe-config --force-setup     # trigger setup mode on next reboot
-sudo picframe-config --clear-setup     # cancel a pending setup mode
+sudo wanderwall-config --frame-name "kframe"
+sudo wanderwall-config --koofr-user "user@example.com" --koofr-pass "secret"
+sudo wanderwall-config --force-setup     # trigger setup mode on next reboot
+sudo wanderwall-config --clear-setup     # cancel a pending setup mode
 ```
 
 ### Checking watchdog and AP service logs
 
 ```bash
 # Watchdog (WiFi monitor)
-sudo journalctl -u picframe-watchdog -f
+sudo journalctl -u wanderwall-watchdog -f
 
 # AP setup service (hostapd + portal)
-sudo journalctl -u picframe-ap-setup -f
+sudo journalctl -u wanderwall-ap-setup -f
 
 # Current state
-sudo cat /var/lib/picframe/state.yaml
+sudo cat /var/lib/wanderwall/state.yaml
 ```
 
 ---
@@ -313,22 +329,22 @@ sudo ufw status
 
 ### WiFi Hotspot Not Appearing
 
-1. Check watchdog entered setup mode: `sudo journalctl -u picframe-watchdog -n 20`
-2. Check AP service started: `sudo systemctl status picframe-ap-setup`
+1. Check watchdog entered setup mode: `sudo journalctl -u wanderwall-watchdog -n 20`
+2. Check AP service started: `sudo systemctl status wanderwall-ap-setup`
 3. Check hostapd is running: `sudo iw dev wlan0 info` — should show `type AP`
-4. If `type managed` instead, NetworkManager reclaimed the interface — check AP service logs: `sudo journalctl -u picframe-ap-setup -n 30`
+4. If `type managed` instead, NetworkManager reclaimed the interface — check AP service logs: `sudo journalctl -u wanderwall-ap-setup -n 30`
 
 ### Frame Won't Reconnect After Portal Submit
 
-1. Check `needs_setup` was cleared: `sudo cat /var/lib/picframe/state.yaml`
-2. Verify NM connection was created: `nmcli con show picframe-wifi`
-3. If connection missing, reconfigure manually: `sudo picframe-config --wifi-ssid "..." --wifi-password "..."`
+1. Check `needs_setup` was cleared: `sudo cat /var/lib/wanderwall/state.yaml`
+2. Verify NM connection was created: `nmcli con show wanderwall-wifi`
+3. If connection missing, reconfigure manually: `sudo wanderwall-config --wifi-ssid "..." --wifi-password "..."`
 
 ### API Won't Start
 
 1. Check if port 8000 is in use: `lsof -i :8000`
 2. Check Python path: `which python3`
-3. Verify venv is activated: `source ~/picframe_4.0/venv/bin/activate`
+3. Verify venv is activated: `source ~/wanderwall_frame/venv/bin/activate`
 
 ## Test Pi Environment
 
