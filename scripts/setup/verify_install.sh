@@ -122,7 +122,7 @@ else
     elif curl -sf --connect-timeout 10 --resolve "$hostname:443:$public_ip" "https://$hostname/health" >/dev/null 2>&1; then
         ok "API health (Funnel public → $public_ip)"
     else
-        fail "API health (Funnel public)" "sudo tailscale funnel --bg 8000  |  check https://login.tailscale.com/admin/machines"
+        fail "API health (Funnel public)" "sudo systemctl restart tailscaled  |  sudo tailscale funnel --bg 8000  |  check https://login.tailscale.com/admin/machines"
     fi
 fi
 

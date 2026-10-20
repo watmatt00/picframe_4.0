@@ -252,6 +252,39 @@ check_funnel_dns() {
     log "  Check: https://login.tailscale.com/admin/machines"
 }
 
+# Public Funnel path: /health through Tailscale's relay, not the tailnet.
+# A network blip during install (apt starting dnsmasq) once left tailscaled
+# serving the tailnet but not Funnel until it was restarted (tkframe, 2026-10-20).
+funnel_public_ok() {
+    local hostname="$1" public_ip
+    public_ip=$(curl -sf --connect-timeout 5 \
+        "https://cloudflare-dns.com/dns-query?name=${hostname}&type=A" \
+        -H "accept: application/dns-json" \
+        | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((a['data'] for a in d.get('Answer',[]) if a['type']==1),''))" 2>/dev/null || true)
+    [[ -n "$public_ip" ]] || return 1
+    curl -sf --connect-timeout 10 --resolve "$hostname:443:$public_ip" "https://$hostname/health" >/dev/null 2>&1
+}
+
+check_funnel_public() {
+    local funnel_url="$1" hostname
+    [[ -n "$funnel_url" ]] || { log "  WARNING: Funnel URL unknown — skipping public check"; return 0; }
+    hostname=$(echo "$funnel_url" | sed 's|https://||' | sed 's|/.*||')
+    if funnel_public_ok "$hostname"; then
+        log "  ✓ Funnel public path OK"
+        return 0
+    fi
+    log "  Funnel public path failing — restarting tailscaled..."
+    systemctl restart tailscaled
+    for i in $(seq 1 6); do
+        sleep 10
+        if funnel_public_ok "$hostname"; then
+            log "  ✓ Funnel public path OK after tailscaled restart"
+            return 0
+        fi
+    done
+    log "  WARNING: Funnel still not reachable from the internet. Check: sudo tailscale funnel status"
+}
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 LAST=$(last_step)
 log "=== WanderWall install | user=$ACTUAL_USER step=$LAST frame=${FRAME_NAME:-?} branch=${BRANCH:-?} ==="
@@ -806,6 +839,8 @@ if [[ -f "$PCONF" && "$FROM_V4" != "true" ]]; then
         systemctl --user restart picframe.service 2>/dev/null || true
     log "  ✓ Display defaults applied; picframe.service restarted"
 fi
+
+check_funnel_public "$FUNNEL_URL"
 
 # Log everything before touching any cleanup files
 log "  Run verify anytime: sudo bash $PROJECT_DIR/scripts/setup/verify_install.sh"
