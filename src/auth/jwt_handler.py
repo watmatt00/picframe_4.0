@@ -1,8 +1,8 @@
 """
-PicFrame 4.0 - JWT Token Handler.
+WanderWall - JWT Token Handler.
 
 Handles JWT token creation and validation using HS256.
-Secret is stored per-Pi at ~/.picframe/jwt_secret with 600 permissions.
+Secret is stored per-Pi at ~/.wanderwall/jwt_secret with 600 permissions.
 """
 
 import os
@@ -18,7 +18,7 @@ from pydantic import BaseModel
 DEFAULT_EXPIRY_DAYS = 90
 
 # Secret file location
-SECRET_PATH = Path.home() / ".picframe" / "jwt_secret"
+SECRET_PATH = Path.home() / ".wanderwall" / "jwt_secret"
 
 
 class TokenClaims(BaseModel):

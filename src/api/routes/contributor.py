@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Contributor Routes.
+WanderWall API - Contributor Routes.
 
 Endpoints accessible to both admin and contributor tokens:
 - GET  /contributor/folders              — list uploadable photo sources
@@ -93,7 +93,7 @@ async def _spool_upload(file: UploadFile, suffix: str) -> tuple[Path, int, str]:
     Raises:
         HTTPException: 413 once the upload passes MAX_UPLOAD_BYTES.
     """
-    fd, name = tempfile.mkstemp(prefix="picframe_upload_", suffix=suffix)
+    fd, name = tempfile.mkstemp(prefix="wanderwall_upload_", suffix=suffix)
     tmp = Path(name)
     size = 0
     md5 = hashlib.md5(usedforsecurity=False)

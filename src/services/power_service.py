@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Reboot Frame (PL-142).
+WanderWall - Reboot Frame (PL-142).
 
 The API runs with NoNewPrivileges=true, so it can't sudo. `systemctl reboot`
 goes through logind over D-Bus instead, which install_setup.sh's polkit rule

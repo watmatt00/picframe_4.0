@@ -1,11 +1,11 @@
 #!/bin/bash
-# PicFrame 4.0 Installation Script
+# WanderWall Installation Script
 # Run this on a fresh Pi after cloning the repo
 
 set -euo pipefail
 
 echo "==================================="
-echo "PicFrame 4.0 Installation"
+echo "WanderWall Installation"
 echo "==================================="
 
 # Check we're on a Raspberry Pi
@@ -41,7 +41,7 @@ pip install -e "$PROJECT_DIR"
 # Create config directory
 echo ""
 echo "Setting up configuration..."
-CONFIG_DIR="$HOME/.picframe"
+CONFIG_DIR="$HOME/.wanderwall"
 mkdir -p "$CONFIG_DIR/logs"
 chmod 700 "$CONFIG_DIR"
 
@@ -67,9 +67,9 @@ fi
 echo ""
 echo "Setting up systemd services..."
 mkdir -p "$HOME/.config/systemd/user"
-cp "$PROJECT_DIR/systemd/picframe-api.service" "$HOME/.config/systemd/user/"
-cp "$PROJECT_DIR/systemd/picframe-sync.service" "$HOME/.config/systemd/user/"
-cp "$PROJECT_DIR/systemd/picframe-sync.timer" "$HOME/.config/systemd/user/"
+cp "$PROJECT_DIR/systemd/wanderwall-api.service" "$HOME/.config/systemd/user/"
+cp "$PROJECT_DIR/systemd/wanderwall-sync.service" "$HOME/.config/systemd/user/"
+cp "$PROJECT_DIR/systemd/wanderwall-sync.timer" "$HOME/.config/systemd/user/"
 
 # Reload systemd
 systemctl --user daemon-reload
@@ -85,14 +85,14 @@ echo "Installation complete!"
 echo "==================================="
 echo ""
 echo "Next steps:"
-echo "1. Edit ~/.picframe/config.yaml with your frame settings"
-echo "2. Edit ~/.picframe/sources.yaml with your photo sources"
+echo "1. Edit ~/.wanderwall/config.yaml with your frame settings"
+echo "2. Edit ~/.wanderwall/sources.yaml with your photo sources"
 echo "3. Configure rclone: rclone config"
 echo "4. Set up Tailscale Funnel: ./scripts/setup_tailscale.sh"
 echo "5. Start the services:"
-echo "   systemctl --user enable picframe-api picframe-sync.timer"
-echo "   systemctl --user start picframe-api picframe-sync.timer"
+echo "   systemctl --user enable wanderwall-api wanderwall-sync.timer"
+echo "   systemctl --user start wanderwall-api wanderwall-sync.timer"
 echo ""
 echo "Check status with:"
-echo "   systemctl --user status picframe-api"
+echo "   systemctl --user status wanderwall-api"
 echo "   systemctl --user list-timers"

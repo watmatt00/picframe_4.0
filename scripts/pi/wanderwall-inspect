@@ -1,11 +1,11 @@
 #!/usr/bin/python3
 """
-PicFrame - read-only SSH command filter for the claude-inspect key.
+WanderWall - read-only SSH command filter for the claude-inspect key.
 
 Installed by scripts/setup/install_inspect_key.sh as the forced command for one
 key in ~/.ssh/authorized_keys:
 
-    restrict,command="/home/pi/.local/bin/picframe-inspect" ssh-ed25519 ... claude-inspect
+    restrict,command="/home/pi/.local/bin/wanderwall-inspect" ssh-ed25519 ... claude-inspect
 
 sshd puts the requested command in SSH_ORIGINAL_COMMAND. This script splits it
 with shlex (no shell is ever run, so ; | & $() and redirects cannot chain

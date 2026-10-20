@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Source Manager.
+WanderWall - Source Manager.
 
 Manages photo sources (folders) and their configurations.
 """
@@ -17,7 +17,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 # Default sources config location
-SOURCES_PATH = Path.home() / ".picframe" / "sources.yaml"
+SOURCES_PATH = Path.home() / ".wanderwall" / "sources.yaml"
 
 
 class PhotoSource(BaseModel):
@@ -58,7 +58,7 @@ class SourceManager:
     """
     Manages photo source configurations.
 
-    Sources are stored in ~/.picframe/sources.yaml.
+    Sources are stored in ~/.wanderwall/sources.yaml.
     """
 
     def __init__(self, sources_path: Path = SOURCES_PATH):

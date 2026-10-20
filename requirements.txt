@@ -1,4 +1,4 @@
-# PicFrame 4.0 Dependencies
+# WanderWall Dependencies
 # Generated from pyproject.toml
 
 # Web framework

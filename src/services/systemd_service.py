@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - systemd Service Control.
+WanderWall - systemd Service Control.
 
 Wrapper for controlling systemd user services.
 """
@@ -15,7 +15,7 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 # Whitelist of services that can be controlled
-ALLOWED_SERVICES = frozenset({"picframe", "picframe-api", "picframe-lights", "picframe-sync.timer"})
+ALLOWED_SERVICES = frozenset({"picframe", "wanderwall-api", "wanderwall-lights", "wanderwall-sync.timer"})
 
 # Allowed sync intervals in seconds (0 = disabled)
 VALID_SYNC_INTERVALS = frozenset({0, 300, 600, 900, 1800, 2700, 3600, 7200, 21600, 43200, 86400})
@@ -40,12 +40,12 @@ _SYNC_CALENDAR = {
     86400: "*-*-* 00:00",
 }
 
-_SYNC_TIMER_PATH = Path.home() / ".config" / "systemd" / "user" / "picframe-sync.timer"
+_SYNC_TIMER_PATH = Path.home() / ".config" / "systemd" / "user" / "wanderwall-sync.timer"
 
 _TIMER_TEMPLATE = """\
 [Unit]
-Description=PicFrame 4.0 Photo Sync Timer
-After=picframe-api.service
+Description=WanderWall Photo Sync Timer
+After=wanderwall-api.service
 
 [Timer]
 # Run 15 minutes after boot
@@ -61,7 +61,7 @@ WantedBy=timers.target
 
 async def update_sync_timer(interval_seconds: int) -> bool:
     """
-    Write a new picframe-sync.timer unit with the given interval and reload systemd.
+    Write a new wanderwall-sync.timer unit with the given interval and reload systemd.
 
     If interval_seconds is 0, stop the timer instead.
     interval_seconds must be a value from VALID_SYNC_INTERVALS.
@@ -74,7 +74,7 @@ async def update_sync_timer(interval_seconds: int) -> bool:
     try:
         if interval_seconds == 0:
             proc = await asyncio.create_subprocess_exec(
-                "systemctl", "--user", "stop", "picframe-sync.timer",
+                "systemctl", "--user", "stop", "wanderwall-sync.timer",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -103,7 +103,7 @@ async def update_sync_timer(interval_seconds: int) -> bool:
 
         # Restart the timer so the new OnCalendar takes effect immediately
         proc = await asyncio.create_subprocess_exec(
-            "systemctl", "--user", "restart", "picframe-sync.timer",
+            "systemctl", "--user", "restart", "wanderwall-sync.timer",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -121,7 +121,7 @@ async def update_sync_timer(interval_seconds: int) -> bool:
 
 
 _SLEEP_TIMER_DIR = Path.home() / ".config" / "systemd" / "user"
-_DISPLAY_HELPER_PATH = Path.home() / ".local" / "bin" / "picframe-display"
+_DISPLAY_HELPER_PATH = Path.home() / ".local" / "bin" / "wanderwall-display"
 _TIME_RE = re.compile(r'^\d{2}:\d{2}$')
 
 # vcgencmd display_power is retired on Pi OS Bookworm / Debian Trixie with KMS.
@@ -140,26 +140,26 @@ esac
 
 _SLEEP_SERVICE = """\
 [Unit]
-Description=PicFrame Display Sleep
+Description=WanderWall Display Sleep
 After=picframe.service
 
 [Service]
 Type=oneshot
-ExecStart=%h/.local/bin/picframe-display off
+ExecStart=%h/.local/bin/wanderwall-display off
 """
 
 _WAKE_SERVICE = """\
 [Unit]
-Description=PicFrame Display Wake
+Description=WanderWall Display Wake
 
 [Service]
 Type=oneshot
-ExecStart=%h/.local/bin/picframe-display on
+ExecStart=%h/.local/bin/wanderwall-display on
 """
 
 _SLEEP_TIMER_UNIT = """\
 [Unit]
-Description=PicFrame Display Sleep Timer
+Description=WanderWall Display Sleep Timer
 
 [Timer]
 OnCalendar=*-*-* {time}:00
@@ -171,7 +171,7 @@ WantedBy=timers.target
 
 _WAKE_TIMER_UNIT = """\
 [Unit]
-Description=PicFrame Display Wake Timer
+Description=WanderWall Display Wake Timer
 
 [Timer]
 OnCalendar=*-*-* {time}:00
@@ -191,19 +191,19 @@ def _write_unit(path: Path, content: str) -> None:
 
 async def update_sleep_timers(enabled: bool, sleep_time: str, wake_time: str) -> bool:
     """
-    Create or remove picframe-sleep/wake timer pairs.
+    Create or remove wanderwall-sleep/wake timer pairs.
 
     If enabled=False, stops and disables both timers.
     sleep_time and wake_time must be "HH:MM" 24-hour format.
     Returns True on success.
     """
-    sleep_svc = _SLEEP_TIMER_DIR / "picframe-sleep.service"
-    wake_svc  = _SLEEP_TIMER_DIR / "picframe-wake.service"
-    sleep_tmr = _SLEEP_TIMER_DIR / "picframe-sleep.timer"
-    wake_tmr  = _SLEEP_TIMER_DIR / "picframe-wake.timer"
+    sleep_svc = _SLEEP_TIMER_DIR / "wanderwall-sleep.service"
+    wake_svc  = _SLEEP_TIMER_DIR / "wanderwall-wake.service"
+    sleep_tmr = _SLEEP_TIMER_DIR / "wanderwall-sleep.timer"
+    wake_tmr  = _SLEEP_TIMER_DIR / "wanderwall-wake.timer"
 
     if not enabled:
-        for unit in ("picframe-sleep.timer", "picframe-wake.timer"):
+        for unit in ("wanderwall-sleep.timer", "wanderwall-wake.timer"):
             proc = await asyncio.create_subprocess_exec(
                 "systemctl", "--user", "disable", "--now", unit,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
@@ -235,7 +235,7 @@ async def update_sleep_timers(enabled: bool, sleep_time: str, wake_time: str) ->
             logger.error(f"daemon-reload failed: {stderr.decode()}")
             return False
 
-        for unit in ("picframe-sleep.timer", "picframe-wake.timer"):
+        for unit in ("wanderwall-sleep.timer", "wanderwall-wake.timer"):
             proc = await asyncio.create_subprocess_exec(
                 "systemctl", "--user", "enable", "--now", unit,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
@@ -340,7 +340,7 @@ class SystemdService:
         try:
             logger.info(f"Restarting service: {service_name}")
 
-            if service_name == "picframe-api":
+            if service_name == "wanderwall-api":
                 # Fire-and-forget: systemd kills this process before systemctl
                 # can report success, so awaiting communicate() always yields a
                 # non-zero exit code and a false error log.

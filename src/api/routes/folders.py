@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Folder Management Routes.
+WanderWall API - Folder Management Routes.
 
 Manages photo sources/folders:
 - GET /folders: List all photo sources

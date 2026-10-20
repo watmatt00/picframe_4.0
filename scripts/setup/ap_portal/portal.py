@@ -1,5 +1,5 @@
 """
-PicFrame Setup - AP Captive Portal.
+WanderWall Setup - AP Captive Portal.
 
 Flask web app running on port 80 during setup mode.
 Step 1 of 2: collects frame name + WiFi credentials only.
@@ -32,11 +32,11 @@ logger = logging.getLogger("portal")
 # Portal runs as root (port 80). Use the env var set by the systemd service
 # (written by install_setup.sh) to find the frame user's home directory.
 # Never use Path.home() here — that resolves to /root when running as root.
-PICFRAME_USER_HOME = Path(os.environ.get("PICFRAME_USER_HOME", "/home/pi"))
-PICFRAME_CONFIG_PATH = PICFRAME_USER_HOME / ".picframe" / "config.yaml"
+WANDERWALL_USER_HOME = Path(os.environ.get("WANDERWALL_USER_HOME", "/home/pi"))
+APP_CONFIG_PATH = WANDERWALL_USER_HOME / ".wanderwall" / "config.yaml"
 
 # Frame user — needed to chown files written by root back to the correct owner
-PICFRAME_USER = os.environ.get("PICFRAME_USER", PICFRAME_USER_HOME.name)
+WANDERWALL_USER = os.environ.get("WANDERWALL_USER", WANDERWALL_USER_HOME.name)
 
 # Input validation patterns
 SSID_RE = re.compile(r"^[\w\s\-\.]{1,32}$")
@@ -73,7 +73,7 @@ def index():
     """Serve the appropriate config form based on provisioning state."""
     state = state_manager.read()
     is_first_run = not state.get("provisioned", False)
-    frame_name = state.get("frame_name", "picframe")
+    frame_name = state.get("frame_name", "wanderwall")
     if is_first_run:
         return render_template("index.html", frame_name=frame_name)
     return render_template("reconfigure.html", frame_name=frame_name)
@@ -94,7 +94,7 @@ def skip():
 
     logger.info("User skipped WiFi setup — clearing flag and rebooting to gallery")
     state_manager.clear_needs_setup()
-    subprocess.run(["systemctl", "stop", "picframe-ble-setup"], check=False)
+    subprocess.run(["systemctl", "stop", "wanderwall-ble-setup"], check=False)
     subprocess.Popen(["sh", "-c", "sleep 2 && reboot"])
     return render_template("skip.html")
 
@@ -129,7 +129,7 @@ def save():
         return render_template(
             template,
             errors=errors,
-            frame_name=frame_name or state.get("frame_name", "picframe"),
+            frame_name=frame_name or state.get("frame_name", "wanderwall"),
         )
 
     # ── Configure WiFi via NetworkManager ────────────────────────────────────
@@ -141,18 +141,18 @@ def save():
         return render_template(
             template,
             errors=["Failed to save WiFi configuration. Please try again."],
-            frame_name=frame_name or state.get("frame_name", "picframe"),
+            frame_name=frame_name or state.get("frame_name", "wanderwall"),
         )
 
     # ── First-run: write frame name, mark provisioned ────────────────────────
     if is_first_run:
         try:
-            _write_picframe_config(frame_name)
+            _write_app_config(frame_name)
             state_manager.set("frame_name", frame_name)
             state_manager.set("provisioned", True)
             # koofr_configured stays False — Step 2 happens on the dashboard
         except Exception as e:
-            logger.error(f"Failed to write picframe config: {e}")
+            logger.error(f"Failed to write app config: {e}")
             return render_template(
                 "index.html",
                 errors=["Failed to save frame configuration. Please try again."],
@@ -164,21 +164,21 @@ def save():
     logger.info(f"Configuration saved for SSID '{ssid}'. Rebooting...")
 
     # Stop the BLE service if running
-    subprocess.run(["systemctl", "stop", "picframe-ble-setup"], check=False)
+    subprocess.run(["systemctl", "stop", "wanderwall-ble-setup"], check=False)
 
     # Reboot after a brief delay so the response can be sent
     subprocess.Popen(["sh", "-c", "sleep 2 && reboot"])
 
     # Pass frame_name for Step 2 instructions on the success page
-    final_frame_name = frame_name or state.get("frame_name", "picframe")
+    final_frame_name = frame_name or state.get("frame_name", "wanderwall")
     return render_template("success.html", frame_name=final_frame_name, is_first_run=is_first_run)
 
 
 # ── Helper functions ─────────────────────────────────────────────────────────
 
-def _write_picframe_config(frame_name: str) -> None:
+def _write_app_config(frame_name: str) -> None:
     """
-    Write frame name to ~/.picframe/config.yaml. Merges into existing config.
+    Write frame name to ~/.wanderwall/config.yaml. Merges into existing config.
 
     Koofr credentials are NOT written here — that is Step 2, handled by
     the dashboard after WiFi is connected.
@@ -187,22 +187,22 @@ def _write_picframe_config(frame_name: str) -> None:
         frame_name: Human-readable frame name.
     """
     config: dict = {}
-    if PICFRAME_CONFIG_PATH.exists():
-        with open(PICFRAME_CONFIG_PATH) as f:
+    if APP_CONFIG_PATH.exists():
+        with open(APP_CONFIG_PATH) as f:
             config = yaml.safe_load(f) or {}
 
     config.setdefault("frame", {})["name"] = frame_name
 
-    tmp = PICFRAME_CONFIG_PATH.with_suffix(".tmp")
+    tmp = APP_CONFIG_PATH.with_suffix(".tmp")
     try:
-        PICFRAME_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        APP_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(tmp, "w") as f:
             yaml.safe_dump(config, f, default_flow_style=False)
         tmp.chmod(0o600)
-        tmp.rename(PICFRAME_CONFIG_PATH)
+        tmp.rename(APP_CONFIG_PATH)
         # Portal runs as root — restore ownership to the frame user so the API can read it
-        subprocess.run(["chown", f"{PICFRAME_USER}:{PICFRAME_USER}", str(PICFRAME_CONFIG_PATH)], check=False)
-        logger.info(f"picframe config updated (frame_name='{frame_name}')")
+        subprocess.run(["chown", f"{WANDERWALL_USER}:{WANDERWALL_USER}", str(APP_CONFIG_PATH)], check=False)
+        logger.info(f"app config updated (frame_name='{frame_name}')")
     except Exception:
         if tmp.exists():
             tmp.unlink()

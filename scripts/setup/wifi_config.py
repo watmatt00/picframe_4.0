@@ -1,5 +1,5 @@
 """
-PicFrame Setup - Shared WiFi configuration helper.
+WanderWall Setup - Shared WiFi configuration helper.
 
 Writes WiFi credentials as a NetworkManager connection profile. Used by both
 the captive portal (ap_portal/portal.py) and the BLE setup service
@@ -11,14 +11,14 @@ import subprocess
 
 logger = logging.getLogger("wifi_config")
 
-CONNECTION_NAME = "picframe-wifi"
+CONNECTION_NAME = "wanderwall-wifi"
 
 
 def write_wifi_credentials(ssid: str, password: str) -> None:
     """
     Configure WiFi credentials using NetworkManager (nmcli).
 
-    Deletes any existing 'picframe-wifi' connection and creates a new one
+    Deletes any existing 'wanderwall-wifi' connection and creates a new one
     with autoconnect enabled so it persists across reboots. The profile is
     marked hidden so networks that don't broadcast their SSID still connect
     (NetworkManager probes for the SSID directly; visible networks are
@@ -33,7 +33,7 @@ def write_wifi_credentials(ssid: str, password: str) -> None:
     Raises:
         subprocess.CalledProcessError: If nmcli fails to create the profile.
     """
-    # Remove old picframe-wifi connection if it exists
+    # Remove old wanderwall-wifi connection if it exists
     subprocess.run(
         ["nmcli", "con", "delete", CONNECTION_NAME],
         capture_output=True, check=False,

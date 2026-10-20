@@ -16,7 +16,7 @@ post() {
         -d "$1" > /dev/null
 }
 
-echo "PicFrame Light Tester  (host: ${HOST})"
+echo "WanderWall Light Tester  (host: ${HOST})"
 echo "  1  →  Amber + Green   (no sync, wifi up)"
 echo "  2  →  Amber + Red     (no sync, wifi down)"
 echo "  x  →  Reset           (restore real behavior)"

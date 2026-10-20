@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - API Middleware.
+WanderWall - API Middleware.
 
 Deny-by-default restriction for non-local clients, and a request body cap
 for upload routes.
@@ -27,7 +27,7 @@ BLOCKED_HTML = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PicFrame</title>
+<title>WanderWall</title>
 <style>
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -45,9 +45,9 @@ BLOCKED_HTML = """<!doctype html>
 </head>
 <body>
 <main>
-  <h1>PicFrame</h1>
+  <h1>WanderWall</h1>
   <p>This frame's dashboard is only available on its home network.
-     To manage it from anywhere, use the PicFrame Manager app.</p>
+     To manage it from anywhere, use the WanderWall app.</p>
 </main>
 </body>
 </html>

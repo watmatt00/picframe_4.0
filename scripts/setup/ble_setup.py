@@ -1,5 +1,5 @@
 """
-PicFrame Setup - BLE GATT Peripheral Server.
+WanderWall Setup - BLE GATT Peripheral Server.
 
 Advertises the frame as a BLE peripheral during setup mode.
 The iOS app writes WiFi credentials via the GATT characteristic.
@@ -30,7 +30,7 @@ LOG_FORMAT = "[%(asctime)s] %(levelname)-5s %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 _log_handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
 try:
-    _log_handlers.append(logging.FileHandler(Path("/var/log/picframe-ble-setup.log")))
+    _log_handlers.append(logging.FileHandler(Path("/var/log/wanderwall-ble-setup.log")))
 except OSError:
     pass  # Not running as root (e.g. tests) — journal/stdout only
 
@@ -42,7 +42,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ble_setup")
 
-# PicFrame BLE service and characteristic UUIDs
+# WanderWall BLE service and characteristic UUIDs
 SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
@@ -160,8 +160,8 @@ async def run_ble_server() -> None:
     Start the GATT server and advertise until credentials are received.
     """
     state = state_manager.read()
-    frame_name = state.get("frame_name", "picframe")
-    device_name = f"PicFrame-{frame_name}"
+    frame_name = state.get("frame_name", "wanderwall")
+    device_name = f"WanderWall-{frame_name}"
 
     logger.info(f"Starting BLE GATT server as '{device_name}'")
 
@@ -197,13 +197,13 @@ async def run_ble_server() -> None:
     logger.info("BLE server stopped")
 
     # Stop the AP service if it's running, then reboot
-    subprocess.run(["systemctl", "stop", "picframe-ap-setup"], check=False)
+    subprocess.run(["systemctl", "stop", "wanderwall-ap-setup"], check=False)
     subprocess.run(["reboot"], check=False)
 
 
 def main() -> None:
     """Entry point for the BLE setup service."""
-    logger.info("PicFrame BLE Setup Service starting")
+    logger.info("WanderWall BLE Setup Service starting")
     ensure_bluetooth_ready()
     asyncio.run(run_ble_server())
 

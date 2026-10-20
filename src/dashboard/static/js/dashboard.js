@@ -1,5 +1,5 @@
 /**
- * PicFrame 4.0 Dashboard JavaScript
+ * WanderWall Dashboard JavaScript
  * Based on v3 dashboard functionality
  */
 
@@ -476,7 +476,7 @@ function initStatusDashboard() {
             // Services
             const services = data.services || [];
             const pfService = services.find(s => s.name === "picframe" || s.name === "picframe.service");
-            const apiService = services.find(s => s.name === "picframe-api" || s.name === "picframe-api.service");
+            const apiService = services.find(s => s.name === "wanderwall-api" || s.name === "wanderwall-api.service");
 
             setServiceDot(pfDot, pfText, pfService?.active ? "active" : "inactive");
             setServiceDot(webDot, webText, "active"); // Dashboard is always running if we're here
@@ -564,7 +564,7 @@ function initStatusDashboard() {
         try {
             const resp = await fetch("/services/picframe/restart", { method: "POST" });
             if (resp.ok) {
-                alert("Picframe service restarted!");
+                alert("Display restarted!");
                 await refreshStatus();
             } else {
                 const data = await resp.json();
@@ -589,7 +589,7 @@ function initStatusDashboard() {
         if (btnRestartApiLabel) btnRestartApiLabel.textContent = "Restarting...";
 
         try {
-            const resp = await fetch("/services/picframe-api/restart", { method: "POST" });
+            const resp = await fetch("/services/wanderwall-api/restart", { method: "POST" });
             if (resp.ok) {
                 alert("API service restarting... Page will reload.");
                 setTimeout(() => window.location.reload(), 3000);

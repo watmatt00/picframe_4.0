@@ -18,8 +18,8 @@ class TestSettings:
         """Settings should have sensible defaults."""
         settings = Settings()
 
-        assert settings.frame.id == "picframe"
-        assert settings.frame.name == "PicFrame"
+        assert settings.frame.id == "wanderwall"
+        assert settings.frame.name == "WanderWall"
         assert settings.display.rotation_interval == 30
         assert settings.sync.interval == 900
         assert settings.logging.level == "INFO"

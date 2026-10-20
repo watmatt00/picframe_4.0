@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Album Deletion (PL-147).
+WanderWall - Album Deletion (PL-147).
 
 Deleting an album removes it from sources.yaml and deletes its photos on the
 frame. The cloud folder is left alone (it's the master copy), and so are the

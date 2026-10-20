@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Photo Tools Service.
+WanderWall - Photo Tools Service.
 
 Scan-then-apply operations for photo library maintenance:
 - Filename cleaning: strip Google Photos ID tokens, numbered-dup suffixes,

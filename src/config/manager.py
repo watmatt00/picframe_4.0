@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Configuration Manager.
+WanderWall - Configuration Manager.
 
 Handles configuration file read/write with file locking.
 """
@@ -157,7 +157,7 @@ class ConfigManager:
 
 
 # Default config path
-CONFIG_PATH = Path.home() / ".picframe" / "config.yaml"
+CONFIG_PATH = Path.home() / ".wanderwall" / "config.yaml"
 
 # Global config manager instance
 config_manager = ConfigManager(CONFIG_PATH)

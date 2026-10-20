@@ -1,5 +1,5 @@
-# PicFrame 4.0 Configuration Example
-# Copy to ~/.picframe/config.yaml and customize
+# WanderWall Configuration Example
+# Copy to ~/.wanderwall/config.yaml and customize
 
 frame:
   # Unique identifier for this frame (used in pairing)

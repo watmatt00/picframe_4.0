@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Services Module.
+WanderWall - Services Module.
 
 Core services for frame management:
 - sync_service: rclone sync operations

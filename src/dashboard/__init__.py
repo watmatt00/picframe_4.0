@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Web Dashboard Module.
+WanderWall - Web Dashboard Module.
 
 LAN-only web dashboard for frame management.
 No authentication required - if you're on the LAN, you have access.

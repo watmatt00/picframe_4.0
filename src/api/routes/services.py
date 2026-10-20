@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Service Control Routes.
+WanderWall API - Service Control Routes.
 
 Controls systemd services:
 - GET /services: List services and their status

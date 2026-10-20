@@ -98,7 +98,7 @@ class TestPublicClient:
         response = client.get("/", headers={"Accept": accept})
         assert response.status_code == 403
         assert response.headers["content-type"].startswith("text/html")
-        assert "PicFrame Manager app" in response.text
+        assert "WanderWall app" in response.text
         assert PUBLIC[0] not in response.text
 
     def test_api_client_still_gets_json(self, client):

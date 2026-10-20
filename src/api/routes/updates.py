@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Software Update Routes.
+WanderWall API - Software Update Routes.
 
 Check for, schedule, and apply frame software updates from the mobile app.
 The LAN dashboard has equivalent unauthenticated routes under /api/updates/*.

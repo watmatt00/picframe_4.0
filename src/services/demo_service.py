@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Demo Mode Service (PL-015).
+WanderWall - Demo Mode Service (PL-015).
 
 Reusable pairing codes for an App Store reviewer. Demo mode only works on a frame
 where `demo.allowed: true` was set by hand, and turns itself off 14 days after it

@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Album Recovery (PL-147 follow-up).
+WanderWall - Album Recovery (PL-147 follow-up).
 
 Gets albums back after Delete Album, from the dashboard:
 - from its cloud folder (re-adds the album pointed at it): this frame's own

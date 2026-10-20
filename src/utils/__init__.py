@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Utilities Module.
+WanderWall - Utilities Module.
 
 Helper utilities:
 - rclone: rclone command wrapper

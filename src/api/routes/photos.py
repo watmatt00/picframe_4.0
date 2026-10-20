@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Photo Management Routes.
+WanderWall API - Photo Management Routes.
 
 Provides per-source photo listing, thumbnail generation, and deletion:
 - GET  /sources/{source_id}/photos               — list photos from local filesystem
@@ -95,7 +95,7 @@ async def get_thumbnail(
     filename: str = Query(...),
     admin=Depends(require_admin),
 ):
-    """Return a JPEG thumbnail for a photo. Cached in ~/.picframe/thumbs/."""
+    """Return a JPEG thumbnail for a photo. Cached in ~/.wanderwall/thumbs/."""
     if not _validate_relative_path(filename):
         raise HTTPException(400, "Invalid filename")
     source = source_manager.get_source(source_id)

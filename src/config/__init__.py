@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Configuration Module.
+WanderWall - Configuration Module.
 
 Handles application configuration:
 - settings: Pydantic settings from environment/files

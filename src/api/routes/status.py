@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Status Routes.
+WanderWall API - Status Routes.
 
 Provides frame status information:
 - GET /status: Full status including capacity, sync state, service health
@@ -77,9 +77,9 @@ class FrameStatus(BaseModel):
 
 
 SERVICE_DISPLAY_NAMES = {
-    "picframe.service": "PicFrame Display",
-    "picframe-api.service": "PicFrame API",
-    "picframe-sync.service": "PicFrame Sync",
+    "picframe.service": "WanderWall Display",
+    "wanderwall-api.service": "WanderWall API",
+    "wanderwall-sync.service": "WanderWall Sync",
 }
 
 
@@ -133,7 +133,7 @@ async def get_status(admin=Depends(require_admin)):
     # Get service statuses
     services = await asyncio.gather(
         _get_service_status("picframe.service"),
-        _get_service_status("picframe-api.service"),
+        _get_service_status("wanderwall-api.service"),
     )
 
     # Get current source and photo counts (shared logic)

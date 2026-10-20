@@ -1,14 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-# PicFrame Combined Installer
+# WanderWall Combined Installer
 # Replaces install_picframe.sh + setup_api.sh.
 #
 # Handles multiple reboots via systemd resume service.
 # All interactive prompts occur before the first reboot.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/watmatt00/picframe_4.0/main/scripts/setup/install.sh \
+#   curl -fsSL https://raw.githubusercontent.com/watmatt00/wanderwall_frame/main/scripts/setup/install.sh \
 #     -o /tmp/install.sh && sudo bash /tmp/install.sh
 #
 # Optional flags (set before first run; saved automatically):
@@ -72,7 +72,7 @@ done
 
 # ── Self-persist ──────────────────────────────────────────────────────────────
 # Copy script to a stable path so the resume service can re-exec after reboots.
-PERSISTENT_SCRIPT="$ACTUAL_HOME/install_picframe_resume.sh"
+PERSISTENT_SCRIPT="$ACTUAL_HOME/install_wanderwall_resume.sh"
 CURRENT_PATH="$(realpath "$0" 2>/dev/null || echo "$0")"
 if [[ "$CURRENT_PATH" != "$PERSISTENT_SCRIPT" ]]; then
     echo "Saving installer to $PERSISTENT_SCRIPT for reboot resume..."
@@ -81,7 +81,7 @@ if [[ "$CURRENT_PATH" != "$PERSISTENT_SCRIPT" ]]; then
     else
         # Fallback: re-download (happens when script is run via pipe).
         # Update this URL to main when promoting install.sh to main branch.
-        curl -fsSL "https://raw.githubusercontent.com/watmatt00/picframe_4.0/dev/scripts/setup/install.sh" \
+        curl -fsSL "https://raw.githubusercontent.com/watmatt00/wanderwall_frame/dev/scripts/setup/install.sh" \
             -o "$PERSISTENT_SCRIPT"
     fi
     chown "$ACTUAL_USER:$ACTUAL_USER" "$PERSISTENT_SCRIPT"
@@ -92,9 +92,9 @@ fi
 # ── Helpers ───────────────────────────────────────────────────────────────────
 PROGRESS_FILE="$ACTUAL_HOME/install_progress.txt"
 LOG_FILE="$ACTUAL_HOME/install_log.txt"
-RESUME_SERVICE="picframe-install"
-REPO_URL="https://github.com/watmatt00/picframe_4.0.git"
-PROJECT_DIR="$ACTUAL_HOME/picframe_4.0"
+RESUME_SERVICE="wanderwall-install"
+REPO_URL="https://github.com/watmatt00/wanderwall_frame.git"
+PROJECT_DIR="$ACTUAL_HOME/wanderwall_frame"
 
 log() {
     local msg="[$(date +'%Y-%m-%d %H:%M:%S')] $*"
@@ -171,7 +171,7 @@ wait_for_user_systemd() {
 add_resume_service() {
     cat > "/etc/systemd/system/$RESUME_SERVICE.service" <<EOF
 [Unit]
-Description=Resume picframe install after reboot
+Description=Resume WanderWall install after reboot
 
 [Service]
 ExecStart=/bin/bash $PERSISTENT_SCRIPT --user=$ACTUAL_USER
@@ -247,7 +247,7 @@ check_funnel_dns() {
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 LAST=$(last_step)
-log "=== PicFrame install | user=$ACTUAL_USER step=$LAST frame=${FRAME_NAME:-?} branch=${BRANCH:-?} ==="
+log "=== WanderWall install | user=$ACTUAL_USER step=$LAST frame=${FRAME_NAME:-?} branch=${BRANCH:-?} ==="
 
 # ── Phase 0: Preflight interview + pre-reboot setup ──────────────────────────
 # All interactive prompts happen here, before any reboot.
@@ -258,7 +258,7 @@ if [[ "$LAST" -lt 1 ]]; then
 
     echo ""
     echo "============================================="
-    echo "  PicFrame Installer"
+    echo "  WanderWall Installer"
     echo "  All questions answered before any changes."
     echo "============================================="
     echo ""
@@ -502,10 +502,10 @@ if [[ "$LAST" -lt 6 ]]; then
     save_step 6
 fi
 
-# ── Phase 6: Clone picframe_4.0 repo + venv ───────────────────────────────────
+# ── Phase 6: Clone wanderwall_frame repo + venv ───────────────────────────────────
 if [[ "$LAST" -lt 7 ]]; then
     check_internet
-    log "--- Phase 6: Clone picframe_4.0 ($BRANCH) ---"
+    log "--- Phase 6: Clone wanderwall_frame ($BRANCH) ---"
     if [[ -d "$PROJECT_DIR/.git" ]]; then
         log "  Repo exists, updating to $BRANCH..."
         as_user git -C "$PROJECT_DIR" fetch origin
@@ -518,18 +518,18 @@ if [[ "$LAST" -lt 7 ]]; then
     as_user python3 -m venv "$PROJECT_DIR/venv"
     as_user "$PROJECT_DIR/venv/bin/pip" install --upgrade pip -q
     as_user "$PROJECT_DIR/venv/bin/pip" install -e "$PROJECT_DIR" -q
-    log "  ✓ picframe_4.0 installed (branch: $BRANCH)"
+    log "  ✓ wanderwall_frame installed (branch: $BRANCH)"
     # Read-only SSH key for Claude (forced through a command filter). Your own
     # access is password login; no unrestricted dev key is installed.
     as_user env HOME="$ACTUAL_HOME" bash "$PROJECT_DIR/scripts/setup/install_inspect_key.sh"
     save_step 7
 fi
 
-# ── Phase 7: Write ~/.picframe/config.yaml ────────────────────────────────────
+# ── Phase 7: Write ~/.wanderwall/config.yaml ────────────────────────────────────
 if [[ "$LAST" -lt 8 ]]; then
     log "--- Phase 7: App config ---"
-    as_user mkdir -p "$ACTUAL_HOME/.picframe"
-    APP_CONF="$ACTUAL_HOME/.picframe/config.yaml"
+    as_user mkdir -p "$ACTUAL_HOME/.wanderwall"
+    APP_CONF="$ACTUAL_HOME/.wanderwall/config.yaml"
     if [[ ! -f "$APP_CONF" ]]; then
         log "  Generating default config (running API briefly)..."
         as_user bash -c "
@@ -624,7 +624,7 @@ if [[ "$LAST" -lt 10 ]]; then
     wait_for_user_systemd
 
     as_user mkdir -p "$ACTUAL_HOME/.config/systemd/user"
-    for svc in picframe-api.service picframe-sync.service picframe-sync.timer picframe-lights.service; do
+    for svc in wanderwall-api.service wanderwall-sync.service wanderwall-sync.timer wanderwall-lights.service; do
         if [[ -f "$PROJECT_DIR/systemd/$svc" ]]; then
             cp "$PROJECT_DIR/systemd/$svc" "$ACTUAL_HOME/.config/systemd/user/"
             chown "$ACTUAL_USER:$ACTUAL_USER" "$ACTUAL_HOME/.config/systemd/user/$svc"
@@ -635,12 +635,12 @@ if [[ "$LAST" -lt 10 ]]; then
     done
 
     user_systemctl daemon-reload
-    user_systemctl enable --now picframe-api.service
-    user_systemctl enable --now picframe-sync.timer
-    user_systemctl enable --now picframe-lights.service
+    user_systemctl enable --now wanderwall-api.service
+    user_systemctl enable --now wanderwall-sync.timer
+    user_systemctl enable --now wanderwall-lights.service
 
-    check_user_service picframe-api.service
-    check_user_service picframe-lights.service
+    check_user_service wanderwall-api.service
+    check_user_service wanderwall-lights.service
 
     # Wait for API to be healthy before continuing
     log "  Waiting for API health check..."
@@ -703,7 +703,7 @@ PYEOF
         log "  Koofr credentials not provided — configure via dashboard"
     fi
 
-    # WiFi recovery installer (hostapd, dnsmasq, watchdog, picframe-config)
+    # WiFi recovery installer (hostapd, dnsmasq, watchdog, wanderwall-config)
     log "  Running WiFi recovery installer (install_setup.sh)..."
     SUDO_USER="$ACTUAL_USER" bash "$PROJECT_DIR/scripts/setup/install_setup.sh"
 
@@ -727,7 +727,7 @@ fi
 # Log everything before touching any cleanup files
 log "  Run verify anytime: sudo bash $PROJECT_DIR/scripts/setup/verify_install.sh"
 log "============================================="
-log "=== PICFRAME INSTALLATION COMPLETE ==="
+log "=== WANDERWALL INSTALLATION COMPLETE ==="
 log "============================================="
 log "  Frame name : $FRAME_NAME"
 log "  Branch     : $BRANCH"

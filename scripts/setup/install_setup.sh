@@ -1,9 +1,9 @@
 #!/bin/bash
-# PicFrame Phase 6 Setup Installer
-# Installs WiFi recovery, setup mode (BLE + AP), and picframe-config tool.
+# WanderWall Phase 6 Setup Installer
+# Installs WiFi recovery, setup mode (BLE + AP), and wanderwall-config tool.
 #
 # Run as root:  sudo bash scripts/setup/install_setup.sh
-# Run from:     ~/picframe_4.0/ (project root)
+# Run from:     ~/wanderwall_frame/ (project root)
 
 set -euo pipefail
 
@@ -39,14 +39,14 @@ SETUP_VENV="${SETUP_DIR}/venv"
 SETUP_PYTHON="${SETUP_VENV}/bin/python3"
 SYSTEMD_SRC="${SETUP_DIR}/systemd"
 SYSTEMD_DEST="/etc/systemd/system"
-HOSTAPD_CONF="/etc/hostapd/picframe-hostapd.conf"
-STATE_FILE="/var/lib/picframe/state.yaml"
-INSTALL_CONF="/var/lib/picframe/install.conf"
+HOSTAPD_CONF="/etc/hostapd/wanderwall-hostapd.conf"
+STATE_FILE="/var/lib/wanderwall/state.yaml"
+INSTALL_CONF="/var/lib/wanderwall/install.conf"
 
 # Determine the invoking user's home directory (script runs as root via sudo)
 FRAME_USER="${SUDO_USER:-$(logname 2>/dev/null || echo pi)}"
 FRAME_USER_HOME="$(getent passwd "$FRAME_USER" | cut -d: -f6)"
-CONFIG_DIR="${FRAME_USER_HOME}/.picframe"
+CONFIG_DIR="${FRAME_USER_HOME}/.wanderwall"
 
 # ── Preflight checks ──────────────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ if ! grep -qi "raspberry pi" /proc/device-tree/model 2>/dev/null; then
     [[ "$confirm" =~ ^[Yy]$ ]] || exit 1
 fi
 
-LOG "Starting PicFrame Phase 6 installation"
+LOG "Starting WanderWall Phase 6 installation"
 LOG "Project directory: ${PROJECT_DIR}"
 
 # ── System packages ───────────────────────────────────────────────────────────
@@ -86,20 +86,20 @@ LOG "Python packages installed"
 
 # ── hostapd config ────────────────────────────────────────────────────────────
 
-LOG "Creating /var/lib/picframe/ state directory..."
-mkdir -p /var/lib/picframe
-chown root:sudo /var/lib/picframe
-chmod 775 /var/lib/picframe
+LOG "Creating /var/lib/wanderwall/ state directory..."
+mkdir -p /var/lib/wanderwall
+chown root:sudo /var/lib/wanderwall
+chmod 775 /var/lib/wanderwall
 
 # ── Write install.conf ────────────────────────────────────────────────────────
 
 LOG "Writing install.conf (frame user: ${FRAME_USER}, home: ${FRAME_USER_HOME})..."
 cat > "${INSTALL_CONF}" <<EOF
 # Written by install_setup.sh — do not edit manually
-PICFRAME_USER=${FRAME_USER}
-PICFRAME_USER_HOME=${FRAME_USER_HOME}
-PICFRAME_PROJECT_DIR=${PROJECT_DIR}
-PICFRAME_SETUP_PYTHON=${SETUP_PYTHON}
+WANDERWALL_USER=${FRAME_USER}
+WANDERWALL_USER_HOME=${FRAME_USER_HOME}
+WANDERWALL_PROJECT_DIR=${PROJECT_DIR}
+WANDERWALL_SETUP_PYTHON=${SETUP_PYTHON}
 EOF
 chmod 644 "${INSTALL_CONF}"
 LOG "install.conf written"
@@ -139,9 +139,9 @@ fi
 LOG "Writing hostapd configuration..."
 
 # Read frame name from state.yaml if it exists, else use default
-FRAME_NAME="picframe"
+FRAME_NAME="wanderwall"
 if [[ -f "$STATE_FILE" ]]; then
-    FRAME_NAME=$(python3 -c "import yaml; d=yaml.safe_load(open('${STATE_FILE}')); print(d.get('frame_name','picframe'))" 2>/dev/null || echo "picframe")
+    FRAME_NAME=$(python3 -c "import yaml; d=yaml.safe_load(open('${STATE_FILE}')); print(d.get('frame_name','wanderwall'))" 2>/dev/null || echo "wanderwall")
 fi
 
 mkdir -p /etc/hostapd
@@ -161,7 +161,7 @@ LOG "AP password: ${AP_PASSWORD}"
 cat > "${HOSTAPD_CONF}" <<EOF
 interface=wlan0
 driver=nl80211
-ssid=PicFrame-${FRAME_NAME}
+ssid=WanderWall-${FRAME_NAME}
 hw_mode=g
 channel=6
 wpa=2
@@ -172,13 +172,13 @@ ieee80211n=1
 EOF
 
 chmod 600 "${HOSTAPD_CONF}"
-LOG "hostapd config written (SSID: PicFrame-${FRAME_NAME}, password: ${AP_PASSWORD})"
+LOG "hostapd config written (SSID: WanderWall-${FRAME_NAME}, password: ${AP_PASSWORD})"
 
 # ── Systemd service files ─────────────────────────────────────────────────────
 
 LOG "Installing systemd service files..."
 
-for service in picframe-watchdog.service picframe-ble-setup.service picframe-ap-setup.service; do
+for service in wanderwall-watchdog.service wanderwall-ble-setup.service wanderwall-ap-setup.service; do
     if [[ ! -f "${SYSTEMD_SRC}/${service}" ]]; then
         ERROR "Service file not found: ${SYSTEMD_SRC}/${service}"
         exit 1
@@ -196,18 +196,18 @@ systemctl daemon-reload
 LOG "Systemd daemon reloaded"
 
 # Enable watchdog (starts at boot). BLE + AP are started on-demand by watchdog.
-systemctl enable picframe-watchdog
-systemctl start picframe-watchdog
-LOG "picframe-watchdog enabled and started"
-check_service picframe-watchdog
+systemctl enable wanderwall-watchdog
+systemctl start wanderwall-watchdog
+LOG "wanderwall-watchdog enabled and started"
+check_service wanderwall-watchdog
 
-# ── picframe-config bash wrapper ──────────────────────────────────────────────
+# ── wanderwall-config bash wrapper ──────────────────────────────────────────────
 
-LOG "Installing picframe-config tool..."
-cp "${SETUP_DIR}/picframe-config" /usr/local/bin/picframe-config
-chmod +x /usr/local/bin/picframe-config
-LOG "picframe-config installed to /usr/local/bin/picframe-config"
-check_cmd "picframe-config" picframe-config --show
+LOG "Installing wanderwall-config tool..."
+cp "${SETUP_DIR}/wanderwall-config" /usr/local/bin/wanderwall-config
+chmod +x /usr/local/bin/wanderwall-config
+LOG "wanderwall-config installed to /usr/local/bin/wanderwall-config"
+check_cmd "wanderwall-config" wanderwall-config --show
 
 # ── Party mode + reboot: polkit rule + state.yaml permissions ────────────────
 # Allows the API (NoNewPrivileges=true) to manage watchdog units and reboot the
@@ -215,13 +215,13 @@ check_cmd "picframe-config" picframe-config --show
 
 LOG "Installing polkit rule (party mode, reboot)..."
 mkdir -p /etc/polkit-1/rules.d
-cat > /etc/polkit-1/rules.d/50-picframe.rules << 'POLKIT_EOF'
-/* Allow sudo-group users to manage PicFrame system services without interaction */
+cat > /etc/polkit-1/rules.d/50-wanderwall.rules << 'POLKIT_EOF'
+/* Allow sudo-group users to manage WanderWall system services without interaction */
 polkit.addRule(function(action, subject) {
     var partyUnits = [
-        "picframe-watchdog.service",
-        "picframe-ble-setup.service",
-        "picframe-ap-setup.service"
+        "wanderwall-watchdog.service",
+        "wanderwall-ble-setup.service",
+        "wanderwall-ap-setup.service"
     ];
     if (subject.isInGroup("sudo")) {
         if (action.id === "org.freedesktop.systemd1.manage-units") {
@@ -241,7 +241,7 @@ polkit.addRule(function(action, subject) {
     }
 });
 POLKIT_EOF
-LOG "Polkit rule installed: /etc/polkit-1/rules.d/50-picframe.rules"
+LOG "Polkit rule installed: /etc/polkit-1/rules.d/50-wanderwall.rules"
 
 LOG "Setting state.yaml group permissions for party mode..."
 chown root:sudo "${STATE_FILE}"
@@ -256,14 +256,14 @@ LOG "Phase 6 installation complete!"
 echo "============================================="
 echo ""
 echo "Services installed:"
-echo "  picframe-watchdog  (enabled, starts at boot)"
-echo "  picframe-ble-setup (started on demand)"
-echo "  picframe-ap-setup  (started on demand)"
+echo "  wanderwall-watchdog  (enabled, starts at boot)"
+echo "  wanderwall-ble-setup (started on demand)"
+echo "  wanderwall-ap-setup  (started on demand)"
 echo ""
 echo "Tools installed:"
-echo "  /usr/local/bin/picframe-config"
+echo "  /usr/local/bin/wanderwall-config"
 echo ""
-echo "State file: /var/lib/picframe/state.yaml"
+echo "State file: /var/lib/wanderwall/state.yaml"
 echo ""
 echo "If running standalone (not via setup_api.sh), reboot when ready:"
 echo "  sudo reboot"
@@ -272,5 +272,5 @@ echo "After reboot: watchdog starts automatically."
 echo "If WiFi is lost for >10 min, frame enters setup mode on next reboot."
 echo ""
 echo "To test setup mode manually:"
-echo "  picframe-config --force-setup && sudo reboot"
+echo "  wanderwall-config --force-setup && sudo reboot"
 echo ""

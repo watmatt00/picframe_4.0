@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Token Refresh Routes.
+WanderWall API - Token Refresh Routes.
 
 Lets a paired device swap its JWT for a fresh one before it expires.
 """

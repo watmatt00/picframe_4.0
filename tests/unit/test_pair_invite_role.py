@@ -36,7 +36,7 @@ def test_manager_refuses_invite_without_claiming(invites):
     invite = invites.create_invite()
     r = _pair(invite.code, "admin")
     assert r.status_code == 403
-    assert "Contributor app" in r.json()["detail"]
+    assert "WanderWall Share app" in r.json()["detail"]
     assert invites.is_valid_invite(invite.code)  # still usable
 
 

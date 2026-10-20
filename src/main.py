@@ -1,11 +1,11 @@
 """
-PicFrame 4.0 - Main entry point.
+WanderWall - Main entry point.
 
 Usage:
     uvicorn src.api.app:app --host 0.0.0.0 --port 8000
 
 Or via CLI:
-    picframe-api
+    wanderwall-api
 """
 
 import logging
@@ -28,7 +28,7 @@ def use_disk_tempdir(path: Path = DISK_TEMP_DIR) -> None:
     """
     Point tempfile (and so Starlette's upload spool files) at a directory on disk.
 
-    Leftover picframe_upload_* files from a crash are removed. Falls back to the
+    Leftover wanderwall_upload_* files from a crash are removed. Falls back to the
     system default if the directory can't be created.
 
     Args:
@@ -37,7 +37,7 @@ def use_disk_tempdir(path: Path = DISK_TEMP_DIR) -> None:
     try:
         path.mkdir(mode=0o700, parents=True, exist_ok=True)
         path.chmod(0o700)
-        for stale in path.glob("picframe_upload_*"):
+        for stale in path.glob("wanderwall_upload_*"):
             stale.unlink(missing_ok=True)
     except OSError as e:
         logger.warning(f"Temp dir {path} unavailable, using system default: {e}")
@@ -47,7 +47,7 @@ def use_disk_tempdir(path: Path = DISK_TEMP_DIR) -> None:
 
 
 def main():
-    """Run the PicFrame API server."""
+    """Run the WanderWall API server."""
     # Initialize settings and logging
     settings = get_settings()
     setup_logging(

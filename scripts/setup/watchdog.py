@@ -1,5 +1,5 @@
 """
-PicFrame Setup - WiFi Watchdog.
+WanderWall Setup - WiFi Watchdog.
 
 Monitors WiFi association and manages the needs_setup flag in state.yaml.
 Runs as a system-level service (root). Touches the display process only when
@@ -17,14 +17,14 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-HOSTAPD_CONF_PATH = Path("/etc/hostapd/picframe-hostapd.conf")
+HOSTAPD_CONF_PATH = Path("/etc/hostapd/wanderwall-hostapd.conf")
 AP_PORTAL_IP = "192.168.4.1"
 ISSUE_PATH = Path("/etc/issue")
-ISSUE_BACKUP_PATH = Path("/etc/issue.picframe-backup")
+ISSUE_BACKUP_PATH = Path("/etc/issue.wanderwall-backup")
 
 # Frame user info — set by systemd service from install.conf
-FRAME_USER_HOME = Path(os.environ.get("PICFRAME_USER_HOME", "/home/pi"))
-FRAME_USER = os.environ.get("PICFRAME_USER", FRAME_USER_HOME.name)
+FRAME_USER_HOME = Path(os.environ.get("WANDERWALL_USER_HOME", "/home/pi"))
+FRAME_USER = os.environ.get("WANDERWALL_USER", FRAME_USER_HOME.name)
 NO_PICTURES_PATH = FRAME_USER_HOME / "picframe_data" / "data" / "no_pictures.jpg"
 NO_PICTURES_BACKUP = FRAME_USER_HOME / "picframe_data" / "data" / "no_pictures.setup-backup"
 
@@ -52,14 +52,14 @@ RETRYABLE_SETUP_REASONS = {"extended_outage"}
 # Max wait for the frame user's systemd manager at boot (display runs as a user service)
 USER_MANAGER_WAIT_SECONDS = 120
 DISPLAY_SERVICE = "picframe"
-SYNC_SERVICE = "picframe-sync.service"
-SETUP_SERVICES = ["picframe-ble-setup", "picframe-ap-setup"]
+SYNC_SERVICE = "wanderwall-sync.service"
+SETUP_SERVICES = ["wanderwall-ble-setup", "wanderwall-ap-setup"]
 LOG_FORMAT = "[%(asctime)s] %(levelname)-5s %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 _log_handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
 try:
-    _log_handlers.append(logging.FileHandler(Path("/var/log/picframe-watchdog.log")))
+    _log_handlers.append(logging.FileHandler(Path("/var/log/wanderwall-watchdog.log")))
 except OSError:
     pass  # Not running as root (e.g. tests) — journal/stdout only
 
@@ -276,7 +276,7 @@ def _update_hostapd_ssid(frame_name: str) -> None:
     """Rewrite the hostapd SSID line to match the current frame name."""
     try:
         content = HOSTAPD_CONF_PATH.read_text()
-        new_ssid = f"PicFrame-{frame_name}"
+        new_ssid = f"WanderWall-{frame_name}"
         lines = [
             f"ssid={new_ssid}" if line.startswith("ssid=") else line
             for line in content.splitlines()
@@ -303,7 +303,7 @@ def _write_setup_issue(frame_name: str, reason: str | None = None) -> None:
         frame_name: Frame name, used in the hotspot SSID.
         reason: setup_mode_reason from state.yaml.
     """
-    ap_ssid = f"PicFrame-{frame_name}"
+    ap_ssid = f"WanderWall-{frame_name}"
     ap_password = _get_hostapd_value("wpa_passphrase", "picframe")
 
     W = 50
@@ -315,7 +315,7 @@ def _write_setup_issue(frame_name: str, reason: str | None = None) -> None:
     if reason == "extended_outage":
         lines = [
             sep,
-            row("  PicFrame - No WiFi"),
+            row("  WanderWall - No WiFi"),
             sep,
             row(),
             row(f"  This frame has been offline for over {WIFI_OUTAGE_THRESHOLD_SECONDS // 60} min."),
@@ -335,7 +335,7 @@ def _write_setup_issue(frame_name: str, reason: str | None = None) -> None:
     else:
         lines = [
             sep,
-            row(f"  PicFrame \u2014 WiFi Setup Mode"),
+            row(f"  WanderWall \u2014 WiFi Setup Mode"),
             sep,
             row(),
             row("  Connect to this WiFi network:"),
@@ -472,7 +472,7 @@ def start_setup_mode() -> None:
     logger.info("Starting setup mode")
 
     state = state_manager.read()
-    frame_name = state.get("frame_name", "picframe")
+    frame_name = state.get("frame_name", "wanderwall")
 
     # Keep hostapd SSID in sync with current frame name
     _update_hostapd_ssid(frame_name)
@@ -484,7 +484,7 @@ def start_setup_mode() -> None:
         "address=/#/192.168.4.1\n"
     )
     try:
-        Path("/tmp/picframe-dnsmasq.conf").write_text(dnsmasq_conf)
+        Path("/tmp/wanderwall-dnsmasq.conf").write_text(dnsmasq_conf)
     except Exception as e:
         logger.error(f"Failed to write dnsmasq config: {e}")
 
@@ -714,7 +714,7 @@ def run_monitoring_loop(in_setup_mode: bool = False, retry_home_wifi: bool = Fal
 
 def main() -> None:
     """Entry point for the watchdog service."""
-    logger.info("PicFrame WiFi Watchdog starting")
+    logger.info("WanderWall WiFi Watchdog starting")
 
     # Restore /etc/issue if a previous setup run left the custom version
     _restore_issue()
@@ -765,7 +765,7 @@ def main() -> None:
             return
 
     # Show setup instruction image if Koofr hasn't been configured yet
-    frame_name = state.get("frame_name", "picframe")
+    frame_name = state.get("frame_name", "wanderwall")
     koofr_configured = state.get("koofr_configured", False)
     if not koofr_configured and is_koofr_configured(FRAME_USER_HOME):
         # Koofr was set up by a path that doesn't write the flag (PL-063)

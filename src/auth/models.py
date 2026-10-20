@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Authentication Models.
+WanderWall - Authentication Models.
 
 Pydantic models for devices, tokens, and pairing.
 """

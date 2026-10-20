@@ -1,8 +1,8 @@
 [Unit]
-Description=PicFrame 4.0 Photo Sync
-After=network-online.target picframe-api.service
+Description=WanderWall Photo Sync
+After=network-online.target wanderwall-api.service
 Wants=network-online.target
-Requires=picframe-api.service
+Requires=wanderwall-api.service
 
 [Service]
 Type=oneshot

@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Application Settings.
+WanderWall - Application Settings.
 
 Pydantic settings with environment variable and YAML file support.
 """
@@ -14,14 +14,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 import yaml
 
 # Default config locations
-CONFIG_DIR = Path.home() / ".picframe"
+CONFIG_DIR = Path.home() / ".wanderwall"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 
 class FrameConfig(BaseModel):
     """Frame identification settings."""
-    id: str = Field(default="picframe", description="Unique frame identifier")
-    name: str = Field(default="PicFrame", description="Human-readable frame name")
+    id: str = Field(default="wanderwall", description="Unique frame identifier")
+    name: str = Field(default="WanderWall", description="Human-readable frame name")
     funnel_url: str = Field(default="", description="Tailscale Funnel URL")
 
 
@@ -92,13 +92,13 @@ class Settings(BaseSettings):
     Application settings.
 
     Loaded from:
-    1. Environment variables (PICFRAME_*)
-    2. ~/.picframe/config.yaml
+    1. Environment variables (WANDERWALL_*)
+    2. ~/.wanderwall/config.yaml
     3. Defaults
     """
 
     model_config = SettingsConfigDict(
-        env_prefix="PICFRAME_",
+        env_prefix="WANDERWALL_",
         env_nested_delimiter="__",
     )
 

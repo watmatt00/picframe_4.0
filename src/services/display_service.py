@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Display Service.
+WanderWall - Display Service.
 
 Controls the Pi3D PictureFrame display via its built-in HTTP API and configuration.
 """

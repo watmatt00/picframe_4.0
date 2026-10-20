@@ -1,5 +1,5 @@
 #!/bin/bash
-# PicFrame post-install verification — run standalone anytime:
+# WanderWall post-install verification — run standalone anytime:
 #   sudo bash scripts/setup/verify_install.sh [--funnel-url=https://...]
 
 set -uo pipefail
@@ -14,13 +14,13 @@ done
 # Derive the frame user — script may be called as root (via sudo) or as user
 FRAME_USER="${SUDO_USER:-$USER}"
 FRAME_HOME=$(getent passwd "$FRAME_USER" | cut -d: -f6)
-PROJECT_DIR="$FRAME_HOME/picframe_4.0"
+PROJECT_DIR="$FRAME_HOME/wanderwall_frame"
 
 # Read Funnel URL from config.yaml if not passed as arg
-if [[ -z "$FUNNEL_URL" ]] && [[ -f "$FRAME_HOME/.picframe/config.yaml" ]]; then
+if [[ -z "$FUNNEL_URL" ]] && [[ -f "$FRAME_HOME/.wanderwall/config.yaml" ]]; then
     FUNNEL_URL=$(python3 -c "
 import yaml
-with open('$FRAME_HOME/.picframe/config.yaml') as f:
+with open('$FRAME_HOME/.wanderwall/config.yaml') as f:
     c = yaml.safe_load(f) or {}
 print(c.get('frame', {}).get('funnel_url', ''))
 " 2>/dev/null || true)
@@ -43,7 +43,7 @@ check_user_svc() {
 }
 
 echo ""
-echo "=== PicFrame Install Verification ==="
+echo "=== WanderWall Install Verification ==="
 
 # 1. Python 3.11+
 if python3 -c "import sys; sys.exit(0 if (sys.version_info.major, sys.version_info.minor) >= (3, 11) else 1)" 2>/dev/null; then
@@ -56,20 +56,20 @@ fi
 # 2. picframe.service active (user service)
 check_user_svc picframe.service
 
-# 3. picframe-api.service active (user service)
-check_user_svc picframe-api.service
+# 3. wanderwall-api.service active (user service)
+check_user_svc wanderwall-api.service
 
-# 4. picframe-lights.service active (user service)
-check_user_svc picframe-lights.service
+# 4. wanderwall-lights.service active (user service)
+check_user_svc wanderwall-lights.service
 
-# 5. picframe-sync.timer active (user service)
-check_user_svc picframe-sync.timer
+# 5. wanderwall-sync.timer active (user service)
+check_user_svc wanderwall-sync.timer
 
-# 6. picframe-watchdog active (system service)
-if timeout 5 systemctl is-active --quiet picframe-watchdog 2>/dev/null; then
-    ok "picframe-watchdog active"
+# 6. wanderwall-watchdog active (system service)
+if timeout 5 systemctl is-active --quiet wanderwall-watchdog 2>/dev/null; then
+    ok "wanderwall-watchdog active"
 else
-    fail "picframe-watchdog active" "sudo systemctl start picframe-watchdog"
+    fail "wanderwall-watchdog active" "sudo systemctl start wanderwall-watchdog"
 fi
 
 # 7. rclone installed
@@ -95,7 +95,7 @@ else
 fi
 
 # 10. config.yaml exists
-if [[ -f "$FRAME_HOME/.picframe/config.yaml" ]]; then
+if [[ -f "$FRAME_HOME/.wanderwall/config.yaml" ]]; then
     ok "config.yaml exists"
 else
     fail "config.yaml exists" "re-run setup_api.sh Step 4"
@@ -105,7 +105,7 @@ fi
 if curl -sf --connect-timeout 5 http://localhost:8000/health >/dev/null 2>&1; then
     ok "API health (local)"
 else
-    fail "API health (local)" "systemctl --user restart picframe-api.service"
+    fail "API health (local)" "systemctl --user restart wanderwall-api.service"
 fi
 
 # 12. API health (Funnel public path)
@@ -126,11 +126,11 @@ else
     fi
 fi
 
-# 13. picframe-config --show
-if timeout 5 picframe-config --show >/dev/null 2>&1; then
-    ok "picframe-config --show"
+# 13. wanderwall-config --show
+if timeout 5 wanderwall-config --show >/dev/null 2>&1; then
+    ok "wanderwall-config --show"
 else
-    fail "picframe-config --show" "sudo bash scripts/setup/install_setup.sh"
+    fail "wanderwall-config --show" "sudo bash scripts/setup/install_setup.sh"
 fi
 
 echo ""

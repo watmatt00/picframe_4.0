@@ -1,5 +1,5 @@
 """
-PicFrame Setup - Koofr configuration detection.
+WanderWall Setup - Koofr configuration detection.
 
 Derives whether cloud sync is configured from the frame user's own config
 files, so a stale koofr_configured flag in state.yaml can be corrected (PL-063).
@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 def _has_koofr_user(home: Path) -> bool:
-    """Return True if ~/.picframe/config.yaml has sync.koofr_user set."""
-    path = home / ".picframe" / "config.yaml"
+    """Return True if ~/.wanderwall/config.yaml has sync.koofr_user set."""
+    path = home / ".wanderwall" / "config.yaml"
     if not path.exists():
         return False
     with open(path) as f:
@@ -39,8 +39,8 @@ def _has_koofr_remote(home: Path) -> bool:
 
 
 def _has_source_remote(home: Path) -> bool:
-    """Return True if any enabled source in ~/.picframe/sources.yaml has a cloud remote."""
-    path = home / ".picframe" / "sources.yaml"
+    """Return True if any enabled source in ~/.wanderwall/sources.yaml has a cloud remote."""
+    path = home / ".wanderwall" / "sources.yaml"
     if not path.exists():
         return False
     with open(path) as f:

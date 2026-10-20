@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Authentication Module.
+WanderWall - Authentication Module.
 
 Handles:
 - JWT token creation and validation

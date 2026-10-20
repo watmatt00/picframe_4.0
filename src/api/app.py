@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - FastAPI Application.
+WanderWall API - FastAPI Application.
 
 This is the main FastAPI application that provides:
 - REST API endpoints for mobile app (JWT authenticated)
@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="PicFrame 4.0 API",
+    title="WanderWall API",
     description="Secure mobile management for Raspberry Pi picture frames",
     version="4.0.0",
     lifespan=lifespan,
@@ -76,7 +76,7 @@ async def health():
 @app.get("/version")
 async def version():
     """API version endpoint."""
-    return {"version": "4.0.0", "api": "picframe"}
+    return {"version": "4.0.0", "api": "wanderwall"}
 
 
 # Include dashboard routes (LAN only, no auth)

@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Secure mobile management for Raspberry Pi picture frames.
+WanderWall - Secure mobile management for Raspberry Pi picture frames.
 
 See docs/SPECIFICATION.md for full project details.
 """

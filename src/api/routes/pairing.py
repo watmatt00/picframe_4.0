@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Pairing Routes.
+WanderWall API - Pairing Routes.
 
 Handles device pairing flow:
 - POST /pair: Exchange pairing code for JWT
@@ -25,7 +25,7 @@ from src.utils.qr_generator import generate_pairing_qr
 
 router = APIRouter(tags=["pairing"])
 
-INVITE_IN_ADMIN_APP_DETAIL = "This is an invite code. Use the PicFrame Contributor app to pair with it."
+INVITE_IN_ADMIN_APP_DETAIL = "This is an invite code. Use the WanderWall Share app to pair with it."
 DEMO_EXPIRED_DETAIL = "This demo code has expired. Contact the frame owner for a new code."
 
 

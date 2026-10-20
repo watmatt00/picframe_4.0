@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Dashboard Routes.
+WanderWall - Dashboard Routes.
 
 Server-rendered pages for the web dashboard.
 Uses Jinja2 templates.
@@ -67,7 +67,7 @@ TEMPLATE_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 # Log files location
-LOGS_DIR = Path.home() / ".picframe" / "logs"
+LOGS_DIR = Path.home() / ".wanderwall" / "logs"
 
 # In-memory overrides for manual light testing (reset to None to resume normal behavior)
 _light_overrides: dict = {}  # keys: "sync_status", "wifi_connected"
@@ -87,14 +87,14 @@ def _format_last_checked(iso_str: str | None) -> str:
         return iso_str
 
 
-PICFRAME_APP_CONFIG = Path.home() / ".picframe" / "config.yaml"
+WANDERWALL_APP_CONFIG = Path.home() / ".wanderwall" / "config.yaml"
 
 
 def _get_koofr_user() -> str:
     """Return the stored Koofr email, or empty string if not configured."""
     try:
-        if PICFRAME_APP_CONFIG.exists():
-            with open(PICFRAME_APP_CONFIG) as f:
+        if WANDERWALL_APP_CONFIG.exists():
+            with open(WANDERWALL_APP_CONFIG) as f:
                 config = yaml.safe_load(f) or {}
             return config.get("sync", {}).get("koofr_user", "").strip()
     except Exception:
@@ -105,8 +105,8 @@ def _get_koofr_user() -> str:
 def _get_koofr_pass() -> str:
     """Return the stored plain Koofr password, or empty string."""
     try:
-        if PICFRAME_APP_CONFIG.exists():
-            with open(PICFRAME_APP_CONFIG) as f:
+        if WANDERWALL_APP_CONFIG.exists():
+            with open(WANDERWALL_APP_CONFIG) as f:
                 config = yaml.safe_load(f) or {}
             return config.get("sync", {}).get("koofr_pass", "").strip()
     except Exception:
@@ -124,17 +124,17 @@ def _is_koofr_configured() -> bool:
     """
     try:
         # 1. Explicit Phase 6 state flag
-        state_path = Path("/var/lib/picframe/state.yaml")
+        state_path = Path("/var/lib/wanderwall/state.yaml")
         if state_path.exists():
             with open(state_path) as f:
                 state = yaml.safe_load(f) or {}
             if state.get("koofr_configured"):
                 return True
 
-        if not PICFRAME_APP_CONFIG.exists():
+        if not WANDERWALL_APP_CONFIG.exists():
             return False
 
-        with open(PICFRAME_APP_CONFIG) as f:
+        with open(WANDERWALL_APP_CONFIG) as f:
             config = yaml.safe_load(f) or {}
 
         # 2. Koofr credentials saved via dashboard
@@ -142,7 +142,7 @@ def _is_koofr_configured() -> bool:
             return True
 
         # 3. Any enabled source already has a cloud remote (pre-existing config)
-        sources_path = Path.home() / ".picframe" / "sources.yaml"
+        sources_path = Path.home() / ".wanderwall" / "sources.yaml"
         if sources_path.exists():
             with open(sources_path) as f:
                 sources_data = yaml.safe_load(f) or {}
@@ -441,7 +441,7 @@ def _read_log_file(log_type: str, lines: int = 100) -> list[str]:
     if log_type == "security":
         log_file = LOGS_DIR / "security.log"
     else:
-        log_file = LOGS_DIR / "picframe.log"
+        log_file = LOGS_DIR / "wanderwall.log"
 
     if not log_file.exists():
         return []
@@ -488,7 +488,7 @@ def _last_matching_timestamp(log_file: Path, needle: str) -> str | None:
 def _get_last_sync_time() -> str | None:
     """Get timestamp of last sync from systemd timer stamp or logs."""
     # First check systemd timer stamp file (most reliable)
-    stamp_file = Path.home() / ".local" / "share" / "systemd" / "timers" / "stamp-picframe-sync.timer"
+    stamp_file = Path.home() / ".local" / "share" / "systemd" / "timers" / "stamp-wanderwall-sync.timer"
     if stamp_file.exists():
         try:
             mtime = stamp_file.stat().st_mtime
@@ -497,7 +497,7 @@ def _get_last_sync_time() -> str | None:
             pass
 
     # Fallback to log file
-    log_file = LOGS_DIR / "picframe.log"
+    log_file = LOGS_DIR / "wanderwall.log"
     return _last_matching_timestamp(log_file, "sync") or \
            _last_matching_timestamp(log_file, "rclone")
 
@@ -505,7 +505,7 @@ def _get_last_sync_time() -> str | None:
 async def _get_last_restart_time() -> str | None:
     """Get timestamp of last service restart from systemd."""
     latest = None
-    for svc in ("picframe", "picframe-api"):
+    for svc in ("picframe", "wanderwall-api"):
         try:
             proc = await asyncio.create_subprocess_exec(
                 "systemctl", "--user", "show", f"{svc}.service",
@@ -568,7 +568,7 @@ async def trigger_sync():
             logger.error(f"Sync failed for source '{source.id}': {e}")
 
         # Update the systemd timer stamp file to reflect manual sync
-        stamp_file = Path.home() / ".local" / "share" / "systemd" / "timers" / "stamp-picframe-sync.timer"
+        stamp_file = Path.home() / ".local" / "share" / "systemd" / "timers" / "stamp-wanderwall-sync.timer"
         try:
             stamp_file.parent.mkdir(parents=True, exist_ok=True)
             stamp_file.touch()
@@ -645,9 +645,9 @@ async def get_dashboard_status():
 
     # Get additional health check statuses in parallel
     sync_timer_svc, lights_svc, api_svc, tailscale_status = await asyncio.gather(
-        systemd_service.get_status("picframe-sync.timer"),
-        systemd_service.get_status("picframe-lights"),
-        systemd_service.get_status("picframe-api"),
+        systemd_service.get_status("wanderwall-sync.timer"),
+        systemd_service.get_status("wanderwall-lights"),
+        systemd_service.get_status("wanderwall-api"),
         _check_tailscale(),
     )
 
@@ -700,7 +700,7 @@ async def koofr_setup(request: Request):
     Save and validate Koofr credentials. Step 2 of first-run setup.
 
     Validates credentials live via rclone before writing anything.
-    On success, saves to ~/.picframe/config.yaml and returns 200.
+    On success, saves to ~/.wanderwall/config.yaml and returns 200.
     """
     data = await request.json()
     koofr_user = str(data.get("koofr_user", "")).strip()
@@ -720,18 +720,18 @@ async def koofr_setup(request: Request):
     # Write credentials to config.yaml
     try:
         config: dict = {}
-        if PICFRAME_APP_CONFIG.exists():
-            with open(PICFRAME_APP_CONFIG) as f:
+        if WANDERWALL_APP_CONFIG.exists():
+            with open(WANDERWALL_APP_CONFIG) as f:
                 config = yaml.safe_load(f) or {}
         config.setdefault("sync", {}).update({
             "koofr_user": koofr_user,
             "koofr_pass": koofr_pass,
         })
-        tmp = PICFRAME_APP_CONFIG.with_suffix(".tmp")
+        tmp = WANDERWALL_APP_CONFIG.with_suffix(".tmp")
         with open(tmp, "w") as f:
             yaml.safe_dump(config, f, default_flow_style=False)
         tmp.chmod(0o600)
-        tmp.rename(PICFRAME_APP_CONFIG)
+        tmp.rename(WANDERWALL_APP_CONFIG)
         logger.info(f"Koofr credentials saved for '{koofr_user}'")
     except Exception as e:
         logger.error(f"Failed to save Koofr config: {e}")
@@ -767,8 +767,8 @@ async def koofr_setup(request: Request):
 
 
 def _set_koofr_configured() -> None:
-    """Set koofr_configured=true in /var/lib/picframe/state.yaml."""
-    state_path = Path("/var/lib/picframe/state.yaml")
+    """Set koofr_configured=true in /var/lib/wanderwall/state.yaml."""
+    state_path = Path("/var/lib/wanderwall/state.yaml")
     try:
         state: dict = {}
         if state_path.exists():
@@ -823,7 +823,7 @@ async def get_current_image():
 
 
 # LAN-only service restart (no auth required - protected by LAN middleware)
-ALLOWED_SERVICES = {"picframe", "picframe-api"}
+ALLOWED_SERVICES = {"picframe", "wanderwall-api"}
 
 
 @router.post("/services/{service_name}/restart")
@@ -1192,7 +1192,7 @@ async def save_settings_api(request: SaveSettingsRequest):
                 picframe_config = yaml.safe_load(f) or {}
         else:
             logger.error(f"Picframe config not found: {PICFRAME_CONFIG_PATH}")
-            return {"ok": False, "error": "Picframe config file not found"}
+            return {"ok": False, "error": "Display config file not found"}
 
         # Check if rotation interval or fade_time is changing
         current_delay = picframe_config.get("model", {}).get("time_delay", 30)

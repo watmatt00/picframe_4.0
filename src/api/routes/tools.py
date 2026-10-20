@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Photo Tools Routes.
+WanderWall API - Photo Tools Routes.
 
 JWT-authenticated endpoints for photo library maintenance tools.
 All operations follow a scan → apply pattern:

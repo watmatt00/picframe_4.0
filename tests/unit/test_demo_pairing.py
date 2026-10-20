@@ -21,7 +21,7 @@ from src.services import demo_service
 from src.storage.devices import device_storage
 
 EXPIRED = "This demo code has expired. Contact the frame owner for a new code."
-INVITE = "This is an invite code. Use the PicFrame Contributor app to pair with it."
+INVITE = "This is an invite code. Use the WanderWall Share app to pair with it."
 INVALID = "Invalid or expired pairing code"
 LAN = ("192.168.1.50", 50000)
 PUBLIC = ("8.8.8.8", 50000)
@@ -308,7 +308,7 @@ def test_dashboard_page_shows_qr_for_both_codes(frame, monkeypatch):
     html = TestClient(app, client=LAN).get("/").text
     for key in ("admin", "contributor"):
         assert re.search(rf'<img src="data:image/png;base64,[^"]+" alt="[^"]+" id="demo-{key}-qr">', html)
-    assert 'download="picframe-demo-manager-qr.png"' in html
+    assert 'download="wanderwall-demo-manager-qr.png"' in html
     assert {p["code"] for p in payloads} == {codes["admin_code"], codes["contributor_code"]}
     assert all(p["url"] == "https://tkframe.example.ts.net" for p in payloads)
 

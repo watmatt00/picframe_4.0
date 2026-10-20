@@ -1,5 +1,5 @@
 #!/bin/bash
-# PicFrame 4.0 - Tailscale Funnel Setup
+# WanderWall - Tailscale Funnel Setup
 # Sets up Tailscale and enables Funnel for remote access
 
 set -euo pipefail

@@ -1,0 +1,15 @@
+[Unit]
+Description=WanderWall Indicator Lights Overlay
+After=wanderwall-api.service
+Wants=wanderwall-api.service
+
+[Service]
+Type=simple
+Environment=DISPLAY=:0
+Environment=GDK_BACKEND=x11
+ExecStart=/usr/bin/python3 %h/wanderwall_frame/scripts/indicator_lights.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

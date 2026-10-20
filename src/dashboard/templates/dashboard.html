@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>PicFrame Dashboard</title>
+    <title>WanderWall Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/css/dashboard.css?v={{ update_local_version }}">
 </head>
@@ -491,7 +491,7 @@
                         <div style="margin-top: 1rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 8px; text-align: left;">
                             <p style="font-weight: 600; margin-bottom: 0.5rem;">How to pair:</p>
                             <ol style="margin: 0; padding-left: 1.25rem; color: #d1d5db; font-size: 0.85rem; line-height: 1.6;">
-                                <li>Open the PicFrame app on your mobile device</li>
+                                <li>Open the WanderWall app on your mobile device</li>
                                 <li>Tap "Add Frame" or the + button</li>
                                 <li>Scan the QR code above, or enter the code manually</li>
                                 <li>Your device will be paired automatically</li>
@@ -738,7 +738,7 @@
                                 <div class="demo-qr">
                                     <img src="{{ demo_qr[key] }}" alt="{{ label }} QR code" id="demo-{{ key }}-qr">
                                 </div>
-                                <a class="demo-qr-download" href="{{ demo_qr[key] }}" download="picframe-demo-{{ 'manager' if key == 'admin' else 'contributor' }}-qr.png">Download QR (PNG)</a>
+                                <a class="demo-qr-download" href="{{ demo_qr[key] }}" download="wanderwall-demo-{{ 'manager' if key == 'admin' else 'contributor' }}-qr.png">Download QR (PNG)</a>
                                 {% endif %}
                             </div>
                             {% endfor %}

@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Contributor Management Routes.
+WanderWall API - Contributor Management Routes.
 
 Manages contributor access via invite codes:
 - GET /contributors: List all invite records

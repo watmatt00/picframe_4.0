@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Log Routes.
+WanderWall API - Log Routes.
 
 View frame logs remotely:
 - GET /logs: Get recent log entries
@@ -14,7 +14,7 @@ from src.api.dependencies import require_admin
 
 router = APIRouter(prefix="/logs", tags=["logs"])
 
-LOGS_DIR = Path.home() / ".picframe" / "logs"
+LOGS_DIR = Path.home() / ".wanderwall" / "logs"
 
 
 class LogsResponse(BaseModel):
@@ -40,7 +40,7 @@ async def get_logs(
     if log_type == "security":
         log_file = LOGS_DIR / "security.log"
     else:
-        log_file = LOGS_DIR / "picframe.log"
+        log_file = LOGS_DIR / "wanderwall.log"
 
     entries: list[str] = []
     if log_file.exists():

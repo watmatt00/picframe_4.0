@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - FastAPI Dependencies.
+WanderWall API - FastAPI Dependencies.
 
 Authentication and authorization dependencies for route protection.
 """

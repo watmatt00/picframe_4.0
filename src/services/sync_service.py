@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Sync Service.
+WanderWall - Sync Service.
 
 Handles photo synchronization from cloud sources using rclone.
 """

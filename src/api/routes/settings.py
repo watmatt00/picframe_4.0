@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Settings Routes.
+WanderWall API - Settings Routes.
 
 Manage frame settings remotely:
 - GET /settings: Get current settings

@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Configuration Schemas.
+WanderWall - Configuration Schemas.
 
 Pydantic models for validating configuration data.
 """

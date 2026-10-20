@@ -29,7 +29,7 @@ class TestHealthEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert "version" in data
-        assert data["api"] == "picframe"
+        assert data["api"] == "wanderwall"
 
 
 class TestPairingEndpoints:

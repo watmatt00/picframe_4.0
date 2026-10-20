@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PicFrame indicator light overlay.
+WanderWall indicator light overlay.
 
 Two small colored dots rendered in the upper-right corner of the frame display
 via a borderless always-on-top GTK3 window with RGBA transparency.

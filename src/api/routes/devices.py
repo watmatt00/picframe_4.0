@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Device Management Routes.
+WanderWall API - Device Management Routes.
 
 Manages paired devices:
 - GET /devices: List all paired devices

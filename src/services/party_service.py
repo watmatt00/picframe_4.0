@@ -1,11 +1,11 @@
 """
-PicFrame 4.0 - Party Mode Service.
+WanderWall - Party Mode Service.
 
 Enables/disables party mode: stops cloud sync and WiFi watchdog so the
 frame runs as a standalone local slideshow.
 
 Requires install_setup.sh to have run, which installs:
-  - /etc/polkit-1/rules.d/50-picframe.rules  (allows systemctl via D-Bus)
+  - /etc/polkit-1/rules.d/50-wanderwall.rules  (allows systemctl via D-Bus)
   - state.yaml group-writable by sudo group   (for clear-setup)
 """
 
@@ -20,8 +20,8 @@ from src.services.systemd_service import update_sync_timer
 
 logger = logging.getLogger(__name__)
 
-_WATCHDOG_UNIT = Path("/etc/systemd/system/picframe-watchdog.service")
-_STATE_FILE = Path("/var/lib/picframe/state.yaml")
+_WATCHDOG_UNIT = Path("/etc/systemd/system/wanderwall-watchdog.service")
+_STATE_FILE = Path("/var/lib/wanderwall/state.yaml")
 
 
 async def _systemctl(*args: str) -> bool:
@@ -84,14 +84,14 @@ async def enable_party() -> dict:
     watchdog_ok = True
 
     if watchdog_installed:
-        await _systemctl("stop", "picframe-watchdog.service")
-        watchdog_ok = await _systemctl("disable", "picframe-watchdog.service")
+        await _systemctl("stop", "wanderwall-watchdog.service")
+        watchdog_ok = await _systemctl("disable", "wanderwall-watchdog.service")
         _clear_setup_flag()
         logger.info("Party mode: watchdog stopped and disabled")
     else:
         logger.info("Party mode: watchdog not installed, skipping")
 
-    sync_ok = await _run_user("stop", "picframe-sync.timer")
+    sync_ok = await _run_user("stop", "wanderwall-sync.timer")
     logger.info("Party mode: sync timer stopped")
 
     return {
@@ -115,8 +115,8 @@ async def disable_party(sync_interval: int) -> dict:
     watchdog_ok = True
 
     if watchdog_installed:
-        await _systemctl("enable", "picframe-watchdog.service")
-        watchdog_ok = await _systemctl("start", "picframe-watchdog.service")
+        await _systemctl("enable", "wanderwall-watchdog.service")
+        watchdog_ok = await _systemctl("start", "wanderwall-watchdog.service")
         logger.info("Party mode: watchdog enabled and started")
     else:
         logger.info("Party mode: watchdog not installed, skipping")

@@ -1,5 +1,5 @@
 """
-Unit tests for scripts/pi/picframe-inspect, the read-only SSH command filter.
+Unit tests for scripts/pi/wanderwall-inspect, the read-only SSH command filter.
 """
 
 import importlib.machinery
@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "pi" / "picframe-inspect"
+SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "pi" / "wanderwall-inspect"
 
 
 @pytest.fixture
 def inspect_mod():
     """Load the extensionless script as a module."""
-    loader = importlib.machinery.SourceFileLoader("picframe_inspect", str(SCRIPT))
-    spec = importlib.util.spec_from_loader("picframe_inspect", loader)
+    loader = importlib.machinery.SourceFileLoader("wanderwall_inspect", str(SCRIPT))
+    spec = importlib.util.spec_from_loader("wanderwall_inspect", loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
     return module
@@ -38,23 +38,23 @@ def run(inspect_mod, monkeypatch, command):
 
 
 @pytest.mark.parametrize("command", [
-    "cat /home/pi/.picframe/logs/picframe.log",
-    "tail -n 50 ~/.picframe/logs/security.log",
+    "cat /home/pi/.wanderwall/logs/wanderwall.log",
+    "tail -n 50 ~/.wanderwall/logs/security.log",
     "ls -la /home/pi",
-    "grep -n ERROR /home/pi/.picframe/logs/picframe.log",
+    "grep -n ERROR /home/pi/.wanderwall/logs/wanderwall.log",
     "df -h",
     "free -m",
     "uptime",
     "hostname",
-    "git -C ~/picframe_4.0 log --oneline -5",
-    "git -C /home/pi/picframe_4.0 status",
-    "git -C /home/pi/picframe_4.0 remote -v",
-    "git -C /home/pi/picframe_4.0 branch --show-current",
-    "git -C /home/pi/picframe_4.0 diff HEAD~1 --stat",
-    "systemctl --user status picframe-api.service",
+    "git -C ~/wanderwall_frame log --oneline -5",
+    "git -C /home/pi/wanderwall_frame status",
+    "git -C /home/pi/wanderwall_frame remote -v",
+    "git -C /home/pi/wanderwall_frame branch --show-current",
+    "git -C /home/pi/wanderwall_frame diff HEAD~1 --stat",
+    "systemctl --user status wanderwall-api.service",
     "systemctl --user is-active picframe.service",
     "systemctl --user list-timers",
-    "journalctl --user -u picframe-api.service -n 50",
+    "journalctl --user -u wanderwall-api.service -n 50",
     "tailscale status",
     "tailscale funnel status",
     "ss -ltn",
@@ -81,18 +81,18 @@ def test_allowed(inspect_mod, monkeypatch, command):
     "cat x > /tmp/y",
     "cat $(id)",
     "cat `id`",
-    "git -C /home/pi/picframe_4.0 pull",
-    "git -C /home/pi/picframe_4.0 commit -am x",
-    "git -C /home/pi/picframe_4.0 push",
-    "git -C /home/pi/picframe_4.0 checkout main",
-    "git -C /home/pi/picframe_4.0 reset --hard",
-    "git -C /home/pi/picframe_4.0 branch evil",
-    "git -C /home/pi/picframe_4.0 branch -D dev",
-    "git -C /home/pi/picframe_4.0 remote add x y",
+    "git -C /home/pi/wanderwall_frame pull",
+    "git -C /home/pi/wanderwall_frame commit -am x",
+    "git -C /home/pi/wanderwall_frame push",
+    "git -C /home/pi/wanderwall_frame checkout main",
+    "git -C /home/pi/wanderwall_frame reset --hard",
+    "git -C /home/pi/wanderwall_frame branch evil",
+    "git -C /home/pi/wanderwall_frame branch -D dev",
+    "git -C /home/pi/wanderwall_frame remote add x y",
     "git -c core.pager=id log",
-    "git -C /home/pi/picframe_4.0 diff --output=/tmp/x",
-    "git -C /home/pi/picframe_4.0 log -p --ext-diff",
-    "systemctl --user restart picframe-api.service",
+    "git -C /home/pi/wanderwall_frame diff --output=/tmp/x",
+    "git -C /home/pi/wanderwall_frame log -p --ext-diff",
+    "systemctl --user restart wanderwall-api.service",
     "systemctl --user stop picframe.service",
     "systemctl --user edit picframe.service",
     "journalctl --vacuum-time=1s",
@@ -114,8 +114,8 @@ def test_refused(inspect_mod, monkeypatch, command):
 
 def test_tilde_expanded(inspect_mod, monkeypatch):
     """~/ is expanded to HOME since no shell does it."""
-    argv = run(inspect_mod, monkeypatch, "ls ~/picframe_4.0")
-    assert argv[1].endswith("/picframe_4.0") and not argv[1].startswith("~")
+    argv = run(inspect_mod, monkeypatch, "ls ~/wanderwall_frame")
+    assert argv[1].endswith("/wanderwall_frame") and not argv[1].startswith("~")
 
 
 def test_pager_disabled(inspect_mod, monkeypatch):

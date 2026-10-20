@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Device Storage.
+WanderWall - Device Storage.
 
 JSON-based storage for paired mobile devices.
 """
@@ -18,7 +18,7 @@ from src.auth.models import Device
 logger = logging.getLogger(__name__)
 
 # Storage location
-DEVICES_PATH = Path.home() / ".picframe" / "devices.json"
+DEVICES_PATH = Path.home() / ".wanderwall" / "devices.json"
 LOCK_TIMEOUT = 10
 
 

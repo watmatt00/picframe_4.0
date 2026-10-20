@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Route modules.
+WanderWall API - Route modules.
 
 Each module handles a specific API domain:
 - pairing: Device pairing and QR code generation

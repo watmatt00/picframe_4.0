@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - System Routes.
+WanderWall API - System Routes.
 
 - POST /system/reboot: Reboot the frame (admin only, PL-142)
 """

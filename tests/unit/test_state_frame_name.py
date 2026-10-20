@@ -1,6 +1,6 @@
 """
 Unit tests: a new state.yaml takes its frame_name from the hostname (PL-141),
-so the setup hotspot is "PicFrame-<hostname>", not "PicFrame-picframe".
+so the setup hotspot is "WanderWall-<hostname>", not "WanderWall-wanderwall".
 """
 
 import sys
@@ -18,8 +18,8 @@ import state_manager  # noqa: E402
     ("tkframe.local", "tkframe"),
     ("my frame!", "myframe"),
     ("a" * 40, "a" * 32),
-    ("", "picframe"),
-    ("...", "picframe"),
+    ("", "wanderwall"),
+    ("...", "wanderwall"),
 ])
 def test_default_frame_name(monkeypatch, host, expected):
     monkeypatch.setattr(state_manager.socket, "gethostname", lambda: host)

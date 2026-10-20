@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Status Service.
+WanderWall - Status Service.
 
 Shared status logic used by both API and dashboard routes.
 Consolidates source resolution, photo counting, sync status,

@@ -1,7 +1,7 @@
 """
-PicFrame Setup - State Manager.
+WanderWall Setup - State Manager.
 
-Manages ~/.picframe/state.yaml with atomic writes and file locking.
+Manages ~/.wanderwall/state.yaml with atomic writes and file locking.
 Tracks provisioning state, WiFi status, and setup mode flag.
 """
 
@@ -19,12 +19,12 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-STATE_DIR = Path("/var/lib/picframe")
+STATE_DIR = Path("/var/lib/wanderwall")
 STATE_FILE = STATE_DIR / "state.yaml"
 LOCK_TIMEOUT = 10
 
 DEFAULT_STATE: dict[str, Any] = {
-    "frame_name": "picframe",
+    "frame_name": "wanderwall",
     "provisioned": False,
     "first_run_complete": False,
     "koofr_configured": False,
@@ -40,21 +40,21 @@ FRAME_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")
 def default_frame_name() -> str:
     """
     Name for a new state.yaml: the hostname (e.g. "kframe"), so the setup hotspot
-    is "PicFrame-kframe" rather than "PicFrame-picframe" (PL-141).
+    is "WanderWall-kframe" rather than "WanderWall-wanderwall" (PL-141).
 
-    Keeps only the characters picframe-config accepts; falls back to "picframe".
+    Keeps only the characters wanderwall-config accepts; falls back to "wanderwall".
     """
     try:
         host = socket.gethostname().split(".")[0]
     except OSError:
         host = ""
     name = re.sub(r"[^a-zA-Z0-9_-]", "", host)[:32]
-    return name if FRAME_NAME_RE.match(name) else "picframe"
+    return name if FRAME_NAME_RE.match(name) else "wanderwall"
 
 
 class StateManager:
     """
-    Manages the PicFrame state file (~/.picframe/state.yaml).
+    Manages the WanderWall state file (~/.wanderwall/state.yaml).
 
     Uses FileLock + write-to-temp-then-rename for atomic, race-condition-free
     updates. Safe to call from multiple processes simultaneously.
@@ -193,7 +193,7 @@ class StateManager:
     def show(self) -> str:
         """Return a human-readable summary of current state."""
         state = self.read()
-        lines = ["PicFrame State:"]
+        lines = ["WanderWall State:"]
         for key, value in state.items():
             lines.append(f"  {key}: {value}")
         return "\n".join(lines)

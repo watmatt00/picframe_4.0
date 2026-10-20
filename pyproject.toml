@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "picframe"
+name = "wanderwall"
 version = "4.0.0"
 description = "Secure mobile management for Raspberry Pi picture frames"
 readme = "README.md"
@@ -38,8 +38,8 @@ dev = [
 ]
 
 [project.scripts]
-picframe-api = "src.main:main"
-picframe-cli = "src.cli:main"
+wanderwall-api = "src.main:main"
+wanderwall-cli = "src.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]

@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Backup Service.
+WanderWall - Backup Service.
 
 Creates and manages tar.gz backups of photo source local directories.
 Backups are stored in ~/Pictures/backups/.

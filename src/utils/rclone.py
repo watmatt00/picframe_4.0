@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - rclone Wrapper.
+WanderWall - rclone Wrapper.
 
 Python wrapper for rclone operations (no shell scripts).
 

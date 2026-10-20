@@ -1,9 +1,9 @@
 #!/bin/bash
-# Removes the picframe-lights service. Use to simulate a pre-lights install
+# Removes the wanderwall-lights service. Use to simulate a pre-lights install
 # state before testing the upgrade path (git pull + update_app.sh).
 set -euo pipefail
 
-UNIT="picframe-lights.service"
+UNIT="wanderwall-lights.service"
 UNIT_FILE="$HOME/.config/systemd/user/$UNIT"
 
 LOG() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"; }
@@ -47,7 +47,7 @@ systemctl --user is-enabled --quiet "$UNIT" 2>/dev/null \
     || LOG "  [OK] No symlink in default.target.wants/"
 
 if $PASS; then
-    LOG "picframe-lights fully removed. Run 'git pull && bash scripts/update_app.sh' to reinstall."
+    LOG "wanderwall-lights fully removed. Run 'git pull && bash scripts/update_app.sh' to reinstall."
 else
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] ERROR: Removal incomplete — see above." >&2
     exit 1

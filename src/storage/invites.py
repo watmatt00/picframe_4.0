@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Invite Storage.
+WanderWall - Invite Storage.
 
 JSON-based storage for contributor invite codes.
 Invites grant contributor role on successful pairing.
@@ -21,7 +21,7 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 # Storage location
-INVITES_PATH = Path.home() / ".picframe" / "invites.json"
+INVITES_PATH = Path.home() / ".wanderwall" / "invites.json"
 LOCK_TIMEOUT = 10
 
 # Invite settings

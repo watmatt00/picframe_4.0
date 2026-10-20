@@ -1,7 +1,7 @@
 [Unit]
-Description=PicFrame AP Setup Mode (hotspot + captive portal)
+Description=WanderWall AP Setup Mode (hotspot + captive portal)
 After=network.target NetworkManager.service
-# Do not run automatically — started by picframe-watchdog when needs_setup=true
+# Do not run automatically — started by wanderwall-watchdog when needs_setup=true
 # Stop retrying after 5 failed starts in 5 min (watchdog runs reset-failed before each start)
 StartLimitIntervalSec=300
 StartLimitBurst=5
@@ -9,12 +9,12 @@ StartLimitBurst=5
 [Service]
 Type=simple
 # __PROJECT_DIR__ and __USER_HOME__ are substituted by install_setup.sh
-Environment=PICFRAME_USER_HOME=__USER_HOME__
-Environment=PICFRAME_USER=__FRAME_USER__
+Environment=WANDERWALL_USER_HOME=__USER_HOME__
+Environment=WANDERWALL_USER=__FRAME_USER__
 
 # ── Cleanup: kill any leftover processes from a previous failed run ──────────
 ExecStartPre=/bin/sh -c 'pkill -x hostapd 2>/dev/null || true'
-ExecStartPre=/bin/sh -c 'kill $(cat /tmp/picframe-dnsmasq.pid 2>/dev/null) 2>/dev/null || true'
+ExecStartPre=/bin/sh -c 'kill $(cat /tmp/wanderwall-dnsmasq.pid 2>/dev/null) 2>/dev/null || true'
 ExecStartPre=/bin/sh -c 'ip addr del 192.168.4.1/24 dev wlan0 2>/dev/null || true'
 ExecStartPre=/bin/sh -c 'nmcli device set wlan0 managed yes 2>/dev/null || true'
 ExecStartPre=/bin/sleep 1
@@ -25,13 +25,13 @@ ExecStartPre=/usr/bin/nmcli device set wlan0 managed no
 ExecStartPre=/bin/sleep 1
 ExecStartPre=/usr/bin/ip addr flush dev wlan0
 ExecStartPre=/usr/bin/ip addr add 192.168.4.1/24 dev wlan0
-ExecStartPre=/usr/sbin/hostapd -B /etc/hostapd/picframe-hostapd.conf
+ExecStartPre=/usr/sbin/hostapd -B /etc/hostapd/wanderwall-hostapd.conf
 ExecStartPre=/bin/sleep 1
-ExecStartPre=/usr/sbin/dnsmasq -C /tmp/picframe-dnsmasq.conf --pid-file=/tmp/picframe-dnsmasq.pid
+ExecStartPre=/usr/sbin/dnsmasq -C /tmp/wanderwall-dnsmasq.conf --pid-file=/tmp/wanderwall-dnsmasq.pid
 # ── Run captive portal ───────────────────────────────────────────────────────
 ExecStart=__PROJECT_DIR__/scripts/setup/venv/bin/python3 __PROJECT_DIR__/scripts/setup/ap_portal/portal.py
 # ── Teardown: return wlan0 to NetworkManager ─────────────────────────────────
-ExecStopPost=/bin/sh -c 'kill $(cat /tmp/picframe-dnsmasq.pid 2>/dev/null) 2>/dev/null || true'
+ExecStopPost=/bin/sh -c 'kill $(cat /tmp/wanderwall-dnsmasq.pid 2>/dev/null) 2>/dev/null || true'
 ExecStopPost=/bin/sh -c 'pkill -x hostapd 2>/dev/null || true'
 ExecStopPost=/bin/sh -c 'ip addr del 192.168.4.1/24 dev wlan0 2>/dev/null || true'
 ExecStopPost=/usr/bin/nmcli device set wlan0 managed yes

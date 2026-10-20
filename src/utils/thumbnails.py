@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Shared thumbnail generation and cache.
+WanderWall - Shared thumbnail generation and cache.
 
 Used by the app's thumbnail endpoint (GET /sources/{id}/photos/thumbnail), the
 dashboard's Tools tab thumbnails and the photo tools (cache eviction).
@@ -13,7 +13,7 @@ from pathlib import Path
 # Persistent (survives reboots, unlike the old /tmp/pfthumb). Entries are named
 # "<prefix><source_id>_<filename>_<mtime>.jpg" and evicted on rename/delete and
 # when a file's mtime changes.
-THUMB_CACHE_DIR = Path.home() / ".picframe" / "thumbs"
+THUMB_CACHE_DIR = Path.home() / ".wanderwall" / "thumbs"
 
 # Max thumbnails decoded at once: a grid opens many requests in parallel, and a few
 # full-size decodes at a time are faster on a Pi than many competing for RAM and CPU.

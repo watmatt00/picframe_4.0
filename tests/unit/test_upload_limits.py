@@ -139,14 +139,14 @@ class TestUseDiskTempdir:
         monkeypatch.setattr(tempfile, "tempdir", None)
         target = tmp_path / "picframe_data" / "tmp"
         target.mkdir(parents=True)
-        (target / "picframe_upload_old.jpg").write_bytes(b"x")
+        (target / "wanderwall_upload_old.jpg").write_bytes(b"x")
         (target / "keep.txt").write_bytes(b"x")
 
         use_disk_tempdir(target)
 
         assert tempfile.tempdir == str(target)
         assert (target.stat().st_mode & 0o777) == 0o700
-        assert not (target / "picframe_upload_old.jpg").exists()
+        assert not (target / "wanderwall_upload_old.jpg").exists()
         assert (target / "keep.txt").exists()
 
     def test_unusable_dir_keeps_default(self, tmp_path, monkeypatch):

@@ -1,8 +1,8 @@
 """
-PicFrame 4.0 - Logging Setup.
+WanderWall - Logging Setup.
 
 Dual logging strategy:
-- picframe.log: Operations (sync, display, errors) - 7 day retention
+- wanderwall.log: Operations (sync, display, errors) - 7 day retention
 - security.log: Auth events, API access - 90 day retention
 """
 
@@ -13,7 +13,7 @@ from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
 # Log directory
-LOG_DIR = Path.home() / ".picframe" / "logs"
+LOG_DIR = Path.home() / ".wanderwall" / "logs"
 
 # Log format
 LOG_FORMAT = "%(asctime)s %(levelname)-5s [%(name)s] %(message)s"
@@ -48,9 +48,9 @@ def setup_logging(
     console.setFormatter(logging.Formatter(LOG_FORMAT, DATE_FORMAT))
     root_logger.addHandler(console)
 
-    # Operations log (picframe.log)
+    # Operations log (wanderwall.log)
     ops_handler = TimedRotatingFileHandler(
-        LOG_DIR / "picframe.log",
+        LOG_DIR / "wanderwall.log",
         when="midnight",
         backupCount=ops_retention_days,
         encoding="utf-8",

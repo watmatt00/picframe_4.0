@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Display Control Routes.
+WanderWall API - Display Control Routes.
 
 Controls the Pi3D PictureFrame display:
 - GET /display/folder: Get current display folder

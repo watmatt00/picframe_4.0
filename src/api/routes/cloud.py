@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 API - Cloud Credentials Routes.
+WanderWall API - Cloud Credentials Routes.
 
 Provides cloud storage credentials to mobile clients:
 - GET /cloud/credentials: Returns Koofr credentials from rclone config

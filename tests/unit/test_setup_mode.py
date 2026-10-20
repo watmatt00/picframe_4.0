@@ -30,7 +30,7 @@ class TestWriteWifiCredentials:
         with patch.object(wifi_config.subprocess, "run") as run:
             wifi_config.write_wifi_credentials("7Oaks", "secretpass")
 
-        assert run.call_args_list[0].args[0] == ["nmcli", "con", "delete", "picframe-wifi"]
+        assert run.call_args_list[0].args[0] == ["nmcli", "con", "delete", "wanderwall-wifi"]
         add_cmd = run.call_args_list[1].args[0]
         assert add_cmd[:3] == ["nmcli", "con", "add"]
         assert add_cmd[add_cmd.index("ssid") + 1] == "7Oaks"
@@ -386,7 +386,7 @@ class TestCatchUpAfterOutage:
         cmds = [c.args[0] for c in run.call_args_list]
         assert cmds == [
             ["systemctl", "restart", "systemd-timesyncd"],
-            ["systemctl", "--user", "-M", "pi@", "start", "--no-block", "picframe-sync.service"],
+            ["systemctl", "--user", "-M", "pi@", "start", "--no-block", "wanderwall-sync.service"],
         ]
 
     def test_failures_do_not_raise(self):
@@ -413,11 +413,11 @@ class TestSetupIssueText:
         watchdog._write_setup_issue("tkframe", "extended_outage")
         text = issue.read_text()
 
-        assert "PicFrame - No WiFi" in text
+        assert "WanderWall - No WiFi" in text
         assert "offline for over 10 min" in text
         assert "Photos resume automatically when WiFi is back" in text
         assert "checks every 15 minutes" in text
-        assert "PicFrame-tkframe" in text
+        assert "WanderWall-tkframe" in text
         assert "a1b2c3d4" in text
         assert "http://192.168.4.1" in text
         assert "WiFi Setup Mode" not in text
@@ -429,7 +429,7 @@ class TestSetupIssueText:
 
         assert "WiFi Setup Mode" in text
         assert "No WiFi" not in text
-        assert "PicFrame-tkframe" in text
+        assert "WanderWall-tkframe" in text
 
     @pytest.mark.parametrize("reason", ["extended_outage", "unprovisioned"])
     def test_every_line_fits_the_box(self, issue, reason):

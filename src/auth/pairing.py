@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Pairing Code Management.
+WanderWall - Pairing Code Management.
 
 Generates and validates pairing codes for device enrollment.
 Codes are 6 alphanumeric characters (36^6 = 2.17B combinations).

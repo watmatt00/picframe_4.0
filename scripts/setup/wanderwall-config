@@ -1,32 +1,32 @@
 #!/bin/bash
-# picframe-config — PicFrame configuration wrapper
+# wanderwall-config — WanderWall configuration wrapper
 # Works over SSH or Tailscale. No UI or app required.
 # Must run as root (writes to /etc/wpa_supplicant/ and system config).
 #
 # Usage:
-#   picframe-config --wifi-ssid "Name" --wifi-password "secret"
-#   picframe-config --frame-name "kframe"
-#   picframe-config --koofr-user "user@example.com" --koofr-pass "secret"
-#   picframe-config --show
-#   picframe-config --clear-setup
-#   picframe-config --force-setup
+#   wanderwall-config --wifi-ssid "Name" --wifi-password "secret"
+#   wanderwall-config --frame-name "kframe"
+#   wanderwall-config --koofr-user "user@example.com" --koofr-pass "secret"
+#   wanderwall-config --show
+#   wanderwall-config --clear-setup
+#   wanderwall-config --force-setup
 
 set -euo pipefail
 
-PICFRAME_STATE="/var/lib/picframe/state.yaml"
+WANDERWALL_STATE="/var/lib/wanderwall/state.yaml"
 
 # Load install-time paths written by install_setup.sh.
 # Falls back to defaults so the tool still works if install.conf is missing.
-INSTALL_CONF="/var/lib/picframe/install.conf"
+INSTALL_CONF="/var/lib/wanderwall/install.conf"
 if [[ -f "$INSTALL_CONF" ]]; then
     # shellcheck source=/dev/null
     source "$INSTALL_CONF"
 else
-    PICFRAME_USER_HOME="/home/pi"
-    PICFRAME_PROJECT_DIR="/home/pi/picframe_4.0"
+    WANDERWALL_USER_HOME="/home/pi"
+    WANDERWALL_PROJECT_DIR="/home/pi/wanderwall_frame"
 fi
-PICFRAME_CONFIG="${PICFRAME_USER_HOME}/.picframe/config.yaml"
-SETUP_PYTHON="${PICFRAME_PROJECT_DIR}/scripts/setup/venv/bin/python3"
+WANDERWALL_CONFIG="${WANDERWALL_USER_HOME}/.wanderwall/config.yaml"
+SETUP_PYTHON="${WANDERWALL_PROJECT_DIR}/scripts/setup/venv/bin/python3"
 TIMESTAMP() { date +'%Y-%m-%d %H:%M:%S'; }
 LOG() { echo "[$(TIMESTAMP)] $*"; }
 ERROR() { echo "[$(TIMESTAMP)] ERROR: $*" >&2; }
@@ -86,14 +86,14 @@ cmd_wifi() {
 
     LOG "Configuring WiFi for SSID '$ssid' via NetworkManager..."
 
-    # Remove existing picframe-wifi connection if present
-    nmcli con delete picframe-wifi 2>/dev/null || true
+    # Remove existing wanderwall-wifi connection if present
+    nmcli con delete wanderwall-wifi 2>/dev/null || true
 
     # Create new connection
-    nmcli con add type wifi ifname wlan0 con-name picframe-wifi ssid "$ssid"
+    nmcli con add type wifi ifname wlan0 con-name wanderwall-wifi ssid "$ssid"
 
     # Set WPA2-PSK and autoconnect
-    nmcli con modify picframe-wifi \
+    nmcli con modify wanderwall-wifi \
         wifi-sec.key-mgmt wpa-psk \
         wifi-sec.psk "$wifi_password" \
         connection.autoconnect yes \
@@ -111,7 +111,7 @@ cmd_frame_name() {
     LOG "Setting frame name to '$name'..."
     "${SETUP_PYTHON}" - <<PYEOF
 import os, yaml, pathlib
-p = pathlib.Path('$PICFRAME_CONFIG')
+p = pathlib.Path('$WANDERWALL_CONFIG')
 cfg = yaml.safe_load(p.read_text()) if p.exists() else {}
 cfg.setdefault('frame', {})['name'] = '$name'
 tmp = p.with_suffix('.tmp')
@@ -124,7 +124,7 @@ PYEOF
 
     "${SETUP_PYTHON}" - <<PYEOF
 import os, yaml, pathlib
-p = pathlib.Path('$PICFRAME_STATE')
+p = pathlib.Path('$WANDERWALL_STATE')
 state = yaml.safe_load(p.read_text()) if p.exists() else {}
 state['frame_name'] = '$name'
 tmp = p.with_suffix('.tmp')
@@ -163,7 +163,7 @@ cmd_koofr() {
 import os, sys, yaml, pathlib
 koofr_user = sys.argv[1]
 koofr_pass = sys.argv[2]
-p = pathlib.Path('$PICFRAME_CONFIG')
+p = pathlib.Path('$WANDERWALL_CONFIG')
 cfg = yaml.safe_load(p.read_text()) if p.exists() else {}
 cfg.setdefault('sync', {}).update({'koofr_user': koofr_user, 'koofr_pass': koofr_pass})
 tmp = p.with_suffix('.tmp')
@@ -181,26 +181,26 @@ PYEOF
 
 cmd_show() {
     echo ""
-    echo "=== PicFrame Configuration ==="
+    echo "=== WanderWall Configuration ==="
     echo ""
 
-    if [[ -f "$PICFRAME_STATE" ]]; then
-        echo "State ($PICFRAME_STATE):"
-        cat "$PICFRAME_STATE" | sed 's/^/  /'
+    if [[ -f "$WANDERWALL_STATE" ]]; then
+        echo "State ($WANDERWALL_STATE):"
+        cat "$WANDERWALL_STATE" | sed 's/^/  /'
     else
-        echo "State file not found: $PICFRAME_STATE"
+        echo "State file not found: $WANDERWALL_STATE"
     fi
 
     echo ""
 
-    if [[ -f "$PICFRAME_CONFIG" ]]; then
-        echo "Config ($PICFRAME_CONFIG):"
+    if [[ -f "$WANDERWALL_CONFIG" ]]; then
+        echo "Config ($WANDERWALL_CONFIG):"
         # Mask sensitive values
-        grep -v 'koofr_pass\|password\|psk' "$PICFRAME_CONFIG" | sed 's/^/  /' || true
-        grep -q 'koofr_pass\|password' "$PICFRAME_CONFIG" \
+        grep -v 'koofr_pass\|password\|psk' "$WANDERWALL_CONFIG" | sed 's/^/  /' || true
+        grep -q 'koofr_pass\|password' "$WANDERWALL_CONFIG" \
             && echo "  [sensitive values hidden]" || true
     else
-        echo "Config file not found: $PICFRAME_CONFIG"
+        echo "Config file not found: $WANDERWALL_CONFIG"
     fi
 
     echo ""
@@ -212,7 +212,7 @@ cmd_clear_setup() {
     LOG "Clearing needs_setup flag..."
     "${SETUP_PYTHON}" - <<PYEOF
 import os, yaml, pathlib
-p = pathlib.Path('$PICFRAME_STATE')
+p = pathlib.Path('$WANDERWALL_STATE')
 state = yaml.safe_load(p.read_text()) if p.exists() else {}
 state['needs_setup'] = False
 state['setup_mode_reason'] = None
@@ -229,7 +229,7 @@ cmd_force_setup() {
     LOG "Setting needs_setup flag (setup mode will start on next reboot)..."
     "${SETUP_PYTHON}" - <<PYEOF
 import os, yaml, pathlib
-p = pathlib.Path('$PICFRAME_STATE')
+p = pathlib.Path('$WANDERWALL_STATE')
 state = yaml.safe_load(p.read_text()) if p.exists() else {}
 state['needs_setup'] = True
 state['setup_mode_reason'] = 'manual'
@@ -248,18 +248,18 @@ PYEOF
 
 usage() {
     cat <<EOF
-picframe-config — PicFrame configuration tool
+wanderwall-config — WanderWall configuration tool
 
 Usage:
-  picframe-config --wifi-ssid "Name" --wifi-password "secret"
-  picframe-config --frame-name "kframe"
-  picframe-config --koofr-user "user@example.com" --koofr-pass "secret"
-  picframe-config --show
-  picframe-config --clear-setup
-  picframe-config --force-setup
-  picframe-config --help
+  wanderwall-config --wifi-ssid "Name" --wifi-password "secret"
+  wanderwall-config --frame-name "kframe"
+  wanderwall-config --koofr-user "user@example.com" --koofr-pass "secret"
+  wanderwall-config --show
+  wanderwall-config --clear-setup
+  wanderwall-config --force-setup
+  wanderwall-config --help
 
-Note: WiFi changes require sudo. Run with 'sudo picframe-config ...'
+Note: WiFi changes require sudo. Run with 'sudo wanderwall-config ...'
 EOF
 }
 

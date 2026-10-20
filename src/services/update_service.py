@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Update Service.
+WanderWall - Update Service.
 
 Checks for available updates from GitHub by comparing local git commit vs remote.
 Provides a background scheduler for automatic periodic checks.
@@ -21,7 +21,7 @@ from src.config.manager import config_manager
 logger = logging.getLogger(__name__)
 
 # Path to the git repo on the Pi
-REPO_PATH = Path.home() / "picframe_4.0"
+REPO_PATH = Path.home() / "wanderwall_frame"
 
 # Base version prefix
 BASE_VERSION = "4.0"
@@ -89,7 +89,7 @@ async def check_for_updates(repo_path: Optional[Path] = None) -> dict:
     Runs git fetch then compares HEAD vs @{u}.
 
     Args:
-        repo_path: Path to the git repo. Defaults to ~/picframe_4.0.
+        repo_path: Path to the git repo. Defaults to ~/wanderwall_frame.
 
     Returns:
         dict with keys: up_to_date, local_commit, remote_commit, checked_at, error
@@ -223,7 +223,7 @@ async def apply_update(repo_path: Optional[Path] = None) -> dict:
     Apply available updates by running git pull.
 
     Args:
-        repo_path: Path to the git repo. Defaults to ~/picframe_4.0.
+        repo_path: Path to the git repo. Defaults to ~/wanderwall_frame.
 
     Returns:
         dict with keys: success, output, error
@@ -559,7 +559,7 @@ async def apply_update_and_restart(source: str) -> dict:
             # Fire and forget — systemd kills this process before systemctl
             # can report success, so we never await the result (false errors otherwise).
             await asyncio.create_subprocess_exec(
-                "systemctl", "--user", "restart", "picframe-api.service",
+                "systemctl", "--user", "restart", "wanderwall-api.service",
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )

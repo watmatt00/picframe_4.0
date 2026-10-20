@@ -1,14 +1,14 @@
 #!/bin/bash
-# Install the restricted read-only "claude-inspect" SSH key on a PicFrame Pi.
+# Install the restricted read-only "claude-inspect" SSH key on a WanderWall Pi.
 #
 # Run on the Pi as the frame user (not root), after pulling the repo:
 #
-#   bash ~/picframe_4.0/scripts/setup/install_inspect_key.sh
-#       Installs the command filter to ~/.local/bin/picframe-inspect and adds the
+#   bash ~/wanderwall_frame/scripts/setup/install_inspect_key.sh
+#       Installs the command filter to ~/.local/bin/wanderwall-inspect and adds the
 #       claude-inspect key to ~/.ssh/authorized_keys, forced through that filter.
 #       Idempotent; re-run it to pick up a changed filter.
 #
-#   bash ~/picframe_4.0/scripts/setup/install_inspect_key.sh --remove-dev-keys
+#   bash ~/wanderwall_frame/scripts/setup/install_inspect_key.sh --remove-dev-keys
 #       Also removes the unrestricted dev PC keys (no passphrase, so Claude on the
 #       PC can use them). Refuses if that would leave no way in for you: sshd must
 #       accept passwords, or another full-access key (e.g. your own key with a
@@ -17,9 +17,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-FILTER_SRC="$PROJECT_DIR/scripts/pi/picframe-inspect"
+FILTER_SRC="$PROJECT_DIR/scripts/pi/wanderwall-inspect"
 PUBKEY_FILE="$SCRIPT_DIR/claude_inspect.pub"
-FILTER_DEST="$HOME/.local/bin/picframe-inspect"
+FILTER_DEST="$HOME/.local/bin/wanderwall-inspect"
 SSH_DIR="$HOME/.ssh"
 AUTH_KEYS="$SSH_DIR/authorized_keys"
 LOCK_FILE="$SSH_DIR/.authorized_keys.lock"

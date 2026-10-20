@@ -1,11 +1,11 @@
 """
-PicFrame 4.0 - Frame album registry (PL-147 follow-up).
+WanderWall - Frame album registry (PL-147 follow-up).
 
 Each frame keeps a list of the albums it owns: every cloud folder (KFR_*) it
 has used, active or deleted. Recover Albums uses it to tell this frame's
 folders apart from other frames' when several frames share one Koofr account.
 
-- Local copy:  ~/.picframe/frame_albums.yaml
+- Local copy:  ~/.wanderwall/frame_albums.yaml
 - Cloud copy:  <koofr remote>:.picframe/frames/<pi-serial>.yaml — outside the
   KFR_* folders, so sync, photo counts and the traffic light never see it
 
@@ -40,9 +40,10 @@ from src.utils.rclone import rclone_cat, rclone_copyto, rclone_list_dirs, rclone
 
 logger = logging.getLogger(__name__)
 
-LOCAL_PATH = Path.home() / ".picframe" / "frame_albums.yaml"
+LOCAL_PATH = Path.home() / ".wanderwall" / "frame_albums.yaml"
 # Written by Delete Album before the registry existed; folded in once (fb27b58)
-LEGACY_DELETED_PATH = Path.home() / ".picframe" / "deleted_albums.yaml"
+LEGACY_DELETED_PATH = Path.home() / ".wanderwall" / "deleted_albums.yaml"
+# Kept from v4: the Koofr account is shared by all frames, so this cloud path can't follow the rename
 CLOUD_DIR = ".picframe/frames"
 FOLDER_RE = re.compile(r"^KFR_[A-Za-z0-9_]+$")
 SERIAL_RE = re.compile(r"^[0-9a-f]{8,32}$")

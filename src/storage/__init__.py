@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Storage Module.
+WanderWall - Storage Module.
 
 JSON-based storage for:
 - devices: Paired mobile devices

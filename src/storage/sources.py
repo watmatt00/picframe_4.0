@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - Sources Storage.
+WanderWall - Sources Storage.
 
 JSON-based storage for photo source configurations.
 This is a thin wrapper around source_manager for compatibility.

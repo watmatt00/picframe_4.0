@@ -1,5 +1,5 @@
 """
-PicFrame 4.0 - QR Code Generator.
+WanderWall - QR Code Generator.
 
 Generates QR codes for device pairing.
 """

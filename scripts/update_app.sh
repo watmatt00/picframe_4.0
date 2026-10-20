@@ -15,7 +15,7 @@ LOG "update_app.sh starting (project: $PROJECT_DIR)"
 # ── Step 0: git remote over HTTPS ──────────────────────────────────────────────
 # The repo is public; frames pull anonymously over HTTPS and hold no GitHub key.
 # Older installs may still use an SSH remote tied to an account-wide GitHub key.
-HTTPS_REMOTE="https://github.com/watmatt00/picframe_4.0.git"
+HTTPS_REMOTE="https://github.com/watmatt00/wanderwall_frame.git"
 CURRENT_REMOTE="$(git -C "$PROJECT_DIR" remote get-url origin 2>/dev/null || true)"
 if [[ "$CURRENT_REMOTE" == git@github.com:* || "$CURRENT_REMOTE" == ssh://* ]]; then
     git -C "$PROJECT_DIR" remote set-url origin "$HTTPS_REMOTE"
@@ -78,14 +78,14 @@ fi
 
 # ── Step 3: Enable managed services/timers ─────────────────────────────────────
 # Add new managed services here as they are introduced.
-MANAGED_SERVICES=(picframe-api picframe-lights)
-MANAGED_TIMERS=(picframe-sync)
+MANAGED_SERVICES=(wanderwall-api wanderwall-lights)
+MANAGED_TIMERS=(wanderwall-sync)
 
 for svc in "${MANAGED_SERVICES[@]}"; do
     unit="$svc.service"
     [[ -f "$SYSTEMD_USER_DIR/$unit" ]] || continue
     if ! systemctl --user is-enabled --quiet "$unit" 2>/dev/null; then
-        [[ "$unit" == "picframe-api.service" ]] && continue  # caller handles API start
+        [[ "$unit" == "wanderwall-api.service" ]] && continue  # caller handles API start
         systemctl --user enable --now "$unit"
         LOG "  Enabled and started: $unit"
     fi
@@ -101,9 +101,9 @@ for tmr in "${MANAGED_TIMERS[@]}"; do
 done
 
 # ── Step 4: Restart changed services ──────────────────────────────────────────
-# picframe-api is excluded — the caller (API update flow) handles that restart.
+# wanderwall-api is excluded — the caller (API update flow) handles that restart.
 for base in "${CHANGED_SERVICES[@]}"; do
-    [[ "$base" == "picframe-api" ]] && continue
+    [[ "$base" == "wanderwall-api" ]] && continue
     unit="$base.service"
     if systemctl --user is-active --quiet "$unit" 2>/dev/null; then
         systemctl --user restart "$unit"

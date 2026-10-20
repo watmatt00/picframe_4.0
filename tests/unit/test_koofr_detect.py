@@ -23,11 +23,11 @@ class TestIsKoofrConfigured:
         assert is_koofr_configured(tmp_path) is False
 
     def test_koofr_user_in_config(self, tmp_path):
-        _write(tmp_path / ".picframe" / "config.yaml", "sync:\n  koofr_user: a@b.com\n")
+        _write(tmp_path / ".wanderwall" / "config.yaml", "sync:\n  koofr_user: a@b.com\n")
         assert is_koofr_configured(tmp_path) is True
 
     def test_blank_koofr_user_ignored(self, tmp_path):
-        _write(tmp_path / ".picframe" / "config.yaml", "sync:\n  koofr_user: '  '\n")
+        _write(tmp_path / ".wanderwall" / "config.yaml", "sync:\n  koofr_user: '  '\n")
         assert is_koofr_configured(tmp_path) is False
 
     def test_koofr_remote_in_rclone_conf(self, tmp_path):
@@ -43,14 +43,14 @@ class TestIsKoofrConfigured:
 
     def test_enabled_source_with_remote(self, tmp_path):
         _write(
-            tmp_path / ".picframe" / "sources.yaml",
+            tmp_path / ".wanderwall" / "sources.yaml",
             "sources:\n  - id: a\n    enabled: true\n    rclone_remote: kfr:KFR_a\n",
         )
         assert is_koofr_configured(tmp_path) is True
 
     def test_disabled_or_local_sources_ignored(self, tmp_path):
         _write(
-            tmp_path / ".picframe" / "sources.yaml",
+            tmp_path / ".wanderwall" / "sources.yaml",
             "sources:\n"
             "  - id: a\n    enabled: false\n    rclone_remote: kfr:KFR_a\n"
             "  - id: b\n    enabled: true\n    rclone_remote: ''\n",
@@ -58,6 +58,6 @@ class TestIsKoofrConfigured:
         assert is_koofr_configured(tmp_path) is False
 
     def test_corrupt_file_does_not_raise(self, tmp_path):
-        _write(tmp_path / ".picframe" / "config.yaml", "sync: [unclosed\n")
+        _write(tmp_path / ".wanderwall" / "config.yaml", "sync: [unclosed\n")
         _write(tmp_path / ".config" / "rclone" / "rclone.conf", "[kfr]\ntype = koofr\n")
         assert is_koofr_configured(tmp_path) is True
