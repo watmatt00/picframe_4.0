@@ -154,7 +154,7 @@ PI_SERIAL=$(grep Serial /proc/cpuinfo 2>/dev/null | awk '{print $3}' | tail -c 9
 if [[ -n "$PI_SERIAL" ]]; then
     AP_PASSWORD=$(echo "${PI_SERIAL}" | tr '[:upper:]' '[:lower:]' | tr -dc 'a-z0-9' | head -c 8)
 else
-    AP_PASSWORD=$(tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
+    AP_PASSWORD=$(tr -dc 'a-z0-9' < /dev/urandom | head -c 8 || true)  # tr gets SIGPIPE when head exits
 fi
 LOG "AP password: ${AP_PASSWORD}"
 
