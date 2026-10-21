@@ -52,7 +52,6 @@ function switchTab(tabId) {
         }
     }
 
-    // Initialize tools tab on first open
     // Tools tab: reload the album picker on every open (albums may have changed since)
     if (tabId === 'tools') {
         loadToolsSources();
