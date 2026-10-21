@@ -92,11 +92,12 @@ User services (`systemctl --user`): `wanderwall-api`, `wanderwall-sync`, `wander
 
 Single-page four-tab interface (`dashboard.html`). No standalone pages — all features are consolidated into tabs.
 
-Tab order: **Frame Status | Switch Photos | Tools | Settings**
+Tab order: **Frame Status | Switch Photos | Tools | Backups | Settings**
 
 - **Frame Status Tab**: Traffic light (green/amber/red), photo counts (cloud + local), current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API, Reboot Frame — needs install_setup.sh re-run for its polkit rule, PL-142)
 - **Switch Photos Tab**: Source table, add new source form with rclone folder browser, source switching
-- **Tools Tab**: Source selector (shared by all cards), Filename Cleaner (spaces→underscores, long-name >20 chars renamed to YYYYMMDD_HHMMSS, Google ID tokens, numbered suffixes, ext case/wrong-ext), Duplicate Finder, Video File Manager, Rename File (scan all files → editable table → batch cloud-first rename, blank inputs, dup guardrails), Photo Backups (tar.gz to `~/Pictures/backups/`, list + delete)
+- **Tools Tab**: Source selector (shared by all cards), Filename Cleaner (spaces→underscores, long-name >20 chars renamed to YYYYMMDD_HHMMSS, Google ID tokens, numbered suffixes, ext case/wrong-ext), Duplicate Finder, Video File Manager, Rename File (scan all files → editable table → batch cloud-first rename, blank inputs, dup guardrails)
+- **Backups Tab** (PL-164): Photo Backups with its own album picker (each album or **Whole frame**: one tar.gz per album, shared timestamp, free-space check; list/restore/delete, deleted albums' backups too), Recover Albums (cloud folders, take over another frame, upload .zip/.tar.gz)
 - **Settings Tab**: Frame settings (name, rotation interval, sync interval, log level, read-only Frame ID + Funnel URL), Network sub-card (LAN IP + WiFi SSID, nested in Frame Settings), device pairing (QR code, manual code, countdown, Tailscale IP, instructions), manage devices (inline table with AJAX revoke via `GET /api/devices`), log viewer (expandable, ops/security toggle, line count, auto-refresh), software updates (check/apply, auto-check schedule, DEV/MAIN branch badge), Demo Mode card (only when `demo.allowed: true` is hand-set in config; reusable reviewer codes, 14-day expiry, revoke on end, amber banner on every tab — PL-015)
 
 ### Key Behaviors

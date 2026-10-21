@@ -1584,6 +1584,42 @@ class DeleteBackupRequest(BaseModel):
     filename: str
 
 
+@router.get("/api/tools/backup/all")
+async def list_all_backups():
+    """Every backup on the frame, deleted albums' too, newest first. LAN-only, no JWT."""
+    try:
+        return {"ok": True, "backups": recovery_service.list_all_backups()}
+    except Exception as exc:
+        logger.error("backup list-all error: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/api/tools/backup/all/create")
+async def create_all_backups():
+    """Back up every album, one archive each with the same timestamp. LAN-only, no JWT."""
+    try:
+        result = await backup_service.create_all_backups(source_manager.list_sources())
+        return {"ok": True, **result}
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error("backup create-all error: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/api/tools/backup/delete")
+async def delete_backup_by_name(body: DeleteBackupRequest):
+    """Delete any backup archive by filename (a deleted album's too). LAN-only, no JWT."""
+    try:
+        backup_service.delete_backup_file(body.filename)
+        return {"ok": True}
+    except (ValueError, FileNotFoundError) as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error("backup delete error: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+
 @router.get("/api/tools/backup/{source_id}/list")
 async def list_source_backups(source_id: str):
     """List existing tar.gz backups for a source. LAN-only, no JWT."""

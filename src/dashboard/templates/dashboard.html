@@ -50,6 +50,7 @@
         <button class="tab-button active" data-tab="status">Frame Status</button>
         <button class="tab-button" data-tab="sources">Albums</button>
         <button class="tab-button" data-tab="tools">Tools</button>
+        <button class="tab-button" data-tab="backups">Backups</button>
         <button class="tab-button" data-tab="settings">Settings</button>
     </div>
 
@@ -1010,25 +1011,37 @@
                 </div>
             </section>
 
+        </main>
+    </div>
+
+    <!-- BACKUPS TAB CONTENT (PL-164) -->
+    <div id="tab-backups" class="tab-content">
+        <main>
+
             <!-- Photo Backups -->
             <section class="card" style="margin-bottom:1.5rem;">
                 <div class="card-header">
                     <div>
                         <div class="card-title">💾 Photo Backups</div>
-                        <div class="card-subtitle">Create and manage local tar.gz backups — saved to ~/Pictures/backups/</div>
+                        <div class="card-subtitle">Back up an album or the whole frame to ~/Pictures/backups. Restoring adds the photos back and uploads them to the album's cloud folder; nothing is overwritten.</div>
                     </div>
                     <button class="advanced-toggle" id="backup-toggle">Show</button>
                 </div>
                 <div class="advanced-section" id="backup-section">
                     <div style="padding:0 1.5rem 1.5rem;">
+                        <label class="form-label" for="backup-source-select">Album</label>
+                        <select id="backup-source-select" class="form-input" style="max-width:320px;margin-bottom:1rem;">
+                            <option value="">Whole frame</option>
+                        </select>
                         <div class="button-row" style="margin-bottom:1rem;">
                             <button class="btn" id="btn-create-backup">Create Backup</button>
                             <span id="backup-create-status" style="font-size:0.85rem;color:#94a3b8;align-self:center;"></span>
                         </div>
-                        <div id="backup-list-empty" style="color:#94a3b8;font-size:0.9rem;display:none;">No backups for this album.</div>
+                        <div id="backup-list-empty" style="color:#94a3b8;font-size:0.9rem;display:none;">No backups yet.</div>
                         <table class="sources-table" id="backup-table" style="display:none;">
                             <thead>
                                 <tr>
+                                    <th id="backup-album-col">Album</th>
                                     <th>Filename</th>
                                     <th>Size</th>
                                     <th>Created</th>
@@ -1046,7 +1059,7 @@
                 <div class="card-header">
                     <div>
                         <div class="card-title">♻️ Recover Albums</div>
-                        <div class="card-subtitle">Bring back a deleted album from cloud storage, a backup, or a .zip of photos</div>
+                        <div class="card-subtitle">Bring back a deleted album from cloud storage or a .zip of photos. Backups made on this frame are restored from Photo Backups above.</div>
                     </div>
                     <button class="advanced-toggle" id="recover-toggle">Show</button>
                 </div>
@@ -1068,12 +1081,6 @@
                         <div class="recover-heading">Other frames on this cloud account</div>
                         <div class="form-hint">Replaced this frame's Pi and SD card? Take over the old frame's albums so you can recover them here. A frame that checked in within the last 24 hours may still be running: you'll need to type its name.</div>
                         <div id="recover-frames" class="recover-list"></div>
-                    </div>
-
-                    <div class="recover-part">
-                        <div class="recover-heading">From a backup</div>
-                        <div class="form-hint">Backups in ~/Pictures/backups, including deleted albums'. Restored photos are added to the album and uploaded to its cloud folder; nothing is overwritten.</div>
-                        <div id="recover-backups" class="recover-list">Loading…</div>
                     </div>
 
                     <div class="recover-part">

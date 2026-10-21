@@ -6,6 +6,7 @@
 let sourcesInitialized = false;
 let settingsInitialized = false;
 let toolsInitialized = false;
+let backupsInitialized = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initTabSwitching();
@@ -57,6 +58,12 @@ function switchTab(tabId) {
     if (tabId === 'tools' && !toolsInitialized) {
         toolsInitialized = true;
         loadToolsSources();
+    }
+
+    // Backups tab: its own album picker (PL-164)
+    if (tabId === 'backups' && !backupsInitialized) {
+        backupsInitialized = true;
+        loadBackupSources();
     }
 }
 
@@ -1888,6 +1895,8 @@ function initPhotoTools() {
     // Photo Backups card
     const btnCreateBackup = document.getElementById('btn-create-backup');
     if (btnCreateBackup) btnCreateBackup.addEventListener('click', runCreateBackup);
+    const backupSel = document.getElementById('backup-source-select');
+    if (backupSel) backupSel.addEventListener('change', loadBackupList);
 }
 
 async function loadToolsSources() {
@@ -1915,19 +1924,52 @@ function toolsSourceId() {
 // PHOTO BACKUPS
 // =============================================================================
 
+async function loadBackupSources() {
+    const sel = document.getElementById('backup-source-select');
+    const keep = sel.value;  // reloaded after a restore: stay on the same choice
+    try {
+        const data = await apiFetch('/api/sources');
+        sel.innerHTML = '<option value="">Whole frame</option>';
+        (data.sources || []).forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.label + (s.active ? ' (active)' : '');
+            if (s.id === keep) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    } catch (e) {
+        sel.innerHTML = '<option value="">Whole frame (error loading albums)</option>';
+    }
+    loadBackupList();
+}
+
+/** The album picked in Photo Backups; '' means the whole frame. */
+function backupSourceId() {
+    const sel = document.getElementById('backup-source-select');
+    return sel ? sel.value : '';
+}
+
+function backupButton(label, onclick) {
+    return `<button class="btn secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;" onclick="${onclick}">${label}</button>`;
+}
+
 async function loadBackupList() {
-    const sourceId = toolsSourceId();
+    const sourceId = backupSourceId();
     const tbody = document.getElementById('backup-tbody');
     const table = document.getElementById('backup-table');
     const empty = document.getElementById('backup-list-empty');
-    if (!sourceId || !tbody) return;
-    tbody.innerHTML = '<tr><td colspan="4" style="color:#94a3b8;">Loading…</td></tr>';
+    const albumCol = document.getElementById('backup-album-col');
+    if (!tbody) return;
+    const wholeFrame = !sourceId;
+    const cols = wholeFrame ? 5 : 4;
+    if (albumCol) albumCol.style.display = wholeFrame ? '' : 'none';
+    tbody.innerHTML = `<tr><td colspan="${cols}" style="color:#94a3b8;">Loading…</td></tr>`;
     if (table) table.style.display = 'table';
     if (empty) empty.style.display = 'none';
     try {
-        const data = await apiFetch(`/api/tools/backup/${sourceId}/list`);
+        const data = await apiFetch(wholeFrame ? '/api/tools/backup/all' : `/api/tools/backup/${encodeURIComponent(sourceId)}/list`);
         if (!data.ok) {
-            tbody.innerHTML = `<tr><td colspan="4" style="color:#f87171;">${data.error || 'Error loading backups'}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${cols}" style="color:#f87171;">${escapeHtml(data.error || 'Error loading backups')}</td></tr>`;
             return;
         }
         const backups = data.backups || [];
@@ -1936,28 +1978,36 @@ async function loadBackupList() {
             if (empty) empty.style.display = 'block';
             return;
         }
-        if (empty) empty.style.display = 'none';
-        if (table) table.style.display = 'table';
         tbody.innerHTML = backups.map(b => {
-            const created = new Date(b.created_at).toLocaleString();
+            const file = escapeHtml(b.filename);
+            // Whole frame lists deleted albums' backups too: those restore into a new album
+            const albumId = wholeFrame ? (b.album_exists ? b.album_id : null) : sourceId;
+            const restore = `restoreBackupInto('${file}', ${albumId ? `'${escapeHtml(albumId)}'` : 'null'}, '${escapeHtml(b.album_id || sourceId)}')`;
+            const albumCell = wholeFrame
+                ? `<td>${escapeHtml(b.album_name || b.album_id)}${b.album_exists ? '' : ' <span class="source-status-badge disabled">deleted</span>'}</td>`
+                : '';
             return `<tr>
-                <td style="font-family:monospace;font-size:0.85rem;">${b.filename}</td>
+                ${albumCell}
+                <td style="font-family:monospace;font-size:0.85rem;">${file}</td>
                 <td>${fmtBytes(b.size_bytes)}</td>
-                <td>${created}</td>
-                <td style="white-space:nowrap;"><button class="btn secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;"
-                    onclick="restoreBackupInto('${b.filename.replace(/'/g, "\\'")}', '${sourceId}')">Restore</button>
-                    <button class="btn secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;"
-                    onclick="runDeleteBackup('${b.filename.replace(/'/g, "\\'")}')">Delete</button></td>
+                <td>${new Date(b.created_at).toLocaleString()}</td>
+                <td style="white-space:nowrap;">${backupButton('Restore', restore)}
+                    ${backupButton('Delete', `runDeleteBackup('${file}')`)}</td>
             </tr>`;
         }).join('');
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="4" style="color:#f87171;">Error: ${e.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${cols}" style="color:#f87171;">Error: ${escapeHtml(e.message)}</td></tr>`;
     }
 }
 
 async function runCreateBackup() {
-    const sourceId = toolsSourceId();
-    if (!sourceId) { alert('Select an album first.'); return; }
+    const sourceId = backupSourceId();
+    const sel = document.getElementById('backup-source-select');
+    const albumCount = sel ? sel.options.length - 1 : 0;
+    if (!sourceId) {
+        if (albumCount === 0) { alert('This frame has no albums to back up.'); return; }
+        if (!confirm(`Back up all ${plural(albumCount, 'album')}?\n\nEach album gets its own archive in ~/Pictures/backups, all with the same time.`)) return;
+    }
     const btn = document.getElementById('btn-create-backup');
     const status = document.getElementById('backup-create-status');
     btn.disabled = true;
@@ -1965,21 +2015,19 @@ async function runCreateBackup() {
     status.textContent = 'This may take a minute for large libraries…';
     status.style.color = '#94a3b8';
     try {
-        const data = await apiFetch(`/api/tools/backup/${sourceId}/create`, { method: 'POST' });
+        const data = sourceId
+            ? await apiFetch(`/api/tools/backup/${encodeURIComponent(sourceId)}/create`, { method: 'POST' })
+            : await apiFetch('/api/tools/backup/all/create', { method: 'POST' });
         if (data.ok) {
-            status.textContent = `Backup created: ${data.filename} (${fmtBytes(data.size_bytes)})`;
+            if (sourceId) {
+                status.textContent = `Backup created: ${data.filename} (${fmtBytes(data.size_bytes)})`;
+            } else {
+                const skipped = (data.skipped || []).length
+                    ? ` Skipped (no photos on the frame yet): ${data.skipped.join(', ')}.` : '';
+                status.textContent = `Backed up ${plural(data.created.length, 'album')} (${fmtBytes(data.total_bytes)}).${skipped}`;
+            }
             status.style.color = '#4ade80';
             await loadBackupList();
-            // Auto-collapse after 2 seconds
-            setTimeout(() => {
-                const section = document.getElementById('backup-section');
-                const toggle = document.getElementById('backup-toggle');
-                if (section && section.classList.contains('visible')) {
-                    section.classList.remove('visible');
-                    if (toggle) toggle.textContent = 'Show';
-                }
-                status.textContent = '';
-            }, 2000);
         } else {
             status.textContent = data.error || 'Backup failed';
             status.style.color = '#f87171';
@@ -1995,9 +2043,10 @@ async function runCreateBackup() {
 
 async function runDeleteBackup(filename) {
     if (!confirm(`Delete backup "${filename}"? This cannot be undone.`)) return;
-    const sourceId = toolsSourceId();
+    const sourceId = backupSourceId();
     try {
-        const data = await apiFetch(`/api/tools/backup/${sourceId}/delete`, {
+        // Whole frame deletes by filename, so a deleted album's backup can be removed too
+        const data = await apiFetch(sourceId ? `/api/tools/backup/${encodeURIComponent(sourceId)}/delete` : '/api/tools/backup/delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filename }),
@@ -3161,18 +3210,14 @@ function askNewAlbumName(suggested) {
 
 async function loadRecoverable() {
     const cloudEl = document.getElementById('recover-cloud');
-    const backupsEl = document.getElementById('recover-backups');
     cloudEl.textContent = 'Checking cloud storage…';
-    backupsEl.textContent = 'Loading…';
     try {
         const [rec, albums] = await Promise.all([apiFetch('/api/albums/recoverable'), apiFetch('/api/sources')]);
         recoverAlbums = albums.sources || [];
         renderRecoverCloud(rec);
-        renderRecoverBackups(rec.backups || []);
         renderRecoverUploadTargets();
     } catch (e) {
         cloudEl.textContent = `Error: ${e.message}`;
-        backupsEl.textContent = '';
     }
 }
 
@@ -3257,19 +3302,6 @@ async function takeOverFrame(index) {
     }
 }
 
-function renderRecoverBackups(backups) {
-    const el = document.getElementById('recover-backups');
-    if (backups.length === 0) { el.textContent = 'No backups yet. Create them in Tools → Photo Backups.'; return; }
-    el.innerHTML = `<table class="sources-table"><thead><tr><th>Album</th><th>Created</th><th>Size</th><th></th></tr></thead><tbody>${
-        backups.map(b => `<tr>
-            <td>${escapeHtml(b.album_name || b.album_id)}${b.album_exists ? '' : ' <span class="source-status-badge disabled">deleted</span>'}</td>
-            <td>${new Date(b.created_at).toLocaleString()}</td>
-            <td>${fmtBytes(b.size_bytes)}</td>
-            <td><button class="btn-small" onclick="restoreBackupInto('${escapeHtml(b.filename)}', ${b.album_exists ? `'${escapeHtml(b.album_id)}'` : 'null'}, '${escapeHtml(b.album_id)}')">Restore</button></td>
-        </tr>`).join('')
-    }</tbody></table>`;
-}
-
 function renderRecoverUploadTargets() {
     const sel = document.getElementById('recover-upload-target');
     sel.innerHTML = recoverAlbums.map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.label)}</option>`).join('')
@@ -3301,7 +3333,7 @@ async function recoverFromCloud(folder, kind, index, count) {
 
 /**
  * Restore a backup. `albumId` is the album to restore into, or null to ask for a new album name
- * (suggested from the backup). Used by this card and by Tools → Photo Backups.
+ * (suggested from the backup). Used by Backups → Photo Backups.
  */
 async function restoreBackupInto(filename, albumId, suggestedName) {
     let target = albumId ? { targetId: albumId } : askNewAlbumName((suggestedName || '').replace(/_/g, ' '));
@@ -3321,6 +3353,7 @@ async function restoreBackupInto(filename, albumId, suggestedName) {
         }
         if (data.ok) {
             if (typeof loadSources === 'function') loadSources();
+            loadBackupSources();
             loadRecoverable();
         }
     } catch (e) {

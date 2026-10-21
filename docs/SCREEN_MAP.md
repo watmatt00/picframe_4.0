@@ -465,18 +465,26 @@ ContentView
   - Apply sends only changed rows via cloud-first rename; table refreshes after success
   - ✕ Close hides results
 
+### DASH-BACKUPS - Backups (Tab 4, PL-164)
+
+- **Files:** `dashboard.html` + `dashboard.js`
+- **Presentation:** Tab 4, lazy init (loads its own album picker on first open)
+- **UI Elements:**
+
   **Photo Backups Card** (collapsible via ▸ Show):
-  - Create Backup → tar.gz of source's local_path → `~/Pictures/backups/{source_id}_{YYYY-MM-DD_HHMMSS}.tar.gz`
-  - Lists existing backups for the selected source (filename, size, created date)
-  - Delete button per backup (with confirm dialog)
-  - Card auto-collapses 2 seconds after a successful backup
+  - Album picker of its own (not the Tools one): **Whole frame** (default) or one album
+  - Create Backup → tar.gz of the album's local_path → `~/Pictures/backups/{source_id}_{YYYY-MM-DD_HHMMSS}.tar.gz`; Whole frame makes one per album with the same timestamp (confirm first). Refused if it won't fit with 1 GB left free
+  - Lists backups (Whole frame adds an Album column and shows deleted albums' backups, marked *deleted*)
+  - Restore per backup (into the album, or a new album if it's gone) and Delete (with confirm)
+
+  **Recover Albums Card** (collapsible): from cloud storage (this frame's deleted albums; unclaimed folders behind a warning), take over another frame, upload a .zip/.tar.gz
 
 ---
 
-### DASH-SETTINGS - Settings (Tab 4)
+### DASH-SETTINGS - Settings (Tab 5)
 
 - **Files:** `dashboard.html` + `dashboard.js`
-- **Presentation:** Tab 4
+- **Presentation:** Tab 5
 - **UI Elements:**
 
   **Frame Settings Card:**
@@ -559,9 +567,11 @@ Dashboard (single-page, dashboard.html)
   │     ├── Filename Cleaner card
   │     ├── Duplicate Finder card
   │     ├── Video File Manager card
-  │     ├── Rename File card
-  │     └── Photo Backups card [collapsible]
-  └── Tab 4: Settings (DASH-SETTINGS)
+  │     └── Rename File card
+  ├── Tab 4: Backups (DASH-BACKUPS) [lazy init]
+  │     ├── Photo Backups card [collapsible, own album picker incl. Whole frame]
+  │     └── Recover Albums card [collapsible]
+  └── Tab 5: Settings (DASH-SETTINGS)
         ├── Frame Settings card [collapsible]
         │     ├── Network sub-card [collapsible, nested]
         │     └── Koofr Setup sub-card [collapsible, nested; shown when koofr_configured=false]
@@ -595,7 +605,8 @@ Dashboard (single-page, dashboard.html)
 | Duplicate detection + removal | -- | DASH-TOOLS (Duplicate Finder) |
 | Video file management | -- | DASH-TOOLS (Video File Manager) |
 | Manual file rename | -- | DASH-TOOLS (Rename File) |
-| Local photo backups | -- | DASH-TOOLS (Photo Backups) |
+| Local photo backups (album or whole frame) | -- | DASH-BACKUPS (Photo Backups) |
+| Recover deleted albums | -- | DASH-BACKUPS (Recover Albums) |
 | Frame settings (name, rotation, sync interval, log level) | IOS-SETTINGS (sync interval only) | DASH-SETTINGS |
 | Frame ID / Funnel URL (read-only) | -- | DASH-SETTINGS |
 | Generate pairing code | -- | DASH-SETTINGS (inline QR + instructions) |

@@ -177,10 +177,11 @@ curl https://<hostname>.<tailnet>.ts.net/health
 
 ## Recover a deleted album
 
-Delete Album removes an album's photos from the frame but keeps its cloud folder and backups. Dashboard → Tools → ♻️ Recover Albums (last card) brings it back:
+Delete Album removes an album's photos from the frame but keeps its cloud folder and backups. Dashboard → Backups tab brings it back (♻️ Recover Albums, and 💾 Photo Backups for backups):
 
 - **From cloud storage:** lists this frame's deleted albums whose cloud folder (`KFR_*`) still exists and no album uses. Recover re-adds the album pointed at that folder and syncs it. A folder another frame on the same Koofr account owns is never offered. Folders no frame owns (e.g. deleted before frames kept a list) appear automatically on an account only this frame uses, otherwise behind **Show unclaimed folders** with a warning.
-- **From a backup:** any backup in `~/Pictures/backups`, including a deleted album's, into an existing or a new album. Tools → Photo Backups also has Restore.
+- **From a backup:** Photo Backups → **Whole frame** lists every backup in `~/Pictures/backups`, including a deleted album's (marked *deleted*). Restore puts it into the album, or into a new album if the album is gone.
+- **Back up first:** Photo Backups backs up one album or, with **Whole frame**, every album at once (one archive per album, same time). It checks there's room first and keeps 1 GB free.
 - **Upload a .zip:** a .zip or .tar.gz of photos from your computer (up to 2 GB) into an existing or a new album.
 
 Restored photos are copied to the album's cloud folder first and then added on the frame, so the next sync doesn't remove them. Nothing is overwritten: a photo with the same name is saved as `name_1.jpg`. Only photos and videos are restored; other files are skipped.

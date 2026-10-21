@@ -29,6 +29,8 @@ LAN_ONLY_ROUTES = [
     ("POST", "/api/sources/delete"),
     ("POST", "/dashboard/koofr-setup"),
     ("GET", "/api/tools/backup/x/list"),
+    ("GET", "/api/tools/backup/all"),
+    ("POST", "/api/tools/backup/delete"),
     ("GET", "/debug/token"),
     ("GET", "/no-such-route"),
 ]
