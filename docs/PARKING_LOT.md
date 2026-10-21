@@ -1,7 +1,8 @@
-# PicFrame 4.0 - Parking Lot (moved)
+# WanderWall frame - Parking Lot (moved)
 
-The parking lot for both repos now lives in one place:
-**`picframe_mgr/docs/PARKING_LOT.md`** (private repo, `~/Downloads/GitHub/picframe_mgr/docs/PARKING_LOT.md`).
+The parking lot for both repos lives in one place:
+**`wanderwall_app/docs/PARKING_LOT.md`** (private repo; on the PC: `~/Downloads/GitHub/wanderwall_app/docs/PARKING_LOT.md`).
+Viewer: http://192.168.102.205:8765
 
 Frame items there are tagged `frame`. All open items from this file were merged on 2026-10-06; the original content is in git history.
 

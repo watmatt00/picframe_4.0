@@ -5,7 +5,7 @@
 **New project, new repo, clean slate.**
 
 - **Repo**: `wanderwall_frame` (new)
-- **Mobile**: `wanderwall_app` (existing, updated for 4.0 API)
+- **Mobile**: `wanderwall_app` (iOS: WanderWall – Photo Frame and WanderWall Share)
 - **Display Engine**: [Pi3D PictureFrame](https://github.com/helgeerbe/picframe) (existing open-source)
 - **Approach**: Pure Python implementation, no shell scripts
 - **Development**: New Pi, built from ground up
@@ -18,7 +18,7 @@
 - **Users**: Family + extended family/friends
 - **Access Levels**:
   - **Admin**: Full control - service restarts, folder switching, capacity, device management
-  - **Contributor**: Upload photos only via Koofr (no Pi access)
+  - **Contributor**: Upload photos only, with the WanderWall Share app (`/api/v1/contributor/*`; no frame settings)
 - **Admin Hierarchy**: All admins equal
 - **Network**: Tailscale Funnel (no VPN on mobile)
 - **Priority**: Security first
@@ -29,7 +29,7 @@
 
 ```
 ┌─────────────────┐                              ┌──────────────────────────────┐
-│  Mobile App     │                              │  Pi Frame (4.0)              │
+│  Mobile App     │                              │  Pi Frame (5.0)              │
 │  (iOS)          │      HTTPS (Funnel)          │                              │
 │                 │─────────────────────────────>│  ┌────────────────────────┐  │
 │  No VPN needed  │  https://frame.ts.net        │  │ Tailscale Funnel       │  │
@@ -42,8 +42,8 @@
 └─────────────────┘                              │  ┌────────────────────────┐  │
                                                  │  │ wanderwall_frame API       │  │
 ┌─────────────────┐                              │  │ (FastAPI)              │  │
-│  Contributor    │      Koofr API               │  │ - Auth/Pairing         │  │
-│  (upload only)  │─────────────────> Koofr ────>│  │ - Sync Engine          │  │
+│  Manager app    │      Koofr API               │  │ - Auth/Pairing         │  │
+│  (photo upload) │─────────────────> Koofr ────>│  │ - Sync Engine          │  │
 └─────────────────┘                   Cloud      │  │ - Config Mgmt          │  │
                                         │        │  │ - Web Dashboard        │  │
                                         │        │  └───────────┬────────────┘  │
@@ -78,53 +78,58 @@ The web dashboard provides browser-based management accessible **only on the loc
 
 ### Dashboard Features (Implemented)
 
-The dashboard is a tabbed interface with three main sections:
+The dashboard is one page (`GET /`, `src/dashboard/templates/dashboard.html` + `static/js/dashboard.js`) with five tabs: **Frame Status | Albums | Tools | Backups | Settings**. Every endpoint below is in [API.md](API.md#dashboard-endpoints-lan-and-tailnet-only-no-auth). Banners above the tabs show demo mode and the album registry's questions (SD card last used on another Pi; this frame taken over by another Pi).
 
-#### Status Tab
+#### Frame Status tab
 | Feature | Endpoint | Description |
 |---------|----------|-------------|
-| **Traffic Light** | `GET /dashboard/status` | Visual sync indicator (green/amber/red) |
-| **Photo Counts** | `GET /dashboard/status` | Cloud and local photo counts with mismatch detection |
-| **Current Image** | `GET /current-image` | Thumbnail of currently displayed photo |
-| **Service Status** | `GET /dashboard/status` | Frame display and dashboard service health |
-| **Storage Info** | `GET /dashboard/status` | Disk usage percentage and capacity |
-| **Quick Actions** | Various POST | Refresh, Sync Now, Restart Frame, Restart API |
-| **Activity Log** | `GET /api/logs` | Recent log entries (collapsible) |
+| **Traffic Light** | `GET /dashboard/status` | Sync indicator (green/amber/red, blue while syncing) |
+| **Photo Counts** | `GET /dashboard/status` | Cloud and frame counts for the album showing |
+| **Current Image** | `GET /current-image` | The photo on screen now |
+| **Service Status** | `GET /dashboard/status` | Display, API, sync timer, lights, Tailscale health |
+| **Storage Info** | `GET /dashboard/status` | SD card use |
+| **Quick Actions** | `POST /sync`, `/services/{name}/restart`, `/system/reboot` | Refresh, Sync Now, Restart Frame, Restart API, Reboot Frame |
 
-#### Switch Source Tab
+#### Albums tab
 | Feature | Endpoint | Description |
 |---------|----------|-------------|
-| **Source List** | `GET /api/sources` | Table of configured photo sources |
-| **Source Switcher** | `POST /api/frame-live` | One-click switch to different source |
-| **Add Source Form** | `POST /api/sources/create` | Create new source with folder browser |
-| **Folder Browser** | `POST /api/rclone/list-dirs` | Navigate rclone remote directories |
-| **Remote Selector** | `GET /api/rclone/remotes` | Dropdown of configured rclone remotes |
-| **Connection Test** | `POST /api/config/test-remote` | Verify rclone remote connectivity |
-| **Delete Source** | `POST /api/sources/delete` | Remove a photo source |
+| **Album List** | `GET /api/sources` | Name, cloud folder, cloud and frame counts, status; technical columns (ID, local path, actions) behind a toggle |
+| **Show on Frame** | `POST /api/frame-live` | "Activate": show the album and sync it |
+| **Add Album** | `POST /api/sources/create` | Display Name only; the album id, local folder and cloud folder (`KFR_<id>`, or `_2`… if taken, PL-165) come from it |
+| **Delete** | `POST /api/sources/delete` | Deletes the album **and its photos on the frame**; the cloud folder and backups are kept (PL-147). Hidden for the album that's showing |
 
-#### Settings Tab
+#### Tools tab
+An **Album** picker shared by the cards (reloaded each time the tab opens), then: Filename Cleaner, Duplicate Finder, Video File Manager, Rename File. Each scans first (read-only), shows the results, and applies changes to the cloud folder first, then the frame (`/api/tools/{id}/scan/*`, `/apply/*`, `/rename`).
+
+#### Backups tab (PL-164)
 | Feature | Endpoint | Description |
 |---------|----------|-------------|
-| **Frame Name** | `POST /api/settings` | Display name for the frame |
-| **Rotation Interval** | `POST /api/settings` | Seconds between photos (auto-restarts frame) |
-| **Sync Interval** | `POST /api/settings` | Minutes between cloud syncs |
-| **Log Level** | `POST /api/settings` | DEBUG/INFO/WARNING/ERROR |
-| **Mobile Pairing** | `POST /pairing/generate` (AJAX) | Inline QR code generation in Settings tab |
-| **Device Management** | `GET /devices` | Link to paired devices list |
+| **Photo Backups** | `/api/tools/backup/*` | Own picker: **Whole frame** (default) or one album. Create, list (full path on the frame), Restore, Download, Delete. A whole-frame backup is one `frame_<name>_<ts>.tar.gz` with a manifest, restored in one click |
+| **Recover Albums** | `/api/albums/*` | Deleted albums from cloud storage (this frame's; unclaimed folders behind a warning), take over another frame, upload a .zip/.tar.gz (up to 16 GB; a whole-frame backup restores all its albums) |
 
-#### Other Dashboard Pages
-| Page | URL | Description |
-|------|-----|-------------|
-| **Pairing** | `/pairing` | Generate QR code for mobile app |
-| **Devices** | `/devices` | List and revoke paired devices |
-| **Logs** | `/logs` | Full log viewer with filtering |
+Every restore skips photos the album already has, so nothing is duplicated. The picker and the Recover list reload each time the tab opens.
+
+#### Settings tab
+| Feature | Endpoint | Description |
+|---------|----------|-------------|
+| **Frame Settings** | `POST /api/settings`, `/api/settings/log-level` | Frame name, rotation interval (restarts the display), sync interval, fade time, log level; read-only Frame ID and Funnel URL |
+| **Network / Cloud Sync** | `GET /dashboard/status`, `/dashboard/koofr-setup`, `/api/cloud/test` | LAN IP and WiFi; Koofr setup and connection test |
+| **Display Sleep Schedule** | `POST /api/settings/sleep-schedule` | Display off and on times |
+| **Mobile App Pairing** | `POST /pairing/generate` | Pairing code and QR, with countdown |
+| **Paired Devices** | `GET /api/devices`, `POST /devices/{id}/revoke` | List and revoke (not the last admin) |
+| **Logs** | `GET /api/logs` | Ops or security log |
+| **Updates** | `/api/updates/*` | Check, apply, automatic check schedule |
+| **Demo Mode** | `/api/settings/demo*` | Reviewer codes, only when `demo.allowed` is set (PL-015) |
+| **Party Mode** | `POST /api/settings/party` | Stops cloud sync and the WiFi watchdog |
+
+There are no other dashboard pages.
 
 ### Dashboard Technology
 
-- **Backend**: FastAPI (same as API)
-- **Frontend**: Jinja2 templates + HTMX (or vanilla JS)
-- **Styling**: Tailwind CSS or simple custom CSS
-- **No SPA framework** - Keep it simple, server-rendered
+- **Backend**: FastAPI (same app as the API)
+- **Frontend**: one Jinja2 template plus vanilla JS (`fetch` calls to the endpoints above)
+- **Styling**: custom CSS (`static/css/`)
+- **No SPA framework**
 
 ### Access Control
 
@@ -246,124 +251,103 @@ http:
 
 ## Repository Structure
 
-### wanderwall_frame (New - Pi-side)
+### wanderwall_frame (Pi-side)
+
+From the repo as of 2026-10-21 (5.0.0):
 
 ```
 wanderwall_frame/
 ├── src/
-│   ├── __init__.py
-│   ├── main.py                 # Entry point
+│   ├── main.py                    # Entry point (uvicorn)
 │   ├── api/
-│   │   ├── __init__.py
-│   │   ├── app.py              # FastAPI application
-│   │   ├── routes/
-│   │   │   ├── pairing.py      # /pair, /pairing/generate
-│   │   │   ├── status.py       # /status, /version
-│   │   │   ├── devices.py      # /devices CRUD
-│   │   │   ├── services.py     # /services/{name}/restart
-│   │   │   ├── display.py      # /display/folder
-│   │   │   ├── folders.py      # /folders CRUD
-│   │   │   └── contributors.py # /contributors/invite
-│   │   └── dependencies.py     # Auth dependencies
-│   │
+│   │   ├── app.py                 # FastAPI app, routers, upload size limits
+│   │   ├── middleware.py          # LAN-only (deny by default), upload limits
+│   │   ├── dependencies.py        # Auth: get_current_device, require_admin, require_contributor
+│   │   └── routes/                # /api/v1 (see docs/API.md)
+│   │       ├── pairing.py         # /pair, /pairing/generate
+│   │       ├── auth.py            # /auth/refresh
+│   │       ├── status.py          # /status
+│   │       ├── devices.py         # /devices
+│   │       ├── services.py        # /services
+│   │       ├── system.py          # /system/reboot
+│   │       ├── display.py         # /display/folder, /display/spotlight
+│   │       ├── folders.py         # /folders (albums), sync
+│   │       ├── photos.py          # /sources/{id}/photos
+│   │       ├── tools.py           # /sources/{id}/tools
+│   │       ├── contributors.py    # /contributors (invites)
+│   │       ├── contributor.py     # /contributor (Share app uploads)
+│   │       ├── cloud.py           # /cloud/credentials
+│   │       ├── settings.py        # /settings
+│   │       ├── logs.py            # /logs
+│   │       └── updates.py         # /updates
 │   ├── dashboard/
-│   │   ├── __init__.py
-│   │   ├── routes.py           # Dashboard page routes
-│   │   ├── templates/
-│   │   │   ├── base.html       # Base template
-│   │   │   ├── dashboard.html  # Main dashboard
-│   │   │   ├── settings.html   # Settings page
-│   │   │   ├── devices.html    # Device management
-│   │   │   ├── pairing.html    # QR code display
-│   │   │   └── logs.html       # Log viewer
-│   │   └── static/
-│   │       ├── css/
-│   │       │   └── dashboard.css
-│   │       └── js/
-│   │           └── dashboard.js
-│   │
-│   ├── auth/
-│   │   ├── __init__.py
-│   │   ├── jwt_handler.py      # Token creation/validation
-│   │   ├── pairing.py          # Code generation, QR display
-│   │   └── models.py           # Token claims, device models
-│   │
+│   │   ├── routes.py              # The dashboard page and its JSON endpoints
+│   │   ├── templates/dashboard.html
+│   │   └── static/{css/dashboard.css, js/dashboard.js}
+│   ├── auth/                      # jwt_handler.py, pairing.py, models.py
+│   ├── config/                    # settings.py, schema.py, manager.py (locked YAML writes)
 │   ├── services/
-│   │   ├── __init__.py
-│   │   ├── sync_service.py     # rclone sync operations
-│   │   ├── display_service.py  # Display control, folder switching
-│   │   ├── source_manager.py   # Photo source management
-│   │   ├── status_service.py   # Shared status logic (counts, sync, capacity)
-│   │   └── systemd_service.py  # Service control wrapper
-│   │
-│   ├── config/
-│   │   ├── __init__.py
-│   │   ├── settings.py         # Pydantic settings
-│   │   ├── schema.py           # Config validation schemas
-│   │   └── manager.py          # Config read/write with locking
-│   │
-│   ├── storage/
-│   │   ├── __init__.py
-│   │   ├── devices.py          # Paired devices storage (JSON)
-│   │   └── sources.py          # Photo sources storage
-│   │
-│   └── utils/
-│       ├── __init__.py
-│       ├── rclone.py           # rclone wrapper (Python, not shell)
-│       ├── logging.py          # Dual logging setup
-│       └── qr_generator.py     # QR code for pairing
-│
+│   │   ├── source_manager.py      # Albums (sources.yaml), cloud folder naming (PL-165)
+│   │   ├── sync_service.py        # rclone sync
+│   │   ├── display_service.py     # Pi3D control, album switching
+│   │   ├── status_service.py      # Counts, sync state, capacity
+│   │   ├── systemd_service.py     # Service control (allowlist), timers
+│   │   ├── album_service.py       # Delete Album (PL-147)
+│   │   ├── frame_registry.py      # Per-frame album registry, take over, SD card swap (PL-147)
+│   │   ├── recovery_service.py    # Recover Albums, restores (PL-147, PL-164)
+│   │   ├── backup_service.py      # Album and whole-frame backups (PL-164)
+│   │   ├── photo_tools_service.py # Filename Cleaner, duplicates, videos, rename
+│   │   ├── update_service.py      # Software updates
+│   │   ├── power_service.py       # Reboot (PL-142)
+│   │   ├── party_service.py       # Party mode
+│   │   └── demo_service.py        # Demo mode (PL-015)
+│   ├── storage/                   # devices.py, invites.py, sources.py
+│   └── utils/                     # rclone.py, logging.py, network.py, qr_generator.py, thumbnails.py
 ├── tests/
-│   ├── unit/
-│   │   ├── test_auth.py
-│   │   ├── test_sync.py
-│   │   └── test_config.py
-│   └── integration/
-│       ├── test_api.py
-│       ├── test_pairing.py
-│       └── test_dashboard.py  # Dashboard page and form tests
-│
-├── config/
-│   ├── config.example.yaml     # Example config (YAML, not bash)
-│   └── sources.example.yaml    # Example sources
-│
-├── systemd/
-│   └── picframe.service        # Single service file
-│
+│   ├── unit/                      # ~30 test files (pytest)
+│   └── integration/               # test_api.py, test_pairing.py, test_dashboard.py
+├── config/config.example.yaml
+├── systemd/                       # wanderwall-api.service, wanderwall-sync.{service,timer}, wanderwall-lights.service
 ├── scripts/
-│   ├── install.sh              # Initial Pi setup
-│   └── setup_tailscale.sh      # Tailscale + Funnel setup
-│
-├── pyproject.toml              # Dependencies, build config
-├── requirements.txt            # Pinned dependencies
+│   ├── install.sh                 # Fresh install (--from-v4 for a v4 frame)
+│   ├── update_app.sh              # Pull + restart (how frames update)
+│   ├── setup_tailscale.sh
+│   ├── indicator_lights.py        # Lights overlay
+│   ├── pi/wanderwall-inspect      # Read-only inspection helper
+│   └── setup/                     # First-run setup: AP portal, BLE, WiFi watchdog,
+│                                  # wanderwall-{ap-setup,ble-setup,watchdog}.service, rollback_v4.sh
+├── pyproject.toml
 └── README.md
 ```
 
+The display engine is upstream Pi3D PictureFrame, which keeps its own names (`picframe.service`, `~/picframe_data`).
+
 ### wanderwall_app (iOS Mobile App)
 
-**iOS only. Android is permanently on hold.**
+**iOS only. Android is permanently on hold.** Two apps from one source folder: **WanderWall – Photo Frame** (Manager, `com.txphipps.wanderwall`) and **WanderWall Share** (Contributor, `com.txphipps.wanderwall.share`). Screens: `wanderwall_app/docs/SCREEN_MAP.md`.
 
 ```
 wanderwall_app/
 ├── iosApp/
 │   ├── iosApp/
-│   │   ├── FrameClient.swift           # HTTP client for Pi API (/api/v1)
-│   │   ├── KoofrClient.swift           # Koofr cloud upload client
-│   │   ├── MainViewModel.swift         # View model with all API calls
-│   │   ├── MainMenuView.swift          # Main menu with paired frames
-│   │   ├── FrameDetailView.swift       # Frame detail (status, actions)
-│   │   ├── DestinationsView.swift      # Switch Source view
-│   │   ├── UploadSheetView.swift       # Photo upload to Koofr
-│   │   ├── SettingsView.swift          # Settings (sync interval, logs)
-│   │   ├── LogViewerView.swift         # Log viewer (ops/security)
-│   │   ├── PairingView.swift           # Manual code pairing
-│   │   └── Models/
-│   │       ├── PairedFrame.swift       # Frame model with baseURL
-│   │       └── FrameStatus.swift       # Status/response models
-│   └── iosApp.xcodeproj/
-│
-└── api-tests/                          # Python CLI upload tool (legacy)
-    └── koofr_upload.py
+│   │   ├── iosAppApp.swift             # Manager app entry
+│   │   ├── ContributorApp.swift        # Share app entry
+│   │   ├── FrameClient.swift           # HTTP client for the frame API (/api/v1)
+│   │   ├── KoofrClient.swift           # Koofr cloud upload client (Manager uploads)
+│   │   ├── MainViewModel.swift         # View model with the API calls
+│   │   ├── MainContentView.swift, MainMenuView.swift, FrameListView.swift, FrameDetailView.swift
+│   │   ├── FrameSettingsView.swift     # Manage Frame
+│   │   ├── DestinationsView.swift      # Albums, New Album, Album Detail
+│   │   ├── ManagePhotosView.swift, UploadSheetView.swift, UploadLinkSheet.swift
+│   │   ├── ContributorInviteSheet.swift, ContributorHomeView.swift
+│   │   ├── SettingsView.swift, ChangeCredentialsView.swift, UpdateScheduleView.swift
+│   │   ├── PairingView.swift, QRScannerView.swift, LogViewerView.swift, AboutView.swift
+│   │   ├── Components/, Models/
+│   │   └── Info.plist, PrivacyInfo.xcprivacy
+│   ├── PicFrame.xcodeproj/             # Used on the Mac
+│   └── iosApp.xcodeproj/               # Used by CodeMagic (kept in sync)
+├── codemagic.yaml                      # CI: IPA builds
+└── api-tests/koofr_upload.py           # Python CLI upload tool (legacy)
 ```
 
 ---
@@ -414,26 +398,16 @@ wanderwall_app/
 
 ## API Endpoints
 
-| Endpoint | Method | Auth | Role | Description |
-|----------|--------|------|------|-------------|
-| `/version` | GET | None | - | API version |
-| `/health` | GET | None | - | Health check |
-| `/api/v1/pair` | POST | Code | - | Exchange code for JWT |
-| `/api/v1/pairing/generate` | POST | JWT | Admin | Generate new pairing QR |
-| `/api/v1/status` | GET | JWT | Admin | Frame status, capacity |
-| `/api/v1/devices` | GET | JWT | Admin | List paired devices |
-| `/api/v1/devices/{id}` | DELETE | JWT | Admin | Revoke device |
-| `/api/v1/services` | GET | JWT | Admin | List services + status |
-| `/api/v1/services/{name}/restart` | POST | JWT | Admin | Restart service |
-| `/api/v1/display/folder` | GET | JWT | Admin | Current display folder |
-| `/api/v1/display/folder` | POST | JWT | Admin | Switch folder (source_id) |
-| `/api/v1/folders` | GET | JWT | Admin | List folders |
-| `/api/v1/folders` | POST | JWT | Admin | Create folder |
-| `/api/v1/contributors` | GET | JWT | Admin | List contributor invites |
-| `/api/v1/contributors/invite` | POST | JWT | Admin | Generate Koofr invite |
-| `/api/v1/settings` | GET | JWT | Admin | Get frame settings |
-| `/api/v1/settings/sync-interval` | PUT | JWT | Admin | Update sync interval |
-| `/api/v1/logs` | GET | JWT | Admin | Recent log entries |
+The full, current list of every route (the `/api/v1` API for the apps and the dashboard's LAN-only endpoints), with auth, requests and responses, is in **[API.md](API.md)**. In short:
+
+| Area | Prefix | Auth |
+|------|--------|------|
+| Health, version | `/health`, `/version` | None (public) |
+| Pairing | `/api/v1/pair` | Pairing or invite code |
+| Manager app | `/api/v1/*` (status, devices, services, system, display, folders, photos, tools, contributors, cloud, settings, logs, updates) | JWT, admin |
+| Share app | `/api/v1/contributor/*` | JWT, admin or contributor |
+| Token refresh, self-unpair | `/api/v1/auth/refresh`, `DELETE /api/v1/devices/me` | JWT, any role |
+| Dashboard | `/`, `/dashboard/*`, `/api/*` (not `/api/v1`), `/sync`, `/system/reboot`, ... | None; LAN and tailnet only |
 
 ---
 
@@ -445,8 +419,22 @@ WanderWall uses two configuration files:
 
 | File | Purpose |
 |------|---------|
-| `~/.wanderwall/config.yaml` | Dashboard settings (frame name, sync interval, current source) |
+| `~/.wanderwall/config.yaml` | Frame settings (frame name, sync interval, current album, updates, demo) |
 | `~/picframe_data/config/configuration.yaml` | Pi3D PictureFrame settings (rotation interval, display options) |
+
+Other data in `~/.wanderwall/`:
+
+| File | Purpose |
+|------|---------|
+| `sources.yaml` | Albums (below) |
+| `devices.json` | Paired phones |
+| `invites.json` | Contributor invites |
+| `jwt_secret` | Token signing key (mode 600) |
+| `frame_albums.yaml` | This frame's album registry: every album it has had (active/deleted), mirrored to Koofr `.picframe/frames/<pi-serial>.yaml` for Recover Albums (PL-147) |
+| `thumbs/` | Thumbnail cache |
+| `logs/` | `wanderwall.log`, `security.log` |
+
+Backups are in `~/Pictures/backups/` (album: `<id>_<ts>.tar.gz`; whole frame: `frame_<name>_<ts>.tar.gz`, PL-164).
 
 ### Dashboard Config: `~/.wanderwall/config.yaml`
 
@@ -535,6 +523,8 @@ sources:
 
 ## Implementation Phases
 
+*The original build plan, kept for history. All phases are built; open work is tracked in the parking lot (`wanderwall_app/docs/PARKING_LOT.md`).*
+
 ### Phase 1: Pi Core (wanderwall_frame)
 1. Project setup (pyproject.toml, structure)
 2. Config management (YAML, Pydantic validation)
@@ -570,15 +560,16 @@ sources:
 
 **Note: Android is permanently on hold. iOS only.**
 
-**Status: Core functionality complete.** App builds, runs on simulator, and works against live Pi API.
+**Status: built.** Both apps (Manager and Share) are built by CodeMagic as IPAs; App Store submission is tracked in the parking lot runbook.
 
 - ✅ Update FrameClient for Funnel URLs and `/api/v1` prefix
 - ✅ Update PairedFrame model with baseURL
 - ✅ Build in Xcode, fix compile errors
 - ✅ Test on simulator against live Pi API
 - ✅ Fix runtime issues (multiple rounds)
-- ⬜ QR scanner view (iOS) - future
-- ⬜ TestFlight beta distribution
+- ✅ QR scanner for pairing
+- ✅ WanderWall Share (contributor) app
+- ⬜ TestFlight / App Store (parking lot runbook)
 
 ### Phase 6: Admin Features (both)
 29. Service restart endpoints + UI (dashboard + mobile)
@@ -648,97 +639,9 @@ dev = [
 
 ## Development Environment
 
-### New Pi Setup - Complete Steps
+### New Pi Setup
 
-#### Step 1: Raspberry Pi OS
-```bash
-# Flash Raspberry Pi OS (64-bit recommended) to SD card
-# Boot Pi, complete initial setup
-# Enable SSH, set hostname (e.g., "devframe")
-sudo raspi-config
-```
-
-#### Step 2: System Updates
-```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y git python3-pip python3-venv
-```
-
-#### Step 3: Pi3D PictureFrame (One-Click Installer)
-```bash
-# From: https://www.thedigitalpictureframe.com/install-the-pi3d-pictureframe-software-with-one-click-2025-edition-raspberry-pi-2-3-4-5/
-bash <(curl -s https://raw.githubusercontent.com/helgeerbe/picframe/main/scripts/install_picframe.sh)
-
-# Answer the setup questions:
-# - Picture directory: /home/pi/Pictures
-# - Deleted pictures: /home/pi/picframe_data/deleted_pictures
-# - Locale: en_US.UTF-8
-
-# Verify installation
-systemctl --user status picframe.service
-```
-
-#### Step 4: rclone
-```bash
-# Install rclone
-curl https://rclone.org/install.sh | sudo bash
-
-# Configure remote (Koofr, Google Drive, etc.)
-rclone config
-
-# Test connection
-rclone lsd <remote>:
-```
-
-#### Step 5: Tailscale + Funnel
-```bash
-# Install Tailscale
-curl -fsSL https://tailscale.com/install.sh | sh
-
-# Authenticate
-sudo tailscale up
-
-# Enable Funnel (requires Tailscale admin console approval)
-sudo tailscale funnel 443 / http://localhost:8000
-
-# Verify Funnel URL
-tailscale funnel status
-```
-
-#### Step 6: wanderwall_frame Installation
-```bash
-# Clone repo
-cd ~
-git clone https://github.com/<your-org>/wanderwall_frame.git
-cd wanderwall_frame
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -e .
-
-# Run install script (sets up systemd, configs, etc.)
-./scripts/install.sh
-
-# Start service
-systemctl --user enable wanderwall-api.service
-systemctl --user start wanderwall-api.service
-```
-
-#### Step 7: Verify Installation
-```bash
-# Check services
-systemctl --user status picframe.service      # Pi3D display
-systemctl --user status wanderwall-api.service  # Our API
-
-# Test API locally
-curl http://localhost:8000/health
-
-# Test via Tailscale Funnel
-curl https://<hostname>.<tailnet>.ts.net/health
-```
+The current, step-by-step setup (Pi OS, Pi3D, rclone, Tailscale + Funnel, `scripts/install.sh`, verification) is **[PI_SETUP.md](PI_SETUP.md)**. A v4 frame moves to v5 by reinstalling with `install.sh --from-v4` (also in PI_SETUP.md). Frames are updated with `scripts/update_app.sh`.
 
 ### Testing Strategy
 
@@ -755,14 +658,16 @@ curl https://<hostname>.<tailnet>.ts.net/health
 
 | Test | Description |
 |------|-------------|
-| Page loads | All dashboard pages return 200 |
-| Status display | Status page shows correct file counts, service status |
-| Source switching | Source switcher changes active source |
+| Page loads | `GET /` returns 200 with all five tabs (there is one page) |
+| Status display | `/dashboard/status` shows correct counts and service status |
+| Album switching | Activate shows the album and syncs it |
+| Album delete | Deletes the photos on the frame, keeps the cloud folder; refused for the showing album |
 | Settings save | Settings form saves config correctly |
-| Pairing QR | Pairing page generates valid QR code |
-| Device list | Devices page lists paired devices |
-| Logs display | Logs page shows recent entries |
-| Service restart | Restart buttons trigger correct service restart |
+| Pairing QR | Mobile App Pairing generates a valid code and QR |
+| Device list | Paired Devices lists and revokes devices |
+| Logs display | Logs card shows recent entries |
+| Backups and Recover | Album and whole-frame backup, restore (skips photos already there), Recover Albums |
+| Service restart | Restart buttons trigger the right service restart |
 
 ---
 
@@ -779,6 +684,8 @@ Once 4.0 is stable and tested:
 ---
 
 ## Chat-to-Repo Migration Steps
+
+*Historical: how this repo was first created from the planning chat. Not needed any more.*
 
 ### Step 1: Create the New Repository
 
@@ -917,5 +824,5 @@ claude
 - ✅ Security: JWT + Tailscale Funnel + alphanumeric codes
 - ✅ Logging: Separate files (ops + security)
 - ✅ Admin hierarchy: All admins equal
-- ✅ Contributors: Koofr-only via invite flow
+- ✅ Contributors: invite code → WanderWall Share app, which uploads through the frame (`/api/v1/contributor/upload`)
 - ✅ Config format: YAML (not bash)

@@ -81,7 +81,7 @@ ssh pi@192.168.102.210 "cd ~/wanderwall_frame && git fetch origin && git checkou
 ```
 kframe and mnbframe are already on `main` — no action needed.
 
-User services (`systemctl --user`): `wanderwall-api`, `wanderwall-sync`, `wanderwall-sync.timer`, `picframe`
+User services (`systemctl --user`): `wanderwall-api`, `wanderwall-sync`, `wanderwall-sync.timer`, `wanderwall-lights` (indicator lights overlay), `picframe` (the upstream display engine)
 
 **Phase 6 system services** (run as root, `systemctl` without `--user`):
 - `wanderwall-watchdog` — WiFi monitor, enabled at boot
@@ -90,14 +90,14 @@ User services (`systemctl --user`): `wanderwall-api`, `wanderwall-sync`, `wander
 
 ## Dashboard Architecture
 
-Single-page four-tab interface (`dashboard.html`). No standalone pages — all features are consolidated into tabs.
+Single-page five-tab interface (`dashboard.html`). No standalone pages — all features are consolidated into tabs. Full endpoint list: `docs/API.md`.
 
-Tab order: **Frame Status | Switch Photos | Tools | Backups | Settings**
+Tab order: **Frame Status | Albums | Tools | Backups | Settings** (the Albums button's `data-tab` is still `sources`)
 
 - **Frame Status Tab**: Traffic light (green/amber/red), photo counts (cloud + local), current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API, Reboot Frame — needs install_setup.sh re-run for its polkit rule, PL-142)
-- **Switch Photos Tab**: Source table, add new source form with rclone folder browser, source switching
-- **Tools Tab**: Source selector (shared by all cards), Filename Cleaner (spaces→underscores, long-name >20 chars renamed to YYYYMMDD_HHMMSS, Google ID tokens, numbered suffixes, ext case/wrong-ext), Duplicate Finder, Video File Manager, Rename File (scan all files → editable table → batch cloud-first rename, blank inputs, dup guardrails)
-- **Backups Tab** (PL-164): Photo Backups with its own album picker (one album, or **Whole frame**: one `frame_<name>_<ts>.tar.gz` with `manifest.yaml` first, one-click restore that merges, free-space check; list with full path, restore, download, delete, deleted albums' backups too). Every restore skips photos the album already has (same name + bytes), Recover Albums (cloud folders, take over another frame, upload .zip/.tar.gz)
+- **Albums Tab**: album table (name, cloud folder, cloud and frame counts, status; ID, local path and Activate/Delete behind "Show technical columns"), Add Album (Display Name only; id, local folder and cloud folder derived from it, cloud folder `KFR_<id>` or `_2`… if taken, PL-165). Delete removes the album's photos on the frame, keeps the cloud folder and backups, and is hidden for the album showing (PL-147)
+- **Tools Tab**: Album selector (shared by all cards, reloaded each time the tab opens), Filename Cleaner (spaces→underscores, long-name >20 chars renamed to YYYYMMDD_HHMMSS, Google ID tokens, numbered suffixes, ext case/wrong-ext), Duplicate Finder, Video File Manager, Rename File (scan all files → editable table → batch cloud-first rename, blank inputs, dup guardrails)
+- **Backups Tab** (PL-164): Photo Backups with its own album picker (one album, or **Whole frame**: one `frame_<name>_<ts>.tar.gz` with `manifest.yaml` first, one-click restore that merges, free-space check; list with full path, restore, download, delete, deleted albums' backups too). Every restore skips photos the album already has (same name + bytes). Recover Albums (cloud folders, take over another frame, upload .zip/.tar.gz up to 16 GB). The picker and Recover list reload each time the tab opens
 - **Settings Tab**: Frame settings (name, rotation interval, sync interval, log level, read-only Frame ID + Funnel URL), Network sub-card (LAN IP + WiFi SSID, nested in Frame Settings), device pairing (QR code, manual code, countdown, Tailscale IP, instructions), manage devices (inline table with AJAX revoke via `GET /api/devices`), log viewer (expandable, ops/security toggle, line count, auto-refresh), software updates (check/apply, auto-check schedule, DEV/MAIN branch badge), Demo Mode card (only when `demo.allowed: true` is hand-set in config; reusable reviewer codes, 14-day expiry, revoke on end, amber banner on every tab — PL-015)
 
 ### Key Behaviors
@@ -117,17 +117,17 @@ Tab order: **Frame Status | Switch Photos | Tools | Backups | Settings**
 
 **Android is permanently on hold. iOS only.** Do NOT suggest, plan, or reference Android work.
 
-The iOS app has been built in Xcode and tested on simulator against live tkframe API. Core features verified working. See `docs/TEST_PLAN.md` for the comprehensive manual test plan covering both backend and iOS app.
+Two iOS apps: WanderWall – Photo Frame (Manager, admin) and WanderWall Share (contributor). Built on the Mac (Xcode, simulator against tkframe) and by CodeMagic (IPAs). See `docs/TEST_PLAN.md` for the manual test plan covering both backend and iOS app.
 
 ## Cross-Repo Relationship
 
-| Repo | Purpose | API Role |
-|------|---------|----------|
-| `wanderwall_frame` (this) | Pi backend + dashboard | Defines API |
-| `wanderwall_app` | Mobile app (iOS only) | Consumes API |
+| Repo | Purpose | API Role | PC clone |
+|------|---------|----------|----------|
+| `wanderwall_frame` (this) | Pi backend + dashboard | Defines API | `~/Downloads/GitHub/wanderwall_frame` |
+| `wanderwall_app` | Mobile apps (iOS only) | Consumes API | `~/Downloads/GitHub/wanderwall_app` |
 
 Known issues and parking lot for BOTH repos: `wanderwall_app/docs/PARKING_LOT.md` (single source of truth; frame items tagged `frame`). Do not add items to `docs/PARKING_LOT.md` here — it is only a pointer.
-Phase 4, 5 & 6 plan in `docs/PHASE_4_5_PLAN.md` - **always reference this for next steps**.
+Phase 4, 5 & 6 plan in `docs/PHASE_4_5_PLAN.md` is historical (all built). Next steps come from the parking lot.
 Test plan in `docs/TEST_PLAN.md` - covers backend, dashboard, and iOS app. Test runs stored in `docs/test_runs/`.
 Phase 6 setup guide in `docs/PI_SETUP.md` — includes WiFi recovery usage guide and troubleshooting.
 

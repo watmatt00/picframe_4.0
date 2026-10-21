@@ -6,7 +6,7 @@
 
 This document is the master test plan for the WanderWall ecosystem covering:
 - **Raspberry Pi Backend** (`wanderwall_frame`) - FastAPI, web dashboard, services
-- **iOS Manager App** (`wanderwall_app`) - SwiftUI mobile management app
+- **iOS apps** (`wanderwall_app`) - WanderWall – Photo Frame (Manager) and WanderWall Share (Contributor), SwiftUI
 
 It validates every screen, every displayed data element, every configurable setting, and the interactions between the web dashboard and the iOS app.
 
@@ -64,7 +64,7 @@ These are invisible in rendered markdown but searchable with `grep "FAIL:"`.
 |------|----------|-------|
 | Raspberry Pi 4/5 | Yes | Running wanderwall_frame backend |
 | Tailscale | Yes | Funnel enabled on Pi |
-| Mac with Xcode | Yes | For iOS simulator builds |
+| Mac with Xcode | Yes | For iOS simulator builds (or a CodeMagic IPA on a phone) |
 | iPhone Simulator | Yes | iPhone 14 Pro recommended |
 | Koofr account | Yes | With email + password (not OAuth) |
 | Sample photos | Yes | 5-10 JPG files for upload testing |
@@ -80,7 +80,7 @@ All commands in this plan use hardcoded values for tkframe. If testing a differe
 | Pi LAN IP | `192.168.102.210` |
 | API Port | `8000` |
 | Dashboard | `http://192.168.102.210:8000` |
-| Funnel URL | `https://tkframe.tail7de60a.ts.net` |
+| Funnel URL | `https://tkframe.whale-ayu.ts.net` |
 | Koofr Email | `koofr.obtain355@passmail.net` |
 
 ### How to Reset to Clean State
@@ -114,6 +114,8 @@ systemctl --user start wanderwall-api picframe
 
 ## 3. Component Tests
 
+Section numbers are stable (test runs refer to them). Screens are named as in the screen maps: dashboard `DASH-*` (`docs/SCREEN_MAP.md`), iOS `MM1`/`SD3`/... (`wanderwall_app/docs/SCREEN_MAP.md`).
+
 ---
 
 ### 3.1 Health & Connectivity
@@ -123,6 +125,7 @@ systemctl --user start wanderwall-api picframe
 - [ ] `GET http://192.168.102.210:8000/health` returns `{"status": "ok"}` with HTTP 200
 - [ ] `GET http://192.168.102.210:8000/version` returns `{"version": "5.0.0", "api": "wanderwall"}` with HTTP 200
 - [ ] Dashboard loads at `http://192.168.102.210:8000/` without authentication
+- [ ] From outside the LAN/tailnet (Funnel URL): `/health` 200, `/api/v1/status` 401 without a token, `/` 403 (blocked page)
 - [ ] **Negative:** Request to unreachable IP times out gracefully (no crash)
 - [ ] **Negative:** Request to wrong port returns connection refused
 
@@ -132,44 +135,43 @@ systemctl --user start wanderwall-api picframe
 
 ### 3.2 Pairing
 
-**Endpoints:** `POST /api/v1/pairing/generate`, `POST /api/v1/pair`
+**Endpoints:** `POST /pairing/generate` (dashboard), `POST /api/v1/pairing/generate`, `POST /api/v1/pair`
 
 #### Dashboard: Generate Pairing Code (Settings Tab)
 
-- [ ] Navigate to `http://192.168.102.210:8000/` → Settings tab → Mobile App Pairing card
+- [ ] Navigate to `http://192.168.102.210:8000/` → Settings tab → Mobile App Pairing card → Show
 - [ ] Click "Generate Pairing QR Code" button
 - [ ] QR code image is displayed and non-empty
 - [ ] Manual code is displayed in `ABC-XYZ` format (6 alphanumeric characters)
 - [ ] Expiry countdown is shown (starts at ~5 minutes)
 - [ ] Tailscale IP and Frame URL are displayed below the QR code
-- [ ] 4-step pairing instructions are visible
+- [ ] Pairing instructions are visible
 - [ ] "Regenerate Code" button generates a new code
 - [ ] Pairing result auto-hides when countdown expires
 
-#### iOS: Pair a Frame
+#### iOS: Pair a Frame (PR3)
 
-- [ ] Open app → Frame list shows empty state with "Pair a Frame" button
+- [ ] Fresh install → Welcome screen (WL1) with "Pair a Frame", "How pairing works", "About"
 - [ ] Tap "Pair a Frame" → PairingView opens
-- [ ] Enter Tailscale IP, pairing code, and device name
-- [ ] "Pair Device" button is disabled until all 3 fields are filled
-- [ ] Pairing code field validates 6-7 character length
-- [ ] Tap "Pair Device" → spinner appears during pairing
-- [ ] On success: frame appears in frame list with name, role, IP
+- [ ] **Scan QR Code** opens the camera scanner; scanning the dashboard QR fills Frame URL and code
+- [ ] Or enter Frame URL (placeholder `https://your-frame-address`), Pairing Code and This Device's Name
+- [ ] Pair button is disabled until the fields are filled
+- [ ] On success: Main Menu (MM1) shows the frame; cloud credentials and albums load automatically
 - [ ] JWT token is stored in iOS Keychain (verify via frame operations working)
-- [ ] After pairing, app auto-fetches cloud credentials and source list
 
 #### Negative Cases
 
 - [ ] Wrong pairing code → error message displayed, frame not added
 - [ ] Expired code (wait >5 min) → error message displayed
+- [ ] 3 wrong tries use up a code
 - [ ] Rate limit: generate 3 codes within an hour, 4th attempt returns 429
-- [ ] **Negative:** Empty fields → "Pair Device" button stays disabled
+- [ ] An invite code entered in the Manager app → 403 "This is an invite code. Use the WanderWall Share app to pair with it."
 
 > **Automation candidate:** Full API-level pairing flow scriptable via curl.
 
 ---
 
-### 3.3 Dashboard - Home Page
+### 3.3 Dashboard - Frame Status Tab (DASH-STATUS)
 
 **URL:** `http://192.168.102.210:8000/`
 **API:** `GET /dashboard/status`
@@ -183,7 +185,7 @@ systemctl --user start wanderwall-api picframe
 - [ ] Traffic light is BLUE (animated) when sync is in progress
 - [ ] Cloud photo count is displayed and matches remote count
 - [ ] Frame (local) photo count is displayed and matches local count
-- [ ] Current display source name is shown
+- [ ] Current album name is shown
 - [ ] Current image thumbnail is displayed (from Pi3D)
 
 #### Service Health
@@ -202,35 +204,41 @@ systemctl --user start wanderwall-api picframe
 - [ ] After sync completes, traffic light returns to appropriate color
 - [ ] "Restart Frame" button restarts picframe service
 - [ ] "Restart API" button restarts wanderwall-api service (page may briefly disconnect)
+- [ ] "Reboot Frame" → confirm → frame reboots and the dashboard is back in about 1-2 minutes (on an install without the reboot rule: a message to re-run `install_setup.sh`)
 - [ ] "Refresh" button updates all displayed data
 
-#### Source Switching
+#### Banners (PL-147)
 
-- [ ] Source dropdown/selector lists all configured sources
-- [ ] Switching source updates "Current Source" display
-- [ ] Switching source auto-triggers sync for the new source
+- [ ] Demo mode on → amber banner on every tab
+- [ ] SD card last used on another Pi → banner asks once: keep this frame's albums (moved) or copied (new frame)
+- [ ] This frame taken over by another Pi → banner with Undo
 
 #### Advanced Mode
 
-- [ ] Advanced toggle reveals technical details (JSON, API paths)
+- [ ] Advanced toggle reveals technical details (Source ID, Frame ID)
 
 ---
 
-### 3.4 Dashboard - Settings Tab
+### 3.4 Dashboard - Settings Tab (DASH-SETTINGS)
 
 **URL:** `http://192.168.102.210:8000/` → Settings tab
-**API:** `POST /api/settings`
+**API:** `POST /api/settings`, `POST /api/settings/log-level`, `POST /api/settings/sleep-schedule`
 
 - [ ] Frame ID displayed (read-only, grayed out)
 - [ ] Frame Name displayed and editable
 - [ ] Funnel URL displayed (read-only, grayed out)
-- [ ] Rotation Interval field shown with current value (seconds)
-- [ ] Rotation Interval accepts values 5-3600
-- [ ] Sync Interval field shown with current value (minutes)
-- [ ] Log Level dropdown: DEBUG, INFO, WARNING, ERROR
+- [ ] Rotation Interval field shown with current value (seconds), accepts 5-3600
+- [ ] Sync Interval field shown with current value
+- [ ] Fade Time field (0.5-30 s)
 - [ ] "Save Settings" button → success message displayed
 - [ ] Reload page → saved values persist
 - [ ] Changing rotation interval triggers frame display restart (message confirms)
+- [ ] Network sub-card shows LAN IP and WiFi name
+- [ ] Cloud Sync sub-card: Save & Verify checks the Koofr login live; Test Connection reports the result
+- [ ] Display Sleep Schedule sub-card: set off/on times → Save Schedule → display goes off and on at those times
+- [ ] Logs card: Log Level DEBUG/INFO/WARNING/ERROR + Save Level
+- [ ] Updates card: DEV/MAIN badge, Check for Updates, schedule (Frequency, Day, Time) saves
+- [ ] Party Mode: needs type-to-confirm; on → sync and WiFi watchdog stop; off → they resume
 
 ---
 
@@ -239,7 +247,7 @@ systemctl --user start wanderwall-api picframe
 **URL:** `http://192.168.102.210:8000/` → Settings tab → "Manage Devices" button
 **API:** `GET /api/devices`, `POST /devices/{id}/revoke`
 
-- [ ] Click "Manage Devices" button → device table card appears
+- [ ] Click "Manage Devices" button → Paired Devices card appears
 - [ ] Device table lists all paired devices
 - [ ] Each device shows: name, role (badge), paired date, last seen
 - [ ] Device summary shows count and admin count
@@ -260,60 +268,56 @@ _(Covered in section 3.2 above - Dashboard: Generate Pairing Code)_
 
 ### 3.7 Dashboard - Log Viewer (Settings Tab)
 
-**URL:** `http://192.168.102.210:8000/` → Settings tab → "Show logs" toggle
+**URL:** `http://192.168.102.210:8000/` → Settings tab → Logs card → Show
 **API:** `GET /api/logs`
 
-- [ ] Click "Show logs" toggle → log viewer expands
+- [ ] Show → log viewer expands
 - [ ] Operations log displayed by default
-- [ ] Toggle between "Operations" and "Security" log types via dropdown
+- [ ] Toggle between "Operations Log" and "Security Log" via dropdown
 - [ ] Line count selector works (50 / 100 / 500)
 - [ ] Log entries display with timestamps in monospaced font
 - [ ] Security log shows pairing attempts and auth events
 - [ ] Operations log shows sync events and service actions
 - [ ] "Refresh" button loads latest entries
-- [ ] Auto-refresh checkbox enables 5-second polling
-- [ ] Click "Hide logs" toggle → log viewer collapses
 
 ---
 
-### 3.8 iOS - Splash & Main Menu
+### 3.8 iOS - Splash, Welcome & Main Menu
 
-**Views:** `SplashView.swift`, `MainMenuView.swift`
+**Views:** `SplashView.swift`, `MainContentView.swift` (WL1), `MainMenuView.swift` (MM1)
 
 #### Splash Screen
 
 - [ ] App launches with splash animation
-- [ ] Splash transitions to main content automatically
+- [ ] Splash transitions to Welcome (no frame) or Main Menu automatically
 
-#### Main Menu (MainMenuView)
+#### Main Menu (MM1)
 
-- [ ] Header shows app icon and connected user email
-- [ ] Koofr storage card shows used/free/total (progress bar)
-- [ ] "Your Frames" card shows up to 3 paired frames
-- [ ] Each frame card shows: name, status dot (green=online, red=offline), role, current source, sync status, photo counts
-- [ ] Menu buttons visible: Upload Photos, Switch Source, About
-- [ ] Settings gear button in toolbar
-- [ ] Auto-selects first frame on appearance
-- [ ] Auto-fetches Koofr credentials and quota on appearance
-- [ ] Tapping a frame card navigates to Frame Detail
+- [ ] Header shows "WanderWall" (and "Frame: <name>" with more than one frame)
+- [ ] SetupCard ("Let's get you set up") until a cloud login is saved
+- [ ] Cloud Storage card shows free / used / total
+- [ ] "Your Frames" card shows up to 3 paired frames: name, online dot, album, sync status, counts
+- [ ] Menu buttons: Upload Photos, Albums (subtitle = album showing), Share Upload Link (admin), About
+- [ ] Toolbar: "+" → Frames list, gear → Settings
+- [ ] Tapping Your Frames: one frame → Frame Detail; several → Frames list
+- [ ] Revoked on the frame → RepairBanner with Re-pair / Remove
 
 ---
 
-### 3.9 iOS - Frame List & Pairing
+### 3.9 iOS - Frame List & Pairing (FL2)
 
 **Views:** `FrameListView.swift`, `PairingView.swift`
 
 #### Frame List
 
-- [ ] Empty state shows message and "Pair a Frame" button when no frames paired
-- [ ] Paired frames listed with: name, role badge, IP address
-- [ ] Online status indicator: green dot = online, red dot = offline
-- [ ] Online status is accurate (ping frame, compare to displayed status)
-- [ ] Swipe left on frame → "Unpair" action appears
-- [ ] Confirm unpair → frame removed from list
+- [ ] Empty state "No Frames Paired" with "Pair a Frame" button
+- [ ] Paired frames listed with: name, role badge, online/offline (no address; PL-162)
+- [ ] "Needs re-pair" badge on a frame that no longer accepts this phone
+- [ ] Online status is accurate (check the frame's `/health`, compare to displayed status)
+- [ ] Swipe left on frame → "Unpair" → confirm → frame removed from list
 - [ ] Pull-to-refresh updates online status
-- [ ] "Add Another Frame" button at bottom of list
-- [ ] Tapping a frame navigates to Frame Detail
+- [ ] Toolbar "+" → PairingView
+- [ ] Tapping a frame opens Frame Detail (full screen)
 
 #### Pairing Flow
 
@@ -321,241 +325,186 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 
 ---
 
-### 3.10 iOS - Frame Detail View
+### 3.10 iOS - Frame Detail View (FD3)
 
 **View:** `FrameDetailView.swift`
 
-#### Status Header
+#### Header and Status Card
 
-- [ ] Frame icon displayed
-- [ ] Online/offline indicator matches actual state
-- [ ] Role badge shows "Admin" or "Contributor"
-- [ ] IP address displayed
-
-#### Storage Card
-
-- [ ] Storage capacity shown (used / total)
-- [ ] Progress bar reflects storage usage
-- [ ] Progress bar turns red when >90% used
-- [ ] Raw byte values are human-readable (GB/MB format)
-
-#### Quick Actions
-
-- [ ] "Upload Photos" button → navigates to upload flow
-- [ ] "Switch Source" button → navigates to DestinationsView
+- [ ] Frame icon, online/offline indicator matches actual state
+- [ ] Role badge shows "Admin" or "Contributor"; no address shown (PL-162)
+- [ ] Status card: album showing, sync badge, photos on frame / in cloud
+- [ ] Frame storage (free of total, used) is human-readable
 
 #### Services Section (Admin only)
 
-- [ ] Lists services: WanderWall Display, WanderWall API
-- [ ] Each service shows running/stopped status with colored dot
-- [ ] Restart button present for each service
-- [ ] Tap restart → confirmation → service restarts → status updates
-- [ ] **Negative:** Restart non-existent service → error handled gracefully
+- [ ] Lists the frame's services with running/stopped dots
+- [ ] Tap Restart → confirmation → service restarts → status updates
 
-#### Device Management (Admin only)
+#### Paired Devices (Admin only)
 
-- [ ] Paired device count displayed
-- [ ] Tapping shows device list (name, role, paired date)
+- [ ] "N devices paired" → Paired Devices sheet (DV4): name, role, "This device", paired date, last seen
+- [ ] Swipe → Revoke Access → confirm (not this device)
+
+#### Connection (Admin only)
+
+- [ ] Home WiFi light: green when the frame is on the LAN, with the WiFi name
+- [ ] Remote access light: green when the frame answers on its Funnel URL from the internet; no light when no Funnel URL
+- [ ] Local Dashboard link opens `http://<lan>:8000` in Safari (works on the home WiFi)
 
 #### Navigation
 
-- [ ] Settings button → opens SettingsView sheet
+- [ ] Frame Settings → Manage Frame (MF3); contributors see "Admin only"
 - [ ] Refresh button in toolbar updates all data
 
 ---
 
-### 3.11 iOS - Switch Source (Destinations)
+### 3.11 iOS - Albums (SW2, SD3, AS3, MP3)
 
-**View:** `DestinationsView.swift` (SwitchPhotosView, AddSourceView, SourceDetailView)
+**Views:** `DestinationsView.swift` (SwitchPhotosView, AddSourceView, SourceDetailView), `ManagePhotosView.swift`
 
-#### Currently Displaying Section
+#### Currently Displaying (SW2)
 
-- [ ] Current source name shown
-- [ ] Sync status displayed: "In Sync" / "Out of Sync" / "Syncing" / "Sync Error"
-- [ ] Local photo count (photos on frame) displayed
-- [ ] Cloud photo count displayed
-- [ ] Last sync timestamp shown
-- [ ] "Sync Now" button visible (admin only)
-- [ ] Tap "Sync Now" → sync triggers → status updates
+- [ ] Album showing, sync status badge, on frame / in cloud counts, last sync
+- [ ] "Sync Now" (admin) → sync triggers → status updates
+- [ ] "Manage Photos" → MP3 (disabled without a cloud folder)
 
-#### Source List
+#### Album List
 
-- [ ] All configured sources listed
-- [ ] Each source shows: name, photo count, path
-- [ ] Active source has a badge/indicator
-- [ ] Tapping a source opens SourceDetailView sheet
+- [ ] All albums listed: name, Active badge, photo count
+- [ ] Tapping an album opens Album Detail (SD3)
+- [ ] Pull-to-refresh reloads the list
 
-#### Activate Source
+#### Album Detail (SD3)
 
-- [ ] Tap inactive source → "Activate" button in detail view
-- [ ] Activate → source becomes active, auto-sync triggers
-- [ ] Verify "Currently Displaying" section updates to new source
-- [ ] Verify traffic light / sync status reflects the switch
+- [ ] Album Info: Name, Status, Photos on Frame; admin: Technical details (frame folder, cloud folder); no "Stored on frame as" row
+- [ ] Sync Status: cloud files, local files, status
+- [ ] Actions in order: Show on Frame (if not showing), Upload Photos (if it has a cloud folder), Rename Album, Sync Now (if showing), Share Upload Link
+- [ ] Show on Frame → album becomes active, sync starts, SW2 updates
+- [ ] Rename Album → new name shown in the app and dashboard; folders unchanged
+- [ ] Upload Photos → UP2 with this album preselected; after upload the album syncs (PL-144)
+- [ ] Delete Album (red, own section) → confirm → album gone, its photos removed from the frame, cloud folder kept (PL-147)
+- [ ] Delete Album is disabled for the album showing, with the explanation line
 
-#### Add New Source (Admin only)
+#### New Album (AS3, admin only)
 
-- [ ] "Add New Source" button visible
-- [ ] Enter folder name → tap "Create Source"
-- [ ] New source appears in list
-- [ ] Backend auto-configures rclone remote (KFR_{source_id} folder created, or KFR_{source_id}_2… if that folder already exists in the cloud, PL-165)
-- [ ] **Negative:** Empty name → button disabled or error
+- [ ] "+" in the toolbar (or "Add Album" when there are none) → New Album
+- [ ] Enter Album Name → "Create Album" → album appears in the list
+- [ ] Backend auto-configures the cloud folder `KFR_{id}`, or `KFR_{id}_2`… if that folder already exists in the cloud (PL-165)
+- [ ] **Negative:** Empty name → button disabled
 
-#### Source Detail View
+#### Manage Photos (MP3)
 
-- [ ] Source name displayed
-- [ ] Status: Active / Inactive
-- [ ] Photo count shown
-- [ ] Path displayed
-- [ ] Sync status details: cloud files, local files, sync status badge
-- [ ] "Activate" button (if not active, admin only)
-- [ ] "Sync Now" button (admin only)
-
-#### Navigation
-
-- [ ] Pull-to-refresh reloads source list and sync status
+- [ ] Lists the album's photos on the frame with thumbnails; list/grid toggle; sort Newest/Oldest; search
+- [ ] Select one → Rename → new name on the frame and in the cloud
+- [ ] Select one → Preview → photo shows on the frame for N seconds with a countdown; Stop ends it
+- [ ] Select several → Delete (N) → confirm → removed from the cloud and the frame
+- [ ] "+" → UP2 for this album; list reloads when it closes (PL-145)
 
 ---
 
-### 3.12 iOS - Upload Photos
+### 3.12 iOS - Upload Photos (UP2)
 
-**Views:** `UploadSheetView.swift`, `UploadView.swift`
+**View:** `UploadSheetView.swift`
 
-#### Destination Picker
+#### Album Picker
 
-- [ ] Segmented control shown when 2 or fewer destinations
-- [ ] Menu picker shown when more than 2 destinations
-- [ ] All configured Koofr destinations appear
-- [ ] Default destination is pre-selected
+- [ ] "Album" header; segmented control for 2 or fewer albums, menu above (PL-146)
+- [ ] Opened from MM1: the album showing is preselected; from SD3/MP3: that album
+- [ ] "Uploading to: <frame>" with more than one frame
+- [ ] Not connected / no albums states explained
 
 #### Photo Selection
 
-- [ ] Photo picker opens iOS photo library
-- [ ] Can select up to 20 photos
-- [ ] Selected photos show as thumbnail grid (4 columns)
-- [ ] Photo count displayed
+- [ ] "Select Photos" opens the iOS photo library
+- [ ] Selected photos show as a thumbnail grid, with count and "Clear"
+- [ ] Photo info → Photo Details (PD3)
 
 #### Upload Flow
 
-- [ ] "Upload" button triggers upload to Koofr
-- [ ] Progress indicator shows current/total (e.g., "3/10")
-- [ ] Success message: "Photos will sync to your frame automatically"
-- [ ] Koofr quota refreshes after upload
-- [ ] **Negative:** No Koofr credentials configured → appropriate error message
+- [ ] "Upload" sends the photos to the album's cloud folder
+- [ ] Progress shows "Uploading N of M"; slow-connection hint on a slow network
+- [ ] A photo already in the album is skipped
+- [ ] Cloud quota refreshes after upload
+- [ ] **Negative:** No cloud credentials → appropriate message
 - [ ] **Negative:** Upload failure (network issue) → error message, no crash
-- [ ] **Negative:** Select 0 photos → upload button disabled
+- [ ] **Negative:** 0 photos selected → upload button disabled
 
 > **Automation candidate:** Koofr upload via API is scriptable for quota/file verification.
 
 ---
 
-### 3.13 iOS - Settings
+### 3.13 iOS - Settings (ST2, MF3, AP3)
 
-**View:** `SettingsView.swift`
+**Views:** `SettingsView.swift` (ST2, AppSettingsView AP3), `FrameSettingsView.swift` (MF3), `UpdateScheduleView.swift` (US4), `ChangeCredentialsView.swift` (CR4)
 
-#### Account Section
+#### Settings hub (ST2)
 
-- [ ] Connected email address displayed
-- [ ] "Test Connection" button → tests Koofr connection → result shown
+- [ ] Two cards: Frame → Manage Frame, App → App Settings; Frame disabled with no frame paired
 
-#### Storage Section
+#### Manage Frame (MF3, admin)
 
-- [ ] Progress bar shows Koofr storage usage
-- [ ] Used/free values displayed (human-readable)
-- [ ] Only appears when quota data is available
+- [ ] Frame Identity: change Frame Name → Save → "Rename Frame?" → name updates on the dashboard
+- [ ] Display Settings: rotation interval slider (5 sec-10 min) → Save → display restarts
+- [ ] Sync Settings: sync interval slider (1-60 min) → Save (sent as seconds); Sync Now
+- [ ] Frame Actions: Restart <service>; Reboot Frame → confirm → back in about 1-2 minutes; View Logs → LG3
+- [ ] Frame Software: Version, Check Now, Apply Update Now (when available), Update Schedule (US4: toggles, frequency, day, time, Save)
+- [ ] Contributors: Invite to App → IN2
+- [ ] Danger Zone: Unpair This Frame → confirm
+- [ ] Contributor role: "Admin Only" message instead
 
-#### Frame Actions (Admin only)
+#### App Settings (AP3)
 
-- [ ] "Sync Now" button → triggers sync on selected frame
-- [ ] Service restart buttons with status dots (green=running, red=stopped)
-- [ ] "View Logs" button → opens LogViewerView sheet
-
-#### Sync Settings (Admin only)
-
-- [ ] Sync interval slider: 1-60 minutes
-- [ ] Slider shows current value
-- [ ] "Save" button saves interval (sends value × 60 as seconds to API)
-- [ ] Saved value persists on reload
-
-#### Danger Zone
-
-- [ ] "Change Credentials" → prompts for new Koofr email/password
-- [ ] "Unpair All Frames" → confirmation dialog → removes all frames
-- [ ] "Clear All Data" → confirmation dialog → wipes credentials, frames, destinations
-- [ ] Each danger action has a confirmation dialog before executing
-
-#### App Info
-
-- [ ] Version "1.0.0" displayed at bottom
-- [ ] Success/error messages shown for operations
+- [ ] Account: Connected Account (email), Cloud Storage "Connected", Frame Network with the helper line (PL-148)
+- [ ] Test Connections → results per row; an unreachable frame shows "Unreachable"
+- [ ] Storage: cloud quota (used, %, free)
+- [ ] WanderWall: version; App Cache: size, Clear Cache
+- [ ] Change Credentials → Credentials screen (CR4): email, app password, Save & Test Connection
+- [ ] Unpair All Frames → confirm → all frames removed
+- [ ] Clear All Data → confirm → frames and credentials wiped
 
 ---
 
-### 3.14 iOS - Log Viewer
+### 3.14 iOS - Frame Logs (LG3)
 
-**View:** `LogViewerView.swift`
+**View:** `LogViewerView.swift` (title "Frame Logs")
 **API:** `GET /api/v1/logs?lines={n}&log_type={type}`
 
-- [ ] Segmented picker: "Operations" / "Security"
-- [ ] Defaults to "Operations" log
-- [ ] Log entries displayed in scrollable list
+- [ ] Opened from Manage Frame → View Logs
+- [ ] Segmented picker: "Operations" / "Security"; defaults to Operations
+- [ ] Log entries displayed in a scrollable list, monospaced
 - [ ] Color-coded dots: ERROR=red, WARNING=orange, INFO=blue, other=gray
-- [ ] Text uses monospaced caption font
-- [ ] Refresh button in toolbar reloads entries
-- [ ] Fetches 200 lines by default
-- [ ] Loading spinner while fetching
-- [ ] Empty state when no log entries
-- [ ] Switching log type triggers reload
+- [ ] Refresh reloads entries; switching log type reloads
+- [ ] Empty state "No log entries"
 
 ---
 
 ### 3.15 iOS - File Browser
 
-**View:** `FileBrowserView.swift`
-
-- [ ] Directory listing shows folders and files
-- [ ] Files show: name, size (human-readable), date, type icon
-- [ ] Folders are distinguishable from files
-- [ ] Swipe to delete on a file → confirmation alert
-- [ ] Confirm delete → file removed from list
-- [ ] Pull-to-refresh reloads file list
-- [ ] Empty state displayed when folder is empty
-- [ ] Navigation title shows current path/folder name
+_Removed: `FileBrowserView.swift` no longer exists. Photo management is Manage Photos (3.11)._
 
 ---
 
-### 3.16 iOS - About View
+### 3.16 iOS - About View (AB2)
 
 **View:** `AboutView.swift`
 
-- [ ] App name and info displayed
-- [ ] Version information shown
-- [ ] "How it works" explanation present
-- [ ] Koofr link/reference included
+- [ ] App name, about text and How It Works shown
+- [ ] The frame's current settings (photo change and sync intervals) with a Settings button → ST2
+- [ ] Support line present
 - [ ] No broken links or placeholder text
 
 ---
 
 ### 3.17 iOS - Setup View
 
-**View:** `SetupView.swift`
-
-- [ ] Initial Koofr connection setup screen
-- [ ] Email and password fields
-- [ ] Connection test on submit
-- [ ] Success → credentials saved, proceed to main app
-- [ ] Failure → error message displayed
+_Removed: `SetupView.swift` no longer exists. Cloud credentials come from the frame after pairing, or from App Settings → Change Credentials (3.13)._
 
 ---
 
 ### 3.18 iOS - Add Destination View
 
-**View:** `AddDestinationView.swift`
-
-- [ ] Custom Koofr upload destination creation
-- [ ] Folder browser (FolderBrowserView) for selecting Koofr path
-- [ ] Label input for destination name
-- [ ] Save creates destination in local storage
-- [ ] New destination appears in upload destination picker
+_Removed: `AddDestinationView.swift` no longer exists. Albums are created on the frame (New Album, 3.11) and become upload destinations automatically._
 
 ---
 
@@ -563,19 +512,123 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 
 **Model:** `FrameRole` in `PairedFrame.swift`
 
-#### Admin Role
+#### Admin Role (Manager app)
 
-- [ ] All features accessible: restart, settings, device management, source create, sync
+- [ ] All features accessible: restart, reboot, settings, device management, album create/rename/delete, sync, invites, upload links
 
-#### Contributor Role (Placeholder)
+#### Contributor Role (WanderWall Share app)
 
-- [ ] Cannot restart services (buttons hidden/disabled)
-- [ ] Cannot access settings
-- [ ] Cannot manage devices
-- [ ] Cannot create new sources
-- [ ] Can view status and upload photos
+- [ ] Pairs only with an invite code (Manager app refuses invite codes, 3.2)
+- [ ] `/api/v1/contributor/*` works; every admin route returns 403 "Admin access required"
+- [ ] Can upload photos (3.26); can't change anything on the frame
 
-> **Note:** Contributor role is not yet fully implemented on the backend. This section serves as a placeholder for when contributor invite flow is complete.
+---
+
+### 3.20 Dashboard - Albums Tab (DASH-ALBUMS)
+
+**URL:** Albums tab
+**API:** `GET /api/sources`, `POST /api/sources/create`, `POST /api/sources/delete`, `POST /api/frame-live`
+
+- [ ] Albums table lists every album with cloud and frame counts and status
+- [ ] "Show technical columns" reveals ID, Local Path, Actions
+- [ ] Activate → confirm → album shows on the frame and syncs
+- [ ] Add Album: enter a Display Name → Add Album → appears in the table; cloud folder created (`KFR_<id>`)
+- [ ] Add an album whose name matches an existing cloud folder (e.g. one deleted earlier, or another frame's `kframe`) → it gets `KFR_<id>_2`, not the existing folder (PL-165)
+- [ ] With cloud storage unreachable, a new album is created without a cloud folder (no error); after the cloud is back, Test Connection fills it in
+- [ ] Delete → confirm (states the photo count, cloud folder kept) → album gone, `~/Pictures/<id>` removed, cloud folder still there (PL-147)
+- [ ] Delete is not offered for the album that's showing; via API it returns 409
+- [ ] Deleting an album while it syncs → 409
+
+---
+
+### 3.21 Dashboard - Tools Tab (DASH-TOOLS)
+
+- [ ] Album selector lists the albums; switching tabs and back keeps the choice
+- [ ] Delete an album on the Albums tab, open Tools without reloading → it's gone from the selector
+- [ ] Filename Cleaner, Duplicate Finder, Video File Manager, Rename File: scan, review, apply; changes reach the cloud folder first, then the frame
+
+---
+
+### 3.22 Dashboard - Backups Tab: Photo Backups (DASH-BACKUPS, PL-164)
+
+**API:** `/api/tools/backup/*`, `POST /api/albums/restore-backup`
+
+- [ ] Backups tab exists; Tools has no Photo Backups or Recover Albums card
+- [ ] Picker defaults to **Whole frame**; lists every backup with its full path (`/home/pi/Pictures/backups/...`), size, created
+- [ ] Pick one album → only that album's backups (not a longer id's, e.g. `trip` vs `trip_2`)
+- [ ] Create Backup on one album → `<id>_<ts>.tar.gz` appears
+- [ ] Create Backup on Whole frame → confirm → one `frame_<name>_<ts>.tar.gz`; status shows the path and size
+- [ ] With too little free space → refused with "Not enough free space…" (1 GB kept free), no partial file
+- [ ] Download → the file saves to the computer
+- [ ] Restore a whole-frame backup onto the frame as it is → every album "already there", nothing doubled
+- [ ] Delete an album → Restore the whole-frame backup → the album comes back on its own cloud folder ("deleted album re-added"); the others already there
+- [ ] Restore twice → second run adds nothing
+- [ ] Restore one album's backup into an album that has its photos → "already there"; a different photo with the same name → saved as `name_1`
+- [ ] A deleted album's backup shows "deleted" and restores into a new album (asks for a name)
+- [ ] Delete a backup (album's or whole frame's) → confirm → gone
+- [ ] Delete an album on the Albums tab, open Backups without reloading → picker and Recover list are current
+
+---
+
+### 3.23 Dashboard - Backups Tab: Recover Albums (PL-147)
+
+**API:** `/api/albums/recoverable`, `recover-cloud`, `upload-archive`, `take-over`, `undo-takeover`, `frame-swap`
+
+- [ ] Delete an album → Recover Albums lists it under "From cloud storage" with its photo count
+- [ ] Recover → album re-added on its own cloud folder and synced; registry shows it active again
+- [ ] Albums that belong to another frame on the shared account are never listed
+- [ ] On a shared account, unclaimed `KFR_*` folders appear only after ticking "Show unclaimed folders" (with the warning)
+- [ ] Upload a .zip of photos into an existing album → photos added and uploaded to its cloud folder; non-photos skipped
+- [ ] Upload into a new album → album created
+- [ ] Upload a downloaded whole-frame backup → every album restored (the album choice is ignored)
+- [ ] File over 16 GB, or bigger than the free space → refused
+- [ ] Cloud unreachable → the cloud part shows the error, the rest still works
+
+---
+
+### 3.24 Album Registry, Frame Swap and Take Over (PL-147)
+
+- [ ] `~/.wanderwall/frame_albums.yaml` lists every album with status active/deleted
+- [ ] Its copy appears in Koofr `.picframe/frames/<pi-serial>.yaml` after a change
+- [ ] Reinstall on the same Pi with a fresh card: after Koofr setup the list comes back from the cloud and deleted albums are recoverable
+- [ ] SD card moved to another Pi: dashboard asks once (moved/copied); "moved" keeps the albums and marks the old board replaced
+- [ ] New Pi + fresh card: Recover Albums → Other frames → Take over (name typed if seen in the last 24 h); the old frame's albums become recoverable
+- [ ] A mistaken take over: the running frame shows a banner with Undo; Undo clears it
+
+---
+
+### 3.25 Status Connection Lights (5.0.0)
+
+**API:** `GET /api/v1/status` → `network`
+
+- [ ] `network.local_connected` true on WiFi/Ethernet; `wifi_ssid` names the network ("" when wired)
+- [ ] `network.remote_access` true when the Funnel URL answers from the internet; false when Funnel is off; null with no Funnel URL
+- [ ] The app's Connection lights (FD3) match
+
+---
+
+### 3.26 iOS - WanderWall Share (Contributor app)
+
+**Views:** `ContributorHomeView.swift` (CO1, CH1, CS2, CA3), `PairingView.swift`
+
+- [ ] Fresh install → Onboarding (CO1): "WanderWall Share", Pair with Frame
+- [ ] Pair with an invite QR or code from the Manager app (IN2) → Home (CH1)
+- [ ] Album picker ("Album"; segmented ≤2, menu above)
+- [ ] Select Photos → Upload → "Uploading N of M"; photos reach the album's cloud folder
+- [ ] Upload the same photo again → skipped ("Already in …")
+- [ ] Photo over 50 MB → refused
+- [ ] Settings (CS2): Unpair a frame, Pair Another Frame, Test Connection, Clear All Data, Version, About (CA3)
+- [ ] Invite revoked/frame revoked this phone → RepairBanner
+
+---
+
+### 3.27 iOS - Invites and Upload Links (IN2, UL3)
+
+- [ ] Manage Frame → Invite to App → New Invite → optional name → QR card (48 h)
+- [ ] Pending, Claimed ("Claimed by …") and Expired sections; Clear All on Expired
+- [ ] Row QR button shows the QR sheet; trash revokes a pending invite
+- [ ] Share Upload Link (MM1 for the album showing, or SD3 for that album): Generate → link and password; Share Link opens the share sheet; Revoke Link → confirm → link stops working
+- [ ] Album without a cloud folder → "This album has no cloud folder, so it can't accept uploads."
 
 ---
 
@@ -589,12 +642,12 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 
 - [ ] Start with clean iOS app (no stored data)
 - [ ] Generate pairing code on dashboard (Settings tab → "Generate Pairing QR Code")
-- [ ] In app: enter IP, code, device name → pair successfully
+- [ ] In app: Welcome → Pair a Frame → scan the QR (or enter Frame URL, code, device name) → pair successfully
 - [ ] Frame appears in app with online status
-- [ ] Configure Koofr credentials in Settings (or via SetupView)
+- [ ] Cloud credentials arrive from the frame automatically (or set them in App Settings → Change Credentials)
 - [ ] Test Koofr connection → success
 - [ ] Upload 3-5 sample photos via Upload screen
-- [ ] Verify photos appear in Koofr (via web or file browser)
+- [ ] Verify photos appear in Koofr (Koofr web)
 - [ ] Trigger sync from app or wait for auto-sync
 - [ ] Verify photo count on frame matches uploaded count
 - [ ] Dashboard shows matching counts and GREEN traffic light
@@ -606,7 +659,7 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 **Goal:** Validate the typical photo upload workflow.
 
 - [ ] Open app → main menu shows current frame status
-- [ ] Tap "Upload Photos" → select 5 photos → choose destination
+- [ ] Tap "Upload Photos" → choose the album → select 5 photos
 - [ ] Upload completes with progress indicator → success message
 - [ ] Koofr quota updates (used space increases)
 - [ ] Trigger sync (or wait for scheduled sync)
@@ -616,19 +669,18 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 
 ---
 
-### 4.3 Source Management
+### 4.3 Album Management
 
-**Goal:** Validate creating and switching between photo sources.
+**Goal:** Validate creating, filling, showing and deleting albums.
 
-- [ ] In app: Switch Source → tap "Add New Source"
-- [ ] Enter name (e.g., "Test Source") → create
-- [ ] New source appears in list with 0 photos
-- [ ] Upload photos to the new source's Koofr folder
-- [ ] Tap new source → "Activate" in detail view
-- [ ] Frame switches to new source → sync triggers automatically
-- [ ] "Currently Displaying" updates to new source name
-- [ ] Photo count reflects the new source's photos
-- [ ] Previous source is no longer marked as active
+- [ ] In app: Albums → "+" → New Album "Test Album" → Create Album
+- [ ] New album appears in list with 0 photos
+- [ ] Album Detail → Upload Photos → upload 3 photos (album preselected; it syncs afterwards)
+- [ ] Album Detail → Show on Frame → frame switches, sync triggers automatically
+- [ ] "Currently Displaying" updates to the new album; counts match
+- [ ] Previous album is no longer marked as active
+- [ ] Show the previous album again, then Delete "Test Album" → its photos leave the frame, cloud folder kept
+- [ ] Dashboard → Backups → Recover Albums → Recover "Test Album" → it comes back with its photos
 
 ---
 
@@ -636,8 +688,10 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 
 **Goal:** Validate that changes made in one interface are reflected in the other.
 
-- [ ] **Dashboard → App:** Switch source on dashboard → refresh app → app shows new source
-- [ ] **App → Dashboard:** Change sync interval in app Settings (e.g., 5 min) → reload dashboard Settings tab → shows new value
+- [ ] **Dashboard → App:** Activate an album on the dashboard → refresh app → app shows it
+- [ ] **Dashboard → App:** Delete an album on the dashboard → it's gone from the app's Albums list
+- [ ] **App → Dashboard:** Change sync interval in Manage Frame (e.g., 5 min) → reload dashboard Settings tab → shows new value
+- [ ] **App → Dashboard:** Rename an album in the app → dashboard Albums tab shows the new name
 - [ ] **App → Dashboard:** Restart a service from app → dashboard shows service restarting/recovering
 - [ ] **App → Dashboard:** Upload photos in app → trigger sync → dashboard counts update
 - [ ] **Dashboard → App:** Revoke a device on dashboard (Settings tab → Manage Devices) → app for that device gets unauthorized errors
@@ -648,12 +702,14 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 
 **Goal:** Validate administrative operations.
 
-- [ ] Open app Settings → "View Logs" → operations log loads
+- [ ] Open Manage Frame → "View Logs" → operations log loads
 - [ ] Switch to security log → security events displayed
 - [ ] Restart WanderWall Display service from app → service recovers
 - [ ] Restart WanderWall API service from app → brief disconnect, then reconnects
 - [ ] Check sync status after restart → services resume normally
 - [ ] Trigger manual sync → verify it completes and counts match
+- [ ] Reboot Frame from Manage Frame → frame is back in about 1-2 minutes and the app reconnects
+- [ ] Check Now in Frame Software → shows whether an update is available
 
 ---
 
@@ -666,7 +722,7 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 - [ ] App Frame Detail shows paired device count = 2
 - [ ] Revoke second device from app → device removed
 - [ ] Dashboard Manage Devices table updates to show only 1 device
-- [ ] **Negative:** Attempt to revoke last admin → error: "Cannot revoke last admin device"
+- [ ] **Negative:** Attempt to revoke last admin → error: "Cannot revoke the last admin device. Add another admin first."
 
 ---
 
@@ -685,18 +741,34 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 
 ---
 
+### 4.8 Backup, Replace and Migrate (PL-147, PL-164)
+
+**Goal:** Validate that a frame's albums survive a reinstall or a new frame.
+
+- [ ] Dashboard → Backups → Whole frame → Create Backup → Download the file to a computer
+- [ ] Restore it straight away → everything "already there"
+- [ ] Delete two albums → Restore the whole-frame file → both come back on their own cloud folders
+- [ ] On another frame (or after a fresh install) on the **same** cloud account: Recover Albums → Take over the old frame → recover its albums from the cloud
+- [ ] On a frame on a **different** cloud account: Recover Albums → Upload the downloaded file → every album recreated with its photos, on new cloud folders
+- [ ] Next sync keeps every restored photo
+
+---
+
 ## 5. API Validation (curl commands)
 
 ### Before You Start: Get Your JWT Token
 
 Most curl commands below require a JWT token. Set it once in your terminal session:
 
-**Option A** — Pull from the Pi's device file (if already paired):
+**Option A** — Pair via the dashboard's pairing endpoint (no token needed on the LAN; uses one of the 3 codes an hour):
 ```bash
-TOKEN=$(ssh matt@192.168.102.210 "python3 -c \"import json; d=json.load(open('.wanderwall/devices.json')); print(d['devices'][0]['token'])\"")
+CODE=$(curl -s -X POST http://192.168.102.210:8000/pairing/generate | python3 -c "import json,sys; print(json.load(sys.stdin)['code'])")
+TOKEN=$(curl -s -X POST http://192.168.102.210:8000/api/v1/pair -H "Content-Type: application/json" \
+  -d "{\"code\":\"$CODE\",\"device_name\":\"curl-test\",\"requested_role\":\"admin\"}" | python3 -c "import json,sys; print(json.load(sys.stdin)['token'])")
 ```
+This adds a "curl-test" device; revoke it on the dashboard when you're done. (The frame doesn't store tokens, so there's no token to copy from the Pi.)
 
-**Option B** — Pair via curl (run tests 5.3 + 5.4 first, then copy the token from the response):
+**Option B** — Paste a token you already have:
 ```bash
 TOKEN=eyJhbG...paste_your_token_here...
 ```
@@ -803,7 +875,7 @@ curl -s http://192.168.102.210:8000/api/v1/folders/{source_id}/sync/status \
 # 5.11 Restart picframe service
 curl -s -X POST http://192.168.102.210:8000/api/v1/services/picframe/restart \
   -H "Authorization: Bearer $TOKEN"
-# Expected: {"success":true,"message":"Service 'picframe' restarted successfully"}
+# Expected: {"service":"picframe","action":"restart","success":true,"message":"Service 'picframe' restarted successfully"}
 
 # 5.12 Invalid service name
 curl -s -X POST http://192.168.102.210:8000/api/v1/services/invalid_service/restart \
@@ -829,17 +901,17 @@ curl -s -X PUT http://192.168.102.210:8000/api/v1/settings/sync-interval \
   -d '{"interval":600}'
 # Expected: {"success":true,"message":"Sync interval updated to 600 seconds"}
 
-# 5.15 Invalid sync interval (too low)
+# 5.15 Invalid sync interval (not one of 0, 300, 600, 900, 1800, 2700, 3600, 7200, 21600, 43200, 86400)
 curl -s -X PUT http://192.168.102.210:8000/api/v1/settings/sync-interval \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"interval":10}'
-# Expected: 422 or 400 validation error
+# Expected: 422 validation error
 ```
 
 - [ ] 5.13 Settings returns sync_interval, rotation_interval, frame_name
 - [ ] 5.14 Update sync interval returns success
-- [ ] 5.15 Invalid interval (< 60) returns validation error
+- [ ] 5.15 An interval outside the allowed list returns 422
 
 ### Device Management
 
@@ -852,7 +924,7 @@ curl -s http://192.168.102.210:8000/api/v1/devices \
 # 5.17 Revoke device (use a non-critical device ID)
 curl -s -X DELETE http://192.168.102.210:8000/api/v1/devices/{device_id} \
   -H "Authorization: Bearer $TOKEN"
-# Expected: {"status":"revoked","device_id":"..."}
+# Expected: 204, no body (400 if it is the last admin)
 ```
 
 - [ ] 5.16 Device list returns array with expected fields
@@ -919,16 +991,16 @@ curl -s http://192.168.102.210:8000/api/v1/services \
 # 5.24 Get current display folder
 curl -s http://192.168.102.210:8000/api/v1/display/folder \
   -H "Authorization: Bearer $TOKEN"
-# Expected: {"current_source":"...","source_name":"...","path":"..."}
+# Expected: {"source_id":"...","source_name":"...","path":"...","photo_count":...}
 ```
 
-- [ ] 5.24 Display folder returns current_source, source_name, path
+- [ ] 5.24 Display folder returns source_id, source_name, path, photo_count
 
 ### Direct Sync Trigger
 
 ```bash
 # 5.25 Trigger sync (dashboard endpoint, no auth on LAN)
-curl -s -X POST http://192.168.102.210:8000/api/v1/sync
+curl -s -X POST http://192.168.102.210:8000/sync
 # Expected: {"status":"started","source":"..."}
 ```
 
@@ -947,14 +1019,13 @@ curl -s -o /dev/null -w "%{http_code}" http://192.168.102.210:8000/current-image
 
 # 5.28 Switch source (dashboard endpoint)
 curl -s -X POST http://192.168.102.210:8000/switch-source \
-  -H "Content-Type: application/json" \
-  -d '{"source_id":"koofr_main"}'
+  -d 'source_id=tkf1'
 # Expected: success response
 
 # 5.29 Save settings (dashboard endpoint)
-curl -s -X POST http://192.168.102.210:8000/api/v1/settings \
+curl -s -X POST http://192.168.102.210:8000/api/settings \
   -H "Content-Type: application/json" \
-  -d '{"frame_name":"Test Frame","rotation_interval":30,"sync_interval":900,"log_level":"INFO"}'
+  -d '{"frame_name":"Test Frame","rotation_interval":30,"sync_interval":900,"fade_time":2.0}'
 # Expected: success response
 ```
 
@@ -967,23 +1038,23 @@ curl -s -X POST http://192.168.102.210:8000/api/v1/settings \
 
 ```bash
 # 5.30 List sources (dashboard)
-curl -s http://192.168.102.210:8000/api/v1/sources
+curl -s http://192.168.102.210:8000/api/sources
 # Expected: source list with id, name, local_path, rclone_remote, enabled
 
 # 5.31 Create source (dashboard)
-curl -s -X POST http://192.168.102.210:8000/api/v1/sources/create \
+curl -s -X POST http://192.168.102.210:8000/api/sources/create \
   -H "Content-Type: application/json" \
   -d '{"name":"Dashboard Test","rclone_remote":"koofr:KFR_dashboard_test"}'
 # Expected: created source object
 
 # 5.32 Delete source (dashboard)
-curl -s -X POST http://192.168.102.210:8000/api/v1/sources/delete \
+curl -s -X POST http://192.168.102.210:8000/api/sources/delete \
   -H "Content-Type: application/json" \
   -d '{"source_id":"dashboard_test"}'
 # Expected: success response
 
 # 5.33 Frame live - switch and sync (dashboard)
-curl -s -X POST http://192.168.102.210:8000/api/v1/frame-live \
+curl -s -X POST http://192.168.102.210:8000/api/frame-live \
   -H "Content-Type: application/json" \
   -d '{"source_id":"koofr_main"}'
 # Expected: switches source and triggers sync
@@ -991,28 +1062,28 @@ curl -s -X POST http://192.168.102.210:8000/api/v1/frame-live \
 
 - [ ] 5.30 Sources list returns array with expected fields
 - [ ] 5.31 Source creation returns new source with auto-configured rclone remote
-- [ ] 5.32 Source deletion removes source (test with expendable source)
+- [ ] 5.32 Deletion removes the album **and its photos on the frame**, keeps the cloud folder; refused for the album showing (test with an expendable album)
 - [ ] 5.33 Frame-live switches source and triggers sync
 
 ### rclone Integration (Dashboard)
 
 ```bash
 # 5.34 List rclone remotes
-curl -s http://192.168.102.210:8000/api/v1/rclone/remotes
+curl -s http://192.168.102.210:8000/api/rclone/remotes
 # Expected: list of configured rclone remotes
 
 # 5.35 Browse rclone directories
-curl -s -X POST http://192.168.102.210:8000/api/v1/rclone/list-dirs \
+curl -s -X POST http://192.168.102.210:8000/api/rclone/list-dirs \
   -H "Content-Type: application/json" \
   -d '{"remote":"koofr:","path":"/"}'
 # Expected: directory listing
 
 # 5.36 List local directories
-curl -s http://192.168.102.210:8000/api/v1/local/list-dirs
+curl -s http://192.168.102.210:8000/api/local/list-dirs
 # Expected: list of directories in ~/Pictures
 
 # 5.37 Test remote connection
-curl -s -X POST http://192.168.102.210:8000/api/v1/config/test-remote \
+curl -s -X POST http://192.168.102.210:8000/api/config/test-remote \
   -H "Content-Type: application/json" \
   -d '{"remote":"koofr:"}'
 # Expected: connection test result
@@ -1038,24 +1109,101 @@ curl -s -X POST http://192.168.102.210:8000/devices/{device_id}/revoke
 - [ ] 5.38 Dashboard device list returns devices array with admin_count
 - [ ] 5.39a Dashboard device revocation works (test with expendable device)
 
-### Contributor Endpoints (Stubs)
+### Contributor Invites
 
 ```bash
-# 5.40 List contributors (stub)
+# 5.40 List contributor invites
 curl -s http://192.168.102.210:8000/api/v1/contributors \
   -H "Authorization: Bearer $TOKEN"
-# Expected: 501 Not Implemented (or empty list)
+# Expected: array of {id, code, expires_at, claimed, claimed_at, claimed_by}
 
-# 5.41 Create contributor invite (stub)
+# 5.41 Create contributor invite
 curl -s -X POST http://192.168.102.210:8000/api/v1/contributors/invite \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}'
-# Expected: 501 Not Implemented
+# Expected: {"id":"...","code":"...","qr_code_base64":"...","expires_at":"...","funnel_url":"...","claimed":false} (429 after 3 pending an hour)
 ```
 
-- [ ] 5.40 Contributors list returns 501 or empty (stub endpoint)
-- [ ] 5.41 Contributor invite returns 501 (not yet implemented)
+- [ ] 5.40 Contributors list returns the invites array
+- [ ] 5.41 Contributor invite returns a code and QR; revoke it afterwards with `DELETE /api/v1/contributors/{id}` (204)
+
+### Albums: Delete and Cloud Folder Naming (PL-147, PL-165)
+
+```bash
+# 5.42 Delete an expendable album (not the one showing)
+curl -s -X DELETE http://192.168.102.210:8000/api/v1/folders/curl_test_source \
+  -H "Authorization: Bearer $TOKEN"
+# Expected: {"deleted":"curl_test_source","name":"...","photos_removed":N,"local_folder_removed":true,"cloud_folder":"koofr:KFR_curl_test_source","error":null}
+
+# 5.43 Delete the album that is showing
+curl -s -o /dev/null -w "%{http_code}" -X DELETE http://192.168.102.210:8000/api/v1/folders/<showing_id> \
+  -H "Authorization: Bearer $TOKEN"
+# Expected: 409
+
+# 5.44 Create it again: the old cloud folder still exists, so it gets a new one
+curl -s -X POST http://192.168.102.210:8000/api/v1/folders \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"curl_test_source"}'
+# Expected: 201, rclone_remote ends in KFR_curl_test_source_2
+```
+
+- [ ] 5.42 Delete returns 200 with `photos_removed`; `~/Pictures/curl_test_source` is gone, the cloud folder is not
+- [ ] 5.43 Deleting the album showing returns 409
+- [ ] 5.44 Re-creating the album uses `KFR_<id>_2`
+
+### Backups and Recover (dashboard, PL-164)
+
+```bash
+# 5.45 Whole-frame backup
+curl -s -X POST http://192.168.102.210:8000/api/tools/backup/all/create
+# Expected: {"ok":true,"filename":"frame_<name>_<ts>.tar.gz","path":"/home/pi/Pictures/backups/...","size_bytes":N,"albums":N,"skipped":[]}
+
+# 5.46 List every backup
+curl -s http://192.168.102.210:8000/api/tools/backup/all
+# Expected: {"ok":true,"backups":[{"filename":"frame_...","kind":"frame","album_count":N,"path":"..."}, ...]}
+
+# 5.47 Download it
+curl -s -o /tmp/frame_backup.tar.gz -w "%{http_code}" http://192.168.102.210:8000/api/tools/backup/download/<filename>
+# Expected: 200; tar tzf /tmp/frame_backup.tar.gz | head -1 → manifest.yaml
+
+# 5.48 Restore it onto the running frame
+curl -s -X POST http://192.168.102.210:8000/api/albums/restore-backup \
+  -H "Content-Type: application/json" -d '{"filename":"<filename>"}'
+# Expected: {"ok":true,"kind":"frame","albums":[{"album":"...","action":"merged","restored":0,"already_there":N,...}],...}
+
+# 5.49 Upload the downloaded file back (whole-frame archive restores every album)
+curl -s -X POST "http://192.168.102.210:8000/api/albums/upload-archive?target_id=ignored" \
+  --data-binary @/tmp/frame_backup.tar.gz
+# Expected: same shape as 5.48, all already_there
+
+# 5.50 Recoverable albums
+curl -s http://192.168.102.210:8000/api/albums/recoverable
+# Expected: {"ok":true,"cloud":[...],"unclaimed":[...],"unclaimed_needs_confirm":true,"frames":[...],"cloud_error":null,"backups":[...]}
+
+# 5.51 Delete the test backup
+curl -s -X POST http://192.168.102.210:8000/api/tools/backup/delete \
+  -H "Content-Type: application/json" -d '{"filename":"<filename>"}'
+# Expected: {"ok":true}
+```
+
+- [ ] 5.45 Whole-frame backup creates one file with a path under `~/Pictures/backups`
+- [ ] 5.46 It lists as `kind: "frame"` with the album count
+- [ ] 5.47 Download returns the file; its first member is `manifest.yaml`
+- [ ] 5.48 Restore onto the running frame adds nothing (`already_there` only)
+- [ ] 5.49 Uploading the file gives the same result
+- [ ] 5.50 Recoverable lists this frame's deleted albums and no other frame's folders
+- [ ] 5.51 Backup delete works; `../` names are refused
+
+### Network Access (LAN-only routes)
+
+```bash
+# 5.52 From outside the LAN/tailnet (e.g. a phone on cellular, or resolve the Funnel host via 1.1.1.1)
+curl -s -o /dev/null -w "%{http_code}" https://tkframe.whale-ayu.ts.net/api/tools/backup/all
+# Expected: 403
+```
+
+- [ ] 5.52 Dashboard routes (`/api/tools/*`, `/api/albums/*`, `/`) return 403 from the internet; `/api/v1/*` needs a token
 
 > **Automation candidate:** This entire section is scriptable as a pytest or bash test suite.
 
@@ -1070,7 +1218,9 @@ curl -s -X POST http://192.168.102.210:8000/api/v1/contributors/invite \
 | 3.2 Pairing (iOS UI) | Partially | Medium | XCUITest |
 | 3.3 Dashboard Status Tab | Partially | Medium | Selenium / Playwright |
 | 3.4-3.7 Dashboard Settings Tab | Partially | Medium | Selenium / Playwright |
-| 3.8-3.18 iOS Views | Partially | Medium | XCUITest |
+| 3.8-3.19, 3.26-3.27 iOS Views (both apps) | Partially | Medium | XCUITest |
+| 3.20-3.24 Dashboard Albums, Tools, Backups, Recover | Partially (APIs fully, section 5) | High | pytest + Playwright |
+| 3.25 Status network fields | Fully | Medium | pytest |
 | 4.x End-to-End Scenarios | Partially | High | pytest + XCUITest |
 | 5.x API Validation | Fully | High | pytest / bash script |
 
@@ -1080,8 +1230,8 @@ curl -s -X POST http://192.168.102.210:8000/api/v1/contributors/invite \
 2. **Health & Connectivity (3.1)** - Quick smoke test, run on every deploy
 3. **Pairing Flow (3.2 API)** - Critical path, automatable without UI
 4. **End-to-End Scenarios (4.x)** - Combined API + manual UI verification
-5. **Dashboard Tabs (3.3-3.7)** - Browser automation if resources allow
-6. **iOS UI Tests (3.8-3.18)** - XCUITest for critical flows
+5. **Dashboard Tabs (3.3-3.7, 3.20-3.24)** - Browser automation if resources allow
+6. **iOS UI Tests (3.8-3.19, 3.26-3.27)** - XCUITest for critical flows
 
 ### Suggested Tools
 

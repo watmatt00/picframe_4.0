@@ -119,7 +119,7 @@ curl -fsSL https://raw.githubusercontent.com/watmatt00/wanderwall_frame/main/scr
 sudo bash /tmp/install.sh --from-v4 --branch=main
 ```
 
-- Copies `config.yaml`, `sources.yaml`, `frame_albums.yaml` from `~/.picframe` to `~/.wanderwall`, and `state.yaml` from `/var/lib/picframe` to `/var/lib/wanderwall`.
+- Copies `config.yaml`, `sources.yaml`, `frame_albums.yaml` and `deleted_albums.yaml` (if present; folded into the registry on first start) from `~/.picframe` to `~/.wanderwall`, and `state.yaml` from `/var/lib/picframe` to `/var/lib/wanderwall`.
 - Does **not** copy pairings (`devices.json`, `jwt_secret`, `invites.json`): pair each phone again afterwards.
 - Stops the v4 services and moves their unit files to `~/picframe_v4_backup`. `~/picframe_4.0` and `~/.picframe` are left as they were.
 - Undo: `sudo bash ~/wanderwall_frame/scripts/setup/rollback_v4.sh` (restores and restarts v4).
@@ -183,7 +183,7 @@ Delete Album removes an album's photos from the frame but keeps its cloud folder
 - **From a backup:** Photo Backups → **Whole frame** lists every backup in `~/Pictures/backups`, including a deleted album's (marked *deleted*). Restore puts it into the album, or into a new album if the album is gone.
 - **Whole-frame backup:** Photo Backups → **Whole frame** → Create Backup saves every album into one file, `frame_<name>_<time>.tar.gz` (a `manifest.yaml` with the album names and cloud folders, then a folder per album). It checks there's room first and keeps 1 GB free. **Download** it to keep a copy off the SD card. **Restore** brings back every album in one click: albums still on the frame get only the photos they're missing, this frame's deleted albums come back on their own cloud folder, and anything else becomes a new album on a cloud folder no other frame uses. Running it twice changes nothing.
 - **Moving to a new frame:** on the same Koofr account, use **Take over** (below); the photos are already in the cloud. Otherwise (new account, or the cloud copy is gone), upload the downloaded whole-frame file in Recover Albums → Upload.
-- **Upload a .zip:** a .zip or .tar.gz of photos from your computer (up to 2 GB) into an existing or a new album.
+- **Upload a .zip:** a .zip or .tar.gz of photos from your computer (up to 16 GB, and it has to fit on the frame with 1 GB left free) into an existing or a new album. A whole-frame backup restores all its albums instead.
 
 Restored photos are copied to the album's cloud folder first and then added on the frame, so the next sync doesn't remove them. Nothing is overwritten or duplicated: a photo the album already has (same name and same bytes) is skipped, and a different photo with the same name is saved as `name_1.jpg`. Only photos and videos are restored; other files are skipped.
 
@@ -356,5 +356,5 @@ For reference, the test Pi used during development:
 |----------|-------|
 | IP | 192.168.102.210 |
 | Hostname | tkframe.local |
-| Username | matt |
-| Funnel URL | https://tkframe.tail7de60a.ts.net |
+| Username | pi |
+| Funnel URL | https://tkframe.whale-ayu.ts.net |

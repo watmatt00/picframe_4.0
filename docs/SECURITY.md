@@ -135,12 +135,12 @@ Admin phones upload, list and delete photos directly with Koofr, so `GET /api/v1
 - [x] JWT secret: 256-bit random, unique per Pi, 600 permissions
 - [x] Config files: 600 permissions, YAML (no code execution)
 - [x] Pairing codes: cryptographically random, 3 attempts, 5-min expiry
-- [ ] Last admin protection: cannot remove last admin
+- [x] Last admin protection: cannot remove or unpair the last admin (`devices.py`, 400)
 - [ ] SSH recovery: `wanderwall-cli emergency-reset` command
 - [x] Input validation: Pydantic models for all inputs
-- [ ] Path validation: No traversal in folder operations
-- [ ] Rate limiting: Per-endpoint limits
-- [ ] Service whitelist: Only allowed services can restart
+- [x] Path validation: filenames and relative paths validated (`rclone._validate_filename`, `_validate_relative_path`), backup names checked with a traversal guard (`backup_service.backup_path`), archive entries flattened to file names (zip-slip, symlink and zip-bomb guards in `recovery_service`)
+- [ ] Rate limiting: per-endpoint limits (pairing codes and invites are limited to 3 an hour; nothing else is)
+- [x] Service allowlist: only `picframe`, `wanderwall-api`, `wanderwall-lights`, `wanderwall-sync.timer` can be restarted/started/stopped (`systemd_service.ALLOWED_SERVICES`)
 - [x] Tailscale Funnel: HTTPS only, no direct port exposure
 - [x] Security log: 90-day retention, 700 permissions on directory
 
@@ -155,6 +155,7 @@ Admin phones upload, list and delete photos directly with Koofr, so `GET /api/v1
 
 ### LAN Access
 
-- Web dashboard accessible only on local network
+- Web dashboard accessible only from the LAN and the tailnet (`LANOnlyMiddleware`, deny by default; see API.md → Network Access)
 - No authentication required for LAN access
 - Assumes physical network security
+- The dashboard's LAN-only endpoints can change a lot without a login: delete albums and their photos on the frame, delete backups, restore archives, and accept uploads up to 16 GB (`/api/albums/upload-archive`, capped by free space). Anyone on the home WiFi or the tailnet can use them. That is the trade-off for a login-free dashboard; keep the tailnet to trusted devices (ACL tags) and the WiFi password private

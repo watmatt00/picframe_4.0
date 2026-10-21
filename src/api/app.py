@@ -59,7 +59,7 @@ app.add_middleware(
     max_body_bytes=MAX_UPLOAD_BYTES + 1024 * 1024,
 )
 
-# Dashboard "Upload a .zip" for album recovery: 2 GB archives (LAN only)
+# Dashboard "Upload a .zip" for album recovery: up to 16 GB archives, e.g. a whole-frame backup (LAN only)
 app.add_middleware(
     UploadSizeLimitMiddleware,
     path_prefix="/api/albums/upload-archive",

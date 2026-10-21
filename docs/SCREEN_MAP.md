@@ -1,359 +1,14 @@
-# Screen Map
+# Screen Map — Web Dashboard
 
-Single source of truth for all screens/pages across WanderWall (iOS app) and WanderWall Dashboard (web).
+Screens of the frame's web dashboard (`http://<pi-ip>:8000`, LAN and tailnet only). The **iOS screens** (both apps) are mapped in `wanderwall_app/docs/SCREEN_MAP.md`, which owns the `MM1`/`SD3`/... IDs used below.
 
 ## How to Use Screen IDs
 
 Use these stable IDs in test plans, bug reports, and development references:
-- `IOS-xxx` - iOS mobile app screens
-- `DASH-xxx` - Web dashboard screens/tabs
+- `DASH-xxx` - Web dashboard tabs
+- iOS screens: see `wanderwall_app/docs/SCREEN_MAP.md`
 
-**Last updated:** 2026-04-15
-
----
-
-## iOS App Screens
-
-### IOS-SPLASH - Splash Screen
-
-- **File:** `SplashView.swift`
-- **Presentation:** App launch (root view via `ContentView.swift` > `SplashView`)
-- **UI Elements:**
-  - App icon (photo.on.rectangle.angled)
-  - "WanderWall" title + "Manager" subtitle
-  - Tagline: "Share memories with your frames"
-- **Behavior:** Animates in (scale + fade), auto-transitions to IOS-MAIN after 2 seconds
-- **Navigation:** Replaces self with `MainContentView` (IOS-MAIN)
-
----
-
-### IOS-MAIN - Main Content (Root)
-
-- **File:** `MainContentView.swift`
-- **Presentation:** Replaces IOS-SPLASH after 2s delay
-- **UI Elements:** Wraps IOS-MENU
-- **Behavior:** Auto-opens IOS-FRAMES sheet on first launch if no frames are paired
-- **Navigation:**
-  - `.sheet` > IOS-FRAMES (auto on first launch, no paired frames)
-
----
-
-### IOS-MENU - Main Menu
-
-- **File:** `MainMenuView.swift`
-- **Presentation:** Embedded in IOS-MAIN
-- **UI Elements:**
-  - Header: App icon, "WanderWall", user email (if connected)
-  - Koofr Storage quota card (usage bar, free/used/total)
-  - Your Frames summary card (`PairedFramesSummary`):
-    - Empty state: "No frames paired. Tap to pair a frame."
-    - Populated: Up to 3 frame cards with online status, role badge, current source, sync status, photo counts (frame/cloud), storage info
-    - "+ N more" if >3 frames
-  - Menu buttons:
-    - "Upload Photos" > IOS-UPLOAD
-    - "Switch Source" (shows current source name) > IOS-SWITCH
-    - "About" > IOS-ABOUT
-  - Toolbar: Gear icon > IOS-SETTINGS
-- **Conditional States:**
-  - With/without Koofr quota
-  - With/without paired frames
-  - Frame status: loading, loaded, error, idle
-  - Sync status badge: In Sync (green), Out of Sync (orange), Syncing (blue), Sync Error (red), Idle (gray)
-- **Navigation:**
-  - `.fullScreenCover` > IOS-UPLOAD
-  - `.sheet` > IOS-SETTINGS
-  - `.sheet` > IOS-ABOUT
-  - `.sheet` > IOS-FRAMES
-  - `.sheet` > IOS-SWITCH
-
----
-
-### IOS-FRAMES - Frame List
-
-- **File:** `FrameListView.swift`
-- **Presentation:** `.sheet` from IOS-MENU or IOS-MAIN
-- **UI Elements:**
-  - Nav title: "Frames"
-  - Toolbar: Done (dismiss), + (add frame)
-  - Empty state: Icon, "No Frames Paired", description, "Pair a Frame" button
-  - Populated: List of `FrameRow` entries:
-    - Frame icon, name, role badge (Admin/Viewer), online/offline dot + label, IP address
-    - Swipe-to-delete: "Unpair" action
-  - Bottom: "Add Another Frame" button
-  - Pull-to-refresh: Rechecks online status
-- **Dialogs:**
-  - `.confirmationDialog` "Unpair Frame" - destructive unpair with cancel
-- **Navigation:**
-  - `.sheet` > IOS-PAIR
-  - `.fullScreenCover` > IOS-DETAIL
-
----
-
-### IOS-PAIR - Pairing
-
-- **File:** `PairingView.swift`
-- **Presentation:** `.sheet` from IOS-FRAMES
-- **UI Elements:**
-  - Header: Link icon, "Pair with Frame", instruction text
-  - Input fields:
-    - Frame IP Address (decimal pad, placeholder "100.x.x.x")
-    - Pairing Code (auto-uppercase, max 7 chars, format XXX-XXX)
-    - This Device's Name (defaults to `UIDevice.current.name`)
-  - Error banner (red background, if pairing fails)
-  - "Pair Device" button (shows spinner while pairing)
-  - Help section: 4-step instructions for getting a pairing code
-  - Toolbar: Cancel (dismiss)
-- **Conditional States:**
-  - Button disabled until IP, code (>=6 chars), and name filled
-  - Loading spinner during pairing
-  - Error message display on failure
-  - Auto-dismiss on successful pairing
-
----
-
-### IOS-DETAIL - Frame Detail
-
-- **File:** `FrameDetailView.swift`
-- **Presentation:** `.fullScreenCover` from IOS-FRAMES
-- **UI Elements:**
-  - Status header: Frame icon, online/offline dot, role badge (crown for admin), IP address
-  - Error/success message banners
-  - Quick actions:
-    - "Upload Photos" button > IOS-UPLOAD
-    - "Switch Source" button (shows current source) > IOS-SWITCH
-  - Capacity card: Storage usage bar, used/free/total
-  - Admin-only sections:
-    - Services section: List of services with status dot, name, restart button
-    - Paired Devices section: Device count, "Manage access" link > IOS-DEVICES
-  - Settings section: "Account & Preferences" link > IOS-SETTINGS
-  - Toolbar: Close (dismiss), Refresh (arrow.clockwise)
-- **Conditional States:**
-  - Status loaded vs loading vs error
-  - Admin vs viewer role (services and devices sections admin-only)
-- **Dialogs:**
-  - `.confirmationDialog` "Restart Service" - destructive restart with cancel
-- **Navigation:**
-  - `.sheet` > IOS-DEVICES
-  - `.sheet` > IOS-SETTINGS
-  - `.fullScreenCover` > IOS-UPLOAD
-  - `.sheet` > IOS-SWITCH
-
----
-
-### IOS-DEVICES - Device List (Sheet)
-
-- **File:** `FrameDetailView.swift` (embedded as `DeviceListSheet`)
-- **Presentation:** `.sheet` from IOS-DETAIL (admin only)
-- **UI Elements:**
-  - Nav title: "Paired Devices"
-  - Toolbar: Done (dismiss)
-  - List of devices:
-    - iPhone icon, device name, role badge (Admin/Viewer), paired date
-    - Swipe action: "Revoke" (destructive)
-- **Dialogs:**
-  - `.confirmationDialog` "Revoke Access" - destructive revoke with cancel
-
----
-
-### IOS-SWITCH - Switch Source
-
-- **File:** `DestinationsView.swift` (as `SwitchPhotosView`)
-- **Presentation:** `.sheet` from IOS-MENU or IOS-DETAIL
-- **UI Elements:**
-  - Nav title: "Switch Source"
-  - Toolbar: Done (dismiss), + (add source, admin only)
-  - Current source header card:
-    - "Currently Displaying" label + source name
-    - Sync status badge
-    - Photo counts: on frame / in cloud
-    - Last sync timestamp
-    - "Sync Now" button (admin only)
-  - Photo Sources list:
-    - Source rows: icon (green if active), name, "Active" badge, photo count, path
-    - Tapping a source opens IOS-SRCDETAIL
-    - "Add New Source" button (admin only)
-  - Success/error message sections
-  - Pull-to-refresh
-- **Conditional States:**
-  - No frame paired: "No Frame Paired" empty state
-  - Loading: spinner "Loading sources..."
-  - Error: "Could Not Load Sources" with Retry button
-  - Sources loaded: full source list
-- **Navigation:**
-  - `.sheet` > IOS-ADDSRC
-  - `.sheet` > IOS-SRCDETAIL
-
----
-
-### IOS-ADDSRC - Add Source (Sheet)
-
-- **File:** `DestinationsView.swift` (embedded as `AddSourceView`)
-- **Presentation:** `.sheet` from IOS-SWITCH
-- **UI Elements:**
-  - Nav title: "Add Source"
-  - Form:
-    - "New Photo Source" section: Folder Name text field
-    - Footer: explanation of what creating a source does
-    - "Create Source" button (shows spinner while saving)
-  - Error section (if creation fails)
-  - Toolbar: Cancel (dismiss)
-- **Conditional States:**
-  - Button disabled if name empty or saving in progress
-  - Auto-dismiss on successful creation
-
----
-
-### IOS-SRCDETAIL - Source Detail (Sheet)
-
-- **File:** `DestinationsView.swift` (embedded as `SourceDetailView`)
-- **Presentation:** `.sheet` from IOS-SWITCH (tapping a source row)
-- **UI Elements:**
-  - Nav title: Source folder name
-  - Toolbar: Done (dismiss)
-  - Source Info section: Name, Status (Active/Inactive badge), Photos on Frame count, Path
-  - Sync Status section:
-    - Loading state: spinner "Loading sync status..."
-    - Loaded: Cloud Files count, Local Files count, Sync Status badge, Details message
-    - No remote: "No remote configured for sync"
-  - Actions section (admin only):
-    - "Activate" button (if not active)
-    - "Sync Now" button
-  - Success/error message sections
-- **Conditional States:**
-  - Active vs inactive source
-  - Sync status loading vs loaded vs no remote
-  - Admin vs viewer (actions section)
-
----
-
-### IOS-UPLOAD - Upload Photos
-
-- **File:** `UploadSheetView.swift`
-- **Presentation:** `.fullScreenCover` from IOS-MENU or IOS-DETAIL
-- **UI Elements:**
-  - Nav title: "Upload Photos"
-  - Toolbar: Close (dismiss, clears messages)
-  - Destination picker:
-    - No destinations: "Koofr Not Connected" card with instructions
-    - <=2 destinations: segmented picker
-    - >2 destinations: menu picker
-    - Selected destination path display
-  - "Select Photos" button (PhotosPicker, max 20 images)
-  - Selected photos section:
-    - Count header + "Clear" button
-    - 4-column thumbnail grid
-    - "Upload to Koofr" button (shows spinner while uploading)
-  - Empty state: "No photos selected" with instructions
-  - Upload progress bar: "Uploading X of Y"
-  - Success message: "Photos will sync to your frame automatically."
-  - Error message display
-- **Conditional States:**
-  - No Koofr credentials: connection instructions
-  - No photos selected: empty state
-  - Photos selected: grid + upload button
-  - Uploading: progress bar, disabled controls
-  - Upload complete: success message
-
----
-
-### IOS-SETTINGS - Settings
-
-- **File:** `SettingsView.swift`
-- **Presentation:** `.sheet` from IOS-MENU or IOS-DETAIL
-- **UI Elements:**
-  - Nav title: "Settings"
-  - Toolbar: Done (dismiss, clears messages)
-  - Account section:
-    - Connected Account (email or "Not connected")
-    - "Test Connection" button (shows spinner)
-  - Storage section (if quota available):
-    - Usage bar, percent used, free space
-  - Frame Actions section (admin only):
-    - "Sync Now" button
-    - Restart buttons for each service (with status dots)
-    - "View Logs" link > IOS-LOGS
-  - Sync Settings section (admin only):
-    - Sync Interval slider (1-60 minutes)
-    - "Save Sync Interval" button
-    - Footer: explanation text
-  - Danger Zone section:
-    - "Change Credentials" button (orange)
-    - "Unpair All Frames" button (red, disabled if no frames)
-    - "Clear All Data" button (red)
-  - Success/error message sections
-  - App version footer: "WanderWall v1.0.0"
-- **Conditional States:**
-  - Admin vs viewer (frame actions and sync settings visible for admin only)
-  - Loading settings state for sync interval slider
-- **Dialogs:**
-  - `.alert` "Unpair All Frames?" - destructive with cancel
-  - `.alert` "Clear All Data?" - destructive with cancel
-- **Navigation:**
-  - `.sheet` > IOS-LOGS
-
----
-
-### IOS-LOGS - Log Viewer
-
-- **File:** `LogViewerView.swift`
-- **Presentation:** `.sheet` from IOS-SETTINGS
-- **UI Elements:**
-  - Nav title: "Frame Logs"
-  - Toolbar: Done (dismiss), Refresh (arrow.clockwise)
-  - Log type picker (segmented): Operations / Security
-  - Log entries list:
-    - Color-coded dots: red (ERROR), orange (WARNING), blue (INFO), gray (other)
-    - Monospaced text, max 3 lines per entry
-  - Loading state: spinner "Loading logs..."
-  - Empty state: "No log entries"
-- **Behavior:** Loads 200 lines, reloads on type change or refresh
-
----
-
-### IOS-ABOUT - About
-
-- **File:** `AboutView.swift`
-- **Presentation:** `.sheet` from IOS-MENU
-- **UI Elements:**
-  - Nav title: "About"
-  - Toolbar: Done (dismiss)
-  - App icon (blue gradient rounded rectangle with photo icon)
-  - "WanderWall" + "Version 1.0.0"
-  - About section: App description
-  - How It Works section: 4-step numbered list
-  - Support section: Contact info + Koofr Web Interface link
-
----
-
-## iOS Navigation Hierarchy
-
-```
-ContentView
-  └── SplashView (IOS-SPLASH)
-        └── MainContentView (IOS-MAIN)
-              ├── [auto .sheet] FrameListView (IOS-FRAMES)  [first launch, no frames]
-              └── MainMenuView (IOS-MENU)
-                    ├── [.fullScreenCover] UploadSheetView (IOS-UPLOAD)
-                    ├── [.sheet] SettingsView (IOS-SETTINGS)
-                    │     ├── [.sheet] LogViewerView (IOS-LOGS)
-                    │     ├── [.alert] "Unpair All Frames?"
-                    │     └── [.alert] "Clear All Data?"
-                    ├── [.sheet] AboutView (IOS-ABOUT)
-                    ├── [.sheet] FrameListView (IOS-FRAMES)
-                    │     ├── [.sheet] PairingView (IOS-PAIR)
-                    │     ├── [.fullScreenCover] FrameDetailView (IOS-DETAIL)
-                    │     │     ├── [.sheet] DeviceListSheet (IOS-DEVICES)
-                    │     │     │     └── [.confirmationDialog] "Revoke Access"
-                    │     │     ├── [.sheet] SettingsView (IOS-SETTINGS)
-                    │     │     ├── [.fullScreenCover] UploadSheetView (IOS-UPLOAD)
-                    │     │     ├── [.sheet] SwitchPhotosView (IOS-SWITCH)
-                    │     │     └── [.confirmationDialog] "Restart Service"
-                    │     └── [.confirmationDialog] "Unpair Frame"
-                    └── [.sheet] SwitchPhotosView (IOS-SWITCH)
-                          ├── [.sheet] AddSourceView (IOS-ADDSRC)
-                          ├── [.sheet] SourceDetailView (IOS-SRCDETAIL)
-                          └── [.alert] "Switch Source"
-```
+**Last updated:** 2026-10-21
 
 ---
 
@@ -364,6 +19,11 @@ ContentView
 - **Files:** `dashboard.html` + `dashboard.js`
 - **Presentation:** Default active tab in unified dashboard
 - **UI Elements:**
+
+  **Banners (above the tabs, when they apply):**
+  - Demo mode on (PL-015)
+  - "This SD card was last used on another Pi": **Yes, keep this frame's albums** (moved) or copied (new frame) (PL-147)
+  - This frame was taken over by another Pi: **Undo** (PL-147)
 
   **Status Banner (top of page, always visible):**
   - Sync status text (e.g., "Photo sync status", "Syncing photos...")
@@ -390,6 +50,7 @@ ContentView
   - Sync Now button (shows spinner, confirmation on success)
   - Restart Frame button (confirmation dialog)
   - Restart API button (confirmation dialog, page reloads after 3s)
+  - Reboot Frame button (confirmation dialog; back in about 1-2 minutes; needs `install_setup.sh` re-run on older installs, PL-142)
   - Last sync / last restart timestamps
 
 - **Auto-Refresh:** Status every 15 seconds, thumbnail every 30 seconds
@@ -397,46 +58,36 @@ ContentView
 
 ---
 
-### DASH-SWITCH - Switch Photos (Tab 2)
+### DASH-ALBUMS - Albums (Tab 2)
 
+(Was DASH-SWITCH, "Switch Photos". The tab button's `data-tab` is still `sources`.)
 
 - **Files:** `dashboard.html` + `dashboard.js`
-- **Presentation:** Tab 2, lazy-initializes on first click
+- **Presentation:** Tab 2; reloads the album list each time it opens
 - **UI Elements:**
 
-  **Photo Sources Table:**
-  - Columns: ID (tech), Name, Remote, Local Path (tech), Status, Actions (tech)
-  - Tech columns toggleable via "Show/Hide technical columns"
+  **☁️ Albums card:**
+  - Columns: ID (tech), Name, Remote, Local Path (tech), Cloud (count), Local (count), Status, Actions (tech)
+  - Tech columns toggleable via "▸ Show technical columns"
   - Status badges: Active (green), Ready (blue), Disabled (gray)
-  - Action buttons:
-    - Activate (with confirm dialog, triggers sync)
-    - Delete (with confirm dialog)
+  - Action buttons (tech columns):
+    - Activate (confirm dialog; shows the album and syncs it)
+    - Delete (confirm dialog; deletes the album **and its photos on the frame**, keeps the cloud folder and backups; not offered for the album showing, PL-147)
 
-  **Add New Photo Source Form:**
-  - Short Name (ID) - text input, alphanumeric/underscore/hyphen validation
-  - Display Name - text input
-  - Cloud Service - dropdown (loads rclone remotes from API)
-  - Cloud Folder Browser:
-    - Breadcrumb navigation (Root > folder > subfolder)
-    - Clickable directory list
-    - Invalid directories shown with warning icon and rename suggestion
-  - Local Storage - dropdown (lists ~/Pictures/ directories)
-    - Special option: "+ Create new directory" (shows additional name input)
-  - Enable checkbox (default: checked)
-  - Test Connection button (shows file count on success)
-  - Add Photo Source button (confirmation dialog with summary)
-  - Status messages (auto-hide success/info after 5s)
+  **➕ Add Album card:**
+  - Display Name only ("Album ID, local folder, and cloud folder are auto-generated from this name"); the cloud folder is `KFR_<id>`, or `KFR_<id>_2`… if that name is taken (PL-165)
+  - Add Album button; status message
 
 ---
 
 ### DASH-TOOLS - Tools (Tab 3)
 
 - **Files:** `dashboard.html` + `dashboard.js`
-- **Presentation:** Tab 3, lazy-initializes on first click
+- **Presentation:** Tab 3; the album picker reloads each time the tab opens
 - **UI Elements:**
 
-  **Source Selector** (shared by all tool cards):
-  - Dropdown listing all configured photo sources; active source pre-selected
+  **Album Selector** (shared by all tool cards):
+  - Dropdown of the frame's albums; keeps the picked album if it still exists, otherwise the one showing
 
   **Card Header UX (all Tools cards):**
   - Clicking anywhere on the card header expands/collapses the card
@@ -468,7 +119,7 @@ ContentView
 ### DASH-BACKUPS - Backups (Tab 4, PL-164)
 
 - **Files:** `dashboard.html` + `dashboard.js`
-- **Presentation:** Tab 4, lazy init (loads its own album picker on first open)
+- **Presentation:** Tab 4; reloads its album picker (and the Recover list, if open) each time the tab opens
 - **UI Elements:**
 
   **Photo Backups Card** (collapsible via ▸ Show):
@@ -487,99 +138,69 @@ ContentView
 - **Presentation:** Tab 5
 - **UI Elements:**
 
-  **Frame Settings Card:**
-  - Frame Name - text input
-  - Rotation Interval - number input (5-3600 seconds)
-  - Frame ID - read-only input (unique identifier)
-  - Funnel URL - read-only input (Tailscale Funnel URL)
-  - Sync Interval - number input (1-1440 minutes, converted to seconds for API)
-  - Save Settings button (shows "Saving...", updates header frame name on success)
-  - Status message (success may include "Frame display restarted")
-  - **Network sub-card** (collapsible ▸ Show / ✕ Close, nested inside Frame Settings):
-    - LAN IP Address - read-only
-    - WiFi Network (SSID) - read-only
-  - **Koofr Setup sub-card** (collapsible, nested inside Frame Settings):
-    - Koofr email and password inputs
-    - Test Connection button (live rclone validation before saving)
-    - Save button; shown when `koofr_configured=false`
+  **⚙️ Frame Settings Card** (▸ Show):
+  - Frame Name, Rotation Interval (seconds), Frame ID (read-only), Sync Interval, Funnel URL (read-only), Fade Time (seconds)
+  - Save Settings button (shows "Saving...", updates header frame name on success; a rotation change restarts the display)
+  - **Network sub-card** (▸ Show): LAN IP Address, WiFi Network (SSID), read-only
+  - **Cloud Sync sub-card** (▸ Show): Koofr email and password, **Save & Verify** (checked live with rclone before saving), **⚡ Test Connection**
+  - **Display Sleep Schedule sub-card** (▸ Show): Sleep Time (display off), Wake Time (display on), Save Schedule (systemd user timers via `POST /api/settings/sleep-schedule`)
 
-  **Mobile App Pairing Card:**
-  - "Generate Pairing QR Code" button
-  - "Manage Devices" toggle button (shows/hides device management card)
-  - Inline error display for pairing failures
-  - Pairing result section (hidden until generated):
-    - QR code image (200x200px)
-    - Manual code (large bold text)
-    - Countdown timer (seconds until expiry)
-    - Connection info: Tailscale IP, Frame URL (if available)
-    - Regenerate button
-    - How-to-pair instructions (4-step list with security note)
-  - Auto-hides when countdown expires
+  **📱 Mobile App Pairing Card** (▸ Show):
+  - Generate Pairing QR Code button; Manage Devices toggle (shows the Paired Devices card)
+  - Pairing result: QR code, manual code, countdown, connection info (Tailscale IP, Frame URL), Regenerate Code, how-to-pair steps
+  - Auto-hides when the countdown ends
 
-  **Manage Devices Card** (hidden by default, toggled via button):
-  - Device table: Name, Role (badge), Paired (date), Last Seen (date), Actions
-  - Revoke button per device (AJAX POST with `confirm()` dialog)
-  - Empty state: "No devices paired. Use Generate Pairing QR Code above."
-  - Device summary: count + admin count (e.g., "3 device(s), 1 admin(s)")
-  - Inline status messages for revoke success/error
-  - Last-admin protection: Revoke button disabled for sole admin
-  - Loads via AJAX: `GET /api/devices`
-  - Revoke via AJAX: `POST /devices/{id}/revoke` (returns JSON)
+  **Paired Devices Card** (toggled via Manage Devices):
+  - Table: Name, Role (badge), Paired, Last Seen, Revoke (disabled for the only admin)
+  - Device summary (e.g. "3 device(s), 1 admin(s)"); loads `GET /api/devices`, revokes via `POST /devices/{id}/revoke`
 
-  **Log Viewer Card** (expandable via "Show logs" toggle):
-  - Log type dropdown: Operations Log / Security Log
-  - Line count dropdown: Last 50 lines / Last 100 lines (default) / Last 500 lines
-  - Log Level dropdown: DEBUG / INFO / WARNING / ERROR (saved immediately via `POST /api/settings/log-level`)
-  - Refresh button
-  - Auto-refresh checkbox (5-second interval)
-  - Log content: `<pre>` block with monospaced text
-  - Loads via AJAX: `GET /api/logs?log_type={ops|security}&lines={50|100|500}`
-  - Loads on first expand, reloads on type/count change
+  **📋 Logs Card** (▸ Show):
+  - Log type: Operations Log / Security Log; line count: 50 / 100 (default) / 500; Refresh
+  - Log Level: DEBUG / INFO / WARNING / ERROR + Save Level (`POST /api/settings/log-level`)
+  - Loads `GET /api/logs?log_type={ops|security}&lines={50|100|500}`
 
-  **Sleep Schedule Card** (collapsible):
-  - Enable/disable toggle
-  - Sleep Time input (HH:MM 24-hour) — display turns off at this time
-  - Wake Time input (HH:MM 24-hour) — display turns on at this time
-  - Save button; writes to config and updates systemd user timers via `POST /api/settings/sleep-schedule`
+  **🔄 Updates Card** (▸ Show):
+  - Branch badge **DEV** (blue) or **MAIN** (green); version comparison
+  - Check for Updates; Apply Updates (when available: git pull + `update_app.sh`, then the API restarts)
+  - Automatic check schedule: Frequency (Daily/Weekly/Monthly), Day, Time, Save Schedule
 
-  **Party Mode Card** (collapsible, bottom of Settings tab):
-  - Enable/disable toggle
-  - When enabled: stops cloud sync and WiFi watchdog; frame runs as standalone local slideshow
-  - Saved via `POST /api/settings/party`
+  **🍎 Demo Mode Card** (only when `demo.allowed: true` is set by hand, PL-015):
+  - Turn On / Turn Off Demo Mode, Generate New Codes; reviewer codes and their expiry
 
-  **Updates Card** (collapsible):
-  - Branch badge: **DEV** (blue) or **MAIN** (green) — shows which git branch the frame is tracking
-  - Check for Updates button
-  - Apply Updates button (shown when update is available; runs git pull + `update_app.sh`, then restarts API)
-  - Auto-check schedule info
+  **🎉 Party Mode Card** (▸ Show, bottom):
+  - Shows what's displaying; enabling needs a type-to-confirm; stops cloud sync and the WiFi watchdog so the frame runs as a standalone slideshow (`POST /api/settings/party`)
 
 ---
 
 ## Dashboard Navigation
 
 ```
-Dashboard (single-page, dashboard.html)
+Dashboard (single page, dashboard.html)
+  ├── Banners (demo mode; SD card swap / takeover, when they apply)
   ├── Status Banner (always visible, all tabs)
   ├── Tab 1: Frame Status (DASH-STATUS) [default]
-  ├── Tab 2: Switch Photos (DASH-SWITCH) [lazy init]
-  ├── Tab 3: Tools (DASH-TOOLS) [lazy init]
-  │     ├── Source Selector
+  ├── Tab 2: Albums (DASH-ALBUMS) [reloads on open]
+  │     ├── ☁️ Albums card (table, Activate, Delete)
+  │     └── ➕ Add Album card
+  ├── Tab 3: Tools (DASH-TOOLS) [picker reloads on open]
+  │     ├── Album Selector
   │     ├── Filename Cleaner card
   │     ├── Duplicate Finder card
   │     ├── Video File Manager card
   │     └── Rename File card
-  ├── Tab 4: Backups (DASH-BACKUPS) [lazy init]
+  ├── Tab 4: Backups (DASH-BACKUPS) [picker and Recover reload on open]
   │     ├── Photo Backups card [collapsible, own album picker incl. Whole frame]
   │     └── Recover Albums card [collapsible]
   └── Tab 5: Settings (DASH-SETTINGS)
         ├── Frame Settings card [collapsible]
-        │     ├── Network sub-card [collapsible, nested]
-        │     └── Koofr Setup sub-card [collapsible, nested; shown when koofr_configured=false]
+        │     ├── Network sub-card
+        │     ├── Cloud Sync sub-card
+        │     └── Display Sleep Schedule sub-card
         ├── Mobile App Pairing card [collapsible]
-        ├── Manage Devices card [toggled via button]
-        ├── Log Viewer card [collapsible, includes Log Level control]
-        ├── Sleep Schedule card [collapsible]
+        ├── Paired Devices card [toggled via Manage Devices]
+        ├── Logs card [collapsible, includes Log Level]
         ├── Updates card [collapsible, branch badge DEV/MAIN]
+        ├── Demo Mode card [only when demo.allowed]
         └── Party Mode card [collapsible, bottom]
 ```
 
@@ -587,52 +208,41 @@ Dashboard (single-page, dashboard.html)
 
 ## Feature Cross-Reference
 
+iOS IDs are from `wanderwall_app/docs/SCREEN_MAP.md` (Manager app unless marked Share).
+
 | Feature | iOS Screen | Dashboard Screen |
 |---|---|---|
-| Sync status overview | IOS-MENU (frame card) | DASH-STATUS |
-| Photo counts (frame/cloud) | IOS-MENU, IOS-SWITCH | DASH-STATUS |
-| Sync Now | IOS-SWITCH, IOS-SETTINGS, IOS-SRCDETAIL | DASH-STATUS |
-| Restart Frame service | IOS-DETAIL, IOS-SETTINGS | DASH-STATUS |
-| Restart API service | IOS-SETTINGS | DASH-STATUS |
-| View logs (full) | IOS-LOGS | DASH-SETTINGS (expandable log viewer) |
-| Source listing | IOS-SWITCH | DASH-SWITCH (table) |
-| Switch/activate source | IOS-SWITCH, IOS-SRCDETAIL | DASH-SWITCH (Activate button) |
-| Add new source | IOS-ADDSRC | DASH-SWITCH (form) |
-| Delete source | -- | DASH-SWITCH (Delete button) |
-| Source detail/sync status | IOS-SRCDETAIL | -- |
-| Upload photos | IOS-UPLOAD | -- (via Koofr web) |
-| Filename cleaning | -- | DASH-TOOLS (Filename Cleaner) |
-| Duplicate detection + removal | -- | DASH-TOOLS (Duplicate Finder) |
-| Video file management | -- | DASH-TOOLS (Video File Manager) |
-| Manual file rename | -- | DASH-TOOLS (Rename File) |
-| Local photo backups (album or whole frame) | -- | DASH-BACKUPS (Photo Backups) |
+| Sync status overview | MM1 (Your Frames card), FD3, SW2 | DASH-STATUS |
+| Photo counts (frame/cloud) | FD3, SW2, SD3 | DASH-STATUS, DASH-ALBUMS |
+| Sync Now | SW2, SD3, MF3 | DASH-STATUS |
+| Restart services | FD3, MF3 | DASH-STATUS |
+| Reboot Frame | MF3 | DASH-STATUS |
+| View logs | LG3 | DASH-SETTINGS (Logs card) |
+| Album list | SW2 | DASH-ALBUMS |
+| Show an album on the frame | SD3 | DASH-ALBUMS (Activate) |
+| Add album | AS3 | DASH-ALBUMS (Add Album) |
+| Rename album | SD3 | -- |
+| Delete album | SD3 | DASH-ALBUMS (Delete) |
+| Upload photos | UP2 (from MM1, SD3, MP3); Share: CH1 | -- |
+| Manage photos (rename, delete, preview) | MP3 | DASH-TOOLS (Rename File) |
+| Filename cleaning, duplicates, videos | -- | DASH-TOOLS |
+| Backups (album or whole frame) | -- | DASH-BACKUPS (Photo Backups) |
 | Recover deleted albums | -- | DASH-BACKUPS (Recover Albums) |
-| Frame settings (name, rotation, sync interval, log level) | IOS-SETTINGS (sync interval only) | DASH-SETTINGS |
-| Frame ID / Funnel URL (read-only) | -- | DASH-SETTINGS |
-| Generate pairing code | -- | DASH-SETTINGS (inline QR + instructions) |
-| Enter pairing code | IOS-PAIR | -- |
-| Manage paired devices | IOS-DEVICES | DASH-SETTINGS (inline device table) |
-| Revoke device access | IOS-DEVICES | DASH-SETTINGS (inline revoke) |
-| Software updates | -- | DASH-SETTINGS (Updates card) |
-| Sleep schedule (display on/off times) | -- | DASH-SETTINGS (Sleep Schedule card) |
-| Party mode | -- | DASH-SETTINGS (Party Mode card) |
-| Koofr setup | -- | DASH-SETTINGS (Koofr Setup sub-card) |
-| Indicator lights (frame display overlay) | -- | Physical frame display (GTK3 RGBA overlay) |
-| Koofr storage quota | IOS-MENU, IOS-SETTINGS | -- |
-| Frame storage capacity | IOS-MENU, IOS-DETAIL | DASH-STATUS |
-| Current image preview | -- | DASH-STATUS (thumbnail) |
-| Unpair frames | IOS-FRAMES, IOS-SETTINGS | -- |
-| Clear credentials | IOS-SETTINGS | -- |
-
----
-
-## Unused / Inactive iOS Views
-
-These Swift files exist in the codebase but are **not referenced** from any active navigation flow. They are earlier implementations superseded by newer views.
-
-| File | Original Purpose | Replaced By |
-|---|---|---|
-| `SetupView.swift` | Koofr credential setup (email/password form) | Credentials now auto-fetched from frame via `fetchAndStoreCloudCredentials()` |
-| `UploadView.swift` | Original upload screen (nav-bar based) | `UploadSheetView.swift` (IOS-UPLOAD) |
-| `AddDestinationView.swift` | Add Koofr upload destination with folder browser | `AddSourceView` in `DestinationsView.swift` (IOS-ADDSRC) |
-| `FileBrowserView.swift` | Browse files in a Koofr destination (with delete) | Not directly replaced; file management not in current scope |
+| Frame name, rotation, sync interval | MF3 | DASH-SETTINGS (Frame Settings) |
+| Fade time, log level | -- | DASH-SETTINGS |
+| Sleep schedule | -- | DASH-SETTINGS (Display Sleep Schedule) |
+| Generate pairing code | -- | DASH-SETTINGS (Mobile App Pairing) |
+| Pair (enter or scan code) | PR3; Share: CO1 → PR3 | -- |
+| Paired devices, revoke | DV4 | DASH-SETTINGS (Paired Devices) |
+| Contributor invites | IN2 | -- |
+| Share Upload Link (browser uploads) | UL3 | -- |
+| Software updates, schedule | MF3, US4 | DASH-SETTINGS (Updates) |
+| Connection status (home WiFi, remote access) | FD3 (Connection) | DASH-SETTINGS (Network) |
+| Cloud login | AP3, CR4 | DASH-SETTINGS (Cloud Sync) |
+| Cloud storage quota | MM1, AP3 | -- |
+| Frame storage capacity | MM1, FD3 | DASH-STATUS |
+| Current image preview | -- | DASH-STATUS |
+| Party mode, demo mode | -- | DASH-SETTINGS |
+| Indicator lights (frame display overlay) | -- | On the frame's screen (GTK3 overlay) |
+| Unpair frames | FL2, MF3, AP3; Share: CS2 | -- |
+| Clear app data | AP3; Share: CS2 | -- |
