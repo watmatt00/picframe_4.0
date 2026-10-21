@@ -1949,8 +1949,14 @@ function backupSourceId() {
     return sel ? sel.value : '';
 }
 
+const BACKUP_BTN_STYLE = 'padding:0.25rem 0.6rem;font-size:0.8rem;';
+
 function backupButton(label, onclick) {
-    return `<button class="btn secondary" style="padding:0.25rem 0.6rem;font-size:0.8rem;" onclick="${onclick}">${label}</button>`;
+    return `<button class="btn secondary" style="${BACKUP_BTN_STYLE}" onclick="${onclick}">${label}</button>`;
+}
+
+function backupDownloadLink(filename) {
+    return `<a class="btn secondary" style="${BACKUP_BTN_STYLE}text-decoration:none;" href="/api/tools/backup/download/${encodeURIComponent(filename)}" download>Download</a>`;
 }
 
 async function loadBackupList() {
@@ -1980,18 +1986,25 @@ async function loadBackupList() {
         }
         tbody.innerHTML = backups.map(b => {
             const file = escapeHtml(b.filename);
-            // Whole frame lists deleted albums' backups too: those restore into a new album
-            const albumId = wholeFrame ? (b.album_exists ? b.album_id : null) : sourceId;
-            const restore = `restoreBackupInto('${file}', ${albumId ? `'${escapeHtml(albumId)}'` : 'null'}, '${escapeHtml(b.album_id || sourceId)}')`;
-            const albumCell = wholeFrame
-                ? `<td>${escapeHtml(b.album_name || b.album_id)}${b.album_exists ? '' : ' <span class="source-status-badge disabled">deleted</span>'}</td>`
-                : '';
+            let restore, albumCell = '';
+            if (b.kind === 'frame') {
+                restore = `restoreFrameBackup('${file}', ${Number(b.album_count) || 0})`;
+                albumCell = `<td><strong>Whole frame</strong> (${plural(b.album_count, 'album')})</td>`;
+            } else {
+                // Whole frame lists deleted albums' backups too: those restore into a new album
+                const albumId = wholeFrame ? (b.album_exists ? b.album_id : null) : sourceId;
+                restore = `restoreBackupInto('${file}', ${albumId ? `'${escapeHtml(albumId)}'` : 'null'}, '${escapeHtml(b.album_id || sourceId)}')`;
+                if (wholeFrame) {
+                    albumCell = `<td>${escapeHtml(b.album_name || b.album_id)}${b.album_exists ? '' : ' <span class="source-status-badge disabled">deleted</span>'}</td>`;
+                }
+            }
             return `<tr>
                 ${albumCell}
-                <td style="font-family:monospace;font-size:0.85rem;">${file}</td>
+                <td style="font-family:monospace;font-size:0.85rem;word-break:break-all;">${escapeHtml(b.path || b.filename)}</td>
                 <td>${fmtBytes(b.size_bytes)}</td>
                 <td>${new Date(b.created_at).toLocaleString()}</td>
                 <td style="white-space:nowrap;">${backupButton('Restore', restore)}
+                    ${backupDownloadLink(b.filename)}
                     ${backupButton('Delete', `runDeleteBackup('${file}')`)}</td>
             </tr>`;
         }).join('');
@@ -2006,7 +2019,7 @@ async function runCreateBackup() {
     const albumCount = sel ? sel.options.length - 1 : 0;
     if (!sourceId) {
         if (albumCount === 0) { alert('This frame has no albums to back up.'); return; }
-        if (!confirm(`Back up all ${plural(albumCount, 'album')}?\n\nEach album gets its own archive in ~/Pictures/backups, all with the same time.`)) return;
+        if (!confirm(`Back up all ${plural(albumCount, 'album')} into one file?\n\nIt's saved in ~/Pictures/backups. Download it afterwards to keep a copy off the frame (for a new SD card or a new frame).`)) return;
     }
     const btn = document.getElementById('btn-create-backup');
     const status = document.getElementById('backup-create-status');
@@ -2024,7 +2037,7 @@ async function runCreateBackup() {
             } else {
                 const skipped = (data.skipped || []).length
                     ? ` Skipped (no photos on the frame yet): ${data.skipped.join(', ')}.` : '';
-                status.textContent = `Backed up ${plural(data.created.length, 'album')} (${fmtBytes(data.total_bytes)}).${skipped}`;
+                status.textContent = `Saved ${data.path} (${plural(data.albums, 'album')}, ${fmtBytes(data.size_bytes)}). Use Download to keep a copy off the frame.${skipped}`;
             }
             status.style.color = '#4ade80';
             await loadBackupList();
@@ -3193,11 +3206,49 @@ function showRecoverStatus(type, message) {
 }
 
 function restoreSummary(data) {
+    if (data.kind === 'frame') return frameRestoreSummary(data);
     const parts = [`${data.restored} file${data.restored === 1 ? '' : 's'} added to "${data.album}"`];
+    if (data.already_there) parts.push(`${data.already_there} already there`);
     if (data.renamed) parts.push(`${data.renamed} renamed to avoid overwriting`);
     if (data.skipped) parts.push(`${data.skipped} skipped (not photos/videos)`);
     parts.push(data.uploaded_to_cloud ? 'uploaded to its cloud folder' : 'this album has no cloud folder, so they are on the frame only');
     return parts.join(', ') + '.';
+}
+
+const FRAME_RESTORE_ACTIONS = { merged: 'on this frame', recovered: 'deleted album re-added', created: 'new album' };
+
+/** One line per album of a whole-frame restore. */
+function frameRestoreSummary(data) {
+    const lines = (data.albums || []).map(a =>
+        `"${a.name}" (${FRAME_RESTORE_ACTIONS[a.action] || a.action}): ${a.restored} added`
+        + (a.already_there ? `, ${a.already_there} already there` : '')
+        + (a.renamed ? `, ${a.renamed} renamed` : ''));
+    return `Restored ${plural(lines.length, 'album')}${data.frame_name ? ` from ${data.frame_name}` : ''}. ` + lines.join('; ') + '.';
+}
+
+/** Restore every album in a whole-frame backup, in one go. */
+async function restoreFrameBackup(filename, albumCount) {
+    if (!confirm(`Restore all ${plural(albumCount, 'album')} from ${filename}?\n\nAlbums on this frame get only the photos they're missing (nothing is duplicated). Deleted or missing albums are created again. Photos are uploaded to each album's cloud folder.`)) return;
+    showRecoverStatus('info', 'Restoring the whole frame… this can take a while for a large backup.');
+    const status = document.getElementById('backup-create-status');
+    if (status) { status.textContent = 'Restoring the whole frame…'; status.style.color = '#94a3b8'; }
+    try {
+        const data = await apiFetch('/api/albums/restore-backup', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename }),
+        });
+        const msg = data.ok ? frameRestoreSummary(data) : data.error;
+        showRecoverStatus(data.ok ? 'success' : 'error', msg);
+        if (status) { status.textContent = msg; status.style.color = data.ok ? '#4ade80' : '#f87171'; }
+        if (data.ok) {
+            if (typeof loadSources === 'function') loadSources();
+            loadBackupSources();
+            loadRecoverable();
+        }
+    } catch (e) {
+        showRecoverStatus('error', `Error: ${e.message}`);
+        if (status) { status.textContent = `Error: ${e.message}`; status.style.color = '#f87171'; }
+    }
 }
 
 /** Ask where to restore to: an existing album id, or {newName}. Returns null if cancelled. */
@@ -3368,7 +3419,7 @@ function uploadRecoverArchive() {
     let target = sel.value === '__new__' ? askNewAlbumName(file.name.replace(/\.(zip|tar\.gz|tgz)$/i, '')) : { targetId: sel.value };
     if (!target) return;
     const where = target.targetId ? `album "${sel.options[sel.selectedIndex].text}"` : `a new album "${target.newName}"`;
-    if (!confirm(`Upload ${file.name} (${fmtBytes(file.size)}) into ${where}?\n\nIts photos are added and uploaded to the album's cloud folder.`)) return;
+    if (!confirm(`Upload ${file.name} (${fmtBytes(file.size)}) into ${where}?\n\nIts photos are added and uploaded to the album's cloud folder. A whole-frame backup restores all its albums instead.`)) return;
 
     const params = new URLSearchParams(target.targetId ? { target_id: target.targetId } : { new_name: target.newName });
     const progress = document.getElementById('recover-upload-progress');
@@ -3389,7 +3440,7 @@ function uploadRecoverArchive() {
         progress.style.display = 'none';
         let data;
         try { data = JSON.parse(xhr.responseText); } catch (e) { data = { ok: false, error: `HTTP ${xhr.status}` }; }
-        if (xhr.status === 413) data = { ok: false, error: 'The file is too big (limit 2 GB).' };
+        if (xhr.status === 413) data = { ok: false, error: 'The file is too big (limit 16 GB).' };
         showRecoverStatus(data.ok ? 'success' : 'error', data.ok ? restoreSummary(data) : (data.error || data.detail));
         if (data.ok) {
             document.getElementById('recover-file').value = '';

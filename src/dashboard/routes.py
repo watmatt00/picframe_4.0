@@ -20,7 +20,7 @@ from typing import Optional
 import httpx
 import yaml
 from fastapi import APIRouter, Query, Request, Form
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field, field_validator
 
@@ -1595,16 +1595,29 @@ async def list_all_backups():
 
 
 @router.post("/api/tools/backup/all/create")
-async def create_all_backups():
-    """Back up every album, one archive each with the same timestamp. LAN-only, no JWT."""
+async def create_frame_backup():
+    """Back up every album into one whole-frame archive. LAN-only, no JWT."""
     try:
-        result = await backup_service.create_all_backups(source_manager.list_sources())
+        result = await backup_service.create_frame_backup(
+            source_manager.list_sources(), get_settings().frame.name, frame_registry.board_serial())
         return {"ok": True, **result}
     except ValueError as exc:
         return {"ok": False, "error": str(exc)}
     except Exception as exc:
         logger.error("backup create-all error: %s", exc)
         return {"ok": False, "error": str(exc)}
+
+
+@router.get("/api/tools/backup/download/{filename}")
+async def download_backup(filename: str):
+    """Download a backup archive to the computer (keep a copy off the frame). LAN-only, no JWT."""
+    try:
+        path = backup_service.backup_path(filename)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except FileNotFoundError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+    return FileResponse(path, media_type="application/gzip", filename=path.name)
 
 
 @router.post("/api/tools/backup/delete")
@@ -1788,6 +1801,9 @@ async def upload_archive(request: Request, target_id: Optional[str] = None, new_
         if not any(head.startswith(magic) for magic in ARCHIVE_MAGIC):
             return {"ok": False, "error": "That isn't a .zip or .tar.gz file."}
 
+        # A whole-frame backup restores every album; the album choice doesn't apply
+        if await asyncio.to_thread(recovery_service.frame_manifest_or_error, incoming):
+            return {"ok": True, **await recovery_service.restore_frame_backup(incoming)}
         source = await recovery_service.resolve_target(target_id, new_name)
         result = await recovery_service.restore_into_album(source, incoming)
         return {"ok": True, **result}

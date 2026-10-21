@@ -473,11 +473,11 @@ ContentView
 
   **Photo Backups Card** (collapsible via ▸ Show):
   - Album picker of its own (not the Tools one): **Whole frame** (default) or one album
-  - Create Backup → tar.gz of the album's local_path → `~/Pictures/backups/{source_id}_{YYYY-MM-DD_HHMMSS}.tar.gz`; Whole frame makes one per album with the same timestamp (confirm first). Refused if it won't fit with 1 GB left free
-  - Lists backups (Whole frame adds an Album column and shows deleted albums' backups, marked *deleted*)
-  - Restore per backup (into the album, or a new album if it's gone) and Delete (with confirm)
+  - Create Backup → tar.gz of the album's local_path → `~/Pictures/backups/{source_id}_{YYYY-MM-DD_HHMMSS}.tar.gz`; Whole frame makes one file `frame_{name}_{YYYY-MM-DD_HHMMSS}.tar.gz` (manifest.yaml first, a folder per album; confirm first). Refused if it won't fit with 1 GB left free
+  - Lists backups with their full path on the frame (Whole frame adds an Album column: "Whole frame (N albums)" rows, and deleted albums' backups marked *deleted*)
+  - Per backup: Restore (album → into it, or a new album if it's gone; whole frame → every album in one click, merging), Download, Delete (with confirm)
 
-  **Recover Albums Card** (collapsible): from cloud storage (this frame's deleted albums; unclaimed folders behind a warning), take over another frame, upload a .zip/.tar.gz
+  **Recover Albums Card** (collapsible): from cloud storage (this frame's deleted albums; unclaimed folders behind a warning), take over another frame, upload a .zip/.tar.gz (up to 16 GB; a whole-frame backup restores all its albums)
 
 ---
 

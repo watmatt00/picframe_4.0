@@ -5,6 +5,7 @@ a backup, or an uploaded .zip / .tar.gz. rclone is mocked.
 
 import asyncio
 import io
+import shutil
 import tarfile
 import zipfile
 from types import SimpleNamespace
@@ -349,3 +350,90 @@ def test_recovery_routes_are_lan_only(frame):
     client = TestClient(app, client=("8.8.8.8", 5000))
     assert client.get("/api/albums/recoverable").status_code == 403
     assert client.post("/api/albums/upload-archive", content=b"x").status_code == 403
+
+
+# --- Skip identical / whole-frame backups (PL-164) ---------------------------------
+
+def _frame_tar(albums: list[dict], files: dict[str, bytes]) -> bytes:
+    """A whole-frame backup: manifest.yaml first, then the album files."""
+    import yaml
+    manifest = yaml.safe_dump({"kind": "wanderwall-frame-backup", "version": 1, "frame_name": "oldframe",
+                               "albums": albums}).encode()
+    return _tar({"manifest.yaml": manifest, **files})
+
+
+def test_restore_skips_identical_photos(frame):
+    """Same name and bytes → already there (twice is safe); same name, different bytes → renamed once."""
+    archive = _tar({"trip/a.jpg": b"old", "trip/b.jpg": b"b"})
+    first = _upload(archive, target_id="trip").json()
+    assert first["ok"] and (first["restored"], first["already_there"], first["renamed"]) == (1, 1, 0)
+
+    clash = _tar({"trip/a.jpg": b"new"})
+    assert _upload(clash, target_id="trip").json()["renamed"] == 1
+    again = _upload(clash, target_id="trip").json()  # a_1.jpg from the last run counts as already there
+    assert (again["restored"], again["already_there"]) == (0, 1)
+    assert sorted(p.name for p in (frame.pictures / "trip").iterdir()) == ["a.jpg", "a_1.jpg", "b.jpg"]
+
+
+FRAME_ALBUMS = [
+    {"id": "trip", "name": "Trip", "folder": "trip", "cloud_folder": "KFR_trip"},
+    {"id": "old_party", "name": "Old Party", "folder": "old_party", "cloud_folder": "KFR_old_party"},
+    {"id": "kframe", "name": "Home", "folder": "kframe", "cloud_folder": "KFR_kframe"},
+]
+FRAME_FILES = {"trip/a.jpg": b"old", "trip/n.jpg": b"n", "old_party/p.jpg": b"p", "kframe/h.jpg": b"h"}
+
+
+def test_restore_frame_backup_one_click(frame):
+    """Existing album merged; this frame's deleted album back on its own folder; another frame's folder never used."""
+    (frame.backups / "frame_oldframe_2026-10-21_091205.tar.gz").write_bytes(_frame_tar(FRAME_ALBUMS, FRAME_FILES))
+    listed = recovery_service.list_all_backups()
+    assert listed[0]["kind"] == "frame" and listed[0]["album_count"] == 3
+
+    client = TestClient(app, client=LAN)
+    data = client.post("/api/albums/restore-backup", json={"filename": "frame_oldframe_2026-10-21_091205.tar.gz"}).json()
+    assert data["ok"], data
+    got = {a["album"]: (a["action"], a["restored"], a["already_there"]) for a in data["albums"]}
+    assert got == {"trip": ("merged", 1, 1), "old_party": ("recovered", 1, 0), "home": ("created", 1, 0)}
+    remotes = {s.id: s.rclone_remote for s in frame.manager.list_sources()}
+    assert remotes["old_party"] == "kfr:KFR_old_party"
+    assert remotes["home"] == "kfr:KFR_kframe_2"  # KFR_kframe is kframe's album
+    assert all(remote != "kfr:KFR_kframe" for _, remote in frame.calls.copies)
+    assert sorted(p.name for p in (frame.pictures / "trip").iterdir()) == ["a.jpg", "n.jpg"]
+
+    again = client.post("/api/albums/restore-backup", json={"filename": "frame_oldframe_2026-10-21_091205.tar.gz"}).json()
+    assert again["ok"] and all(a["action"] == "merged" and a["restored"] == 0 for a in again["albums"])
+    assert len(frame.manager.list_sources()) == 3
+
+
+def test_upload_frame_backup_ignores_album_choice(frame):
+    """Uploading a whole-frame backup in Recover restores its albums, not into the chosen album."""
+    data = _upload(_frame_tar(FRAME_ALBUMS[:1], {"trip/z.jpg": b"z"}), new_name="Ignored").json()
+    assert data["ok"] and data["kind"] == "frame" and data["albums"][0]["album"] == "trip"
+    assert "ignored" not in {s.id for s in frame.manager.list_sources()}
+    assert (frame.pictures / "trip" / "z.jpg").exists()
+
+
+def test_frame_backup_bad_manifest(frame):
+    """A manifest that says it's a frame backup but is malformed is refused, and nothing is created."""
+    bad = [{"id": "../etc", "name": "X", "folder": "x"}]
+    data = _upload(_frame_tar(bad, {"x/a.jpg": b"a"}), target_id="trip").json()
+    assert not data["ok"] and "Malformed" in data["error"]
+    assert [s.id for s in frame.manager.list_sources()] == ["trip"]
+
+
+def test_frame_backup_download_delete_upload_round_trip(frame, monkeypatch):
+    """Back up the whole frame, download it, delete the album, upload the file: the album comes back."""
+    from src.dashboard import routes
+    monkeypatch.setattr(routes, "source_manager", frame.manager)
+    client = TestClient(app, client=LAN)
+    made = client.post("/api/tools/backup/all/create").json()
+    assert made["ok"], made
+    blob = client.get(f"/api/tools/backup/download/{made['filename']}").content
+
+    frame.manager.delete_source("trip")
+    shutil.rmtree(frame.pictures / "trip")
+    data = _upload(blob, target_id="ignored").json()
+    assert data["ok"], data
+    assert [(a["album"], a["action"], a["restored"]) for a in data["albums"]] == [("trip", "recovered", 1)]
+    assert (frame.pictures / "trip" / "a.jpg").read_bytes() == b"old"
+    assert {s.id: s.rclone_remote for s in frame.manager.list_sources()} == {"trip": "kfr:KFR_trip"}

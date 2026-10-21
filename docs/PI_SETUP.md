@@ -181,10 +181,11 @@ Delete Album removes an album's photos from the frame but keeps its cloud folder
 
 - **From cloud storage:** lists this frame's deleted albums whose cloud folder (`KFR_*`) still exists and no album uses. Recover re-adds the album pointed at that folder and syncs it. A folder another frame on the same Koofr account owns is never offered. Folders no frame owns (e.g. deleted before frames kept a list) appear automatically on an account only this frame uses, otherwise behind **Show unclaimed folders** with a warning.
 - **From a backup:** Photo Backups → **Whole frame** lists every backup in `~/Pictures/backups`, including a deleted album's (marked *deleted*). Restore puts it into the album, or into a new album if the album is gone.
-- **Back up first:** Photo Backups backs up one album or, with **Whole frame**, every album at once (one archive per album, same time). It checks there's room first and keeps 1 GB free.
+- **Whole-frame backup:** Photo Backups → **Whole frame** → Create Backup saves every album into one file, `frame_<name>_<time>.tar.gz` (a `manifest.yaml` with the album names and cloud folders, then a folder per album). It checks there's room first and keeps 1 GB free. **Download** it to keep a copy off the SD card. **Restore** brings back every album in one click: albums still on the frame get only the photos they're missing, this frame's deleted albums come back on their own cloud folder, and anything else becomes a new album on a cloud folder no other frame uses. Running it twice changes nothing.
+- **Moving to a new frame:** on the same Koofr account, use **Take over** (below); the photos are already in the cloud. Otherwise (new account, or the cloud copy is gone), upload the downloaded whole-frame file in Recover Albums → Upload.
 - **Upload a .zip:** a .zip or .tar.gz of photos from your computer (up to 2 GB) into an existing or a new album.
 
-Restored photos are copied to the album's cloud folder first and then added on the frame, so the next sync doesn't remove them. Nothing is overwritten: a photo with the same name is saved as `name_1.jpg`. Only photos and videos are restored; other files are skipped.
+Restored photos are copied to the album's cloud folder first and then added on the frame, so the next sync doesn't remove them. Nothing is overwritten or duplicated: a photo the album already has (same name and same bytes) is skipped, and a different photo with the same name is saved as `name_1.jpg`. Only photos and videos are restored; other files are skipped.
 
 ### Which albums are this frame's
 

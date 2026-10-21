@@ -1023,7 +1023,7 @@
                 <div class="card-header">
                     <div>
                         <div class="card-title">💾 Photo Backups</div>
-                        <div class="card-subtitle">Back up an album or the whole frame to ~/Pictures/backups. Restoring adds the photos back and uploads them to the album's cloud folder; nothing is overwritten.</div>
+                        <div class="card-subtitle">Back up one album, or the whole frame into one file you can download. Restoring adds back only the photos an album is missing and uploads them to its cloud folder; nothing is overwritten or duplicated.</div>
                     </div>
                     <button class="advanced-toggle" id="backup-toggle">Show</button>
                 </div>
@@ -1042,7 +1042,7 @@
                             <thead>
                                 <tr>
                                     <th id="backup-album-col">Album</th>
-                                    <th>Filename</th>
+                                    <th>File</th>
                                     <th>Size</th>
                                     <th>Created</th>
                                     <th></th>
@@ -1085,7 +1085,7 @@
 
                     <div class="recover-part">
                         <div class="recover-heading">Upload a .zip of photos</div>
-                        <div class="form-hint">A .zip or .tar.gz from your computer (up to 2 GB). Photos and videos are added to the album and uploaded to its cloud folder; other files are skipped.</div>
+                        <div class="form-hint">A .zip or .tar.gz from your computer (up to 16 GB, and it has to fit on the frame). Photos and videos are added to the album and uploaded to its cloud folder; other files are skipped. A whole-frame backup (frame_….tar.gz) restores all its albums and ignores the album choice. Moving to a new frame on the same cloud account? Take over the old frame first (above), so its cloud folders are reused.</div>
                         <div class="recover-upload-row">
                             <input type="file" id="recover-file" accept=".zip,.tar.gz,.tgz,application/zip,application/gzip">
                             <select id="recover-upload-target" class="form-input"></select>

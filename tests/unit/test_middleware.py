@@ -31,6 +31,7 @@ LAN_ONLY_ROUTES = [
     ("GET", "/api/tools/backup/x/list"),
     ("GET", "/api/tools/backup/all"),
     ("POST", "/api/tools/backup/delete"),
+    ("GET", "/api/tools/backup/download/x_2026-10-21_091205.tar.gz"),
     ("GET", "/debug/token"),
     ("GET", "/no-such-route"),
 ]
