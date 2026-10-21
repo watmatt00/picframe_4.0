@@ -6,7 +6,6 @@
 let sourcesInitialized = false;
 let settingsInitialized = false;
 let toolsInitialized = false;
-let backupsInitialized = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initTabSwitching();
@@ -60,10 +59,12 @@ function switchTab(tabId) {
         loadToolsSources();
     }
 
-    // Backups tab: its own album picker (PL-164)
-    if (tabId === 'backups' && !backupsInitialized) {
-        backupsInitialized = true;
+    // Backups tab: reload on every open, since albums may have been added or
+    // deleted since (Albums tab, the app). Keeps the picked album if it still exists.
+    if (tabId === 'backups') {
         loadBackupSources();
+        const recover = document.getElementById('recover-section');
+        if (recover && recover.style.display !== 'none') loadRecoverable();
     }
 }
 
