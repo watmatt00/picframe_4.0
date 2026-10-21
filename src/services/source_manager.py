@@ -5,6 +5,7 @@ Manages photo sources (folders) and their configurations.
 """
 
 import asyncio
+import json
 import logging
 import re
 import subprocess
@@ -27,6 +28,41 @@ class PhotoSource(BaseModel):
     local_path: str
     rclone_remote: Optional[str] = None
     enabled: bool = True
+
+
+def free_cloud_folder(base: str, taken: set[str]) -> str:
+    """
+    KFR_<base>, or KFR_<base>_2, _3… so a new album never shares a cloud folder (PL-165).
+
+    The Koofr account can be shared by several frames, and rclone mkdir succeeds
+    on a folder that exists, so a plain KFR_<id> could be another frame's album.
+    `taken` holds the folder names already in the cloud (compared case-insensitively);
+    the chosen name is added to it.
+    """
+    base = re.sub(r"[^A-Za-z0-9_]", "_", base)[:60] or "album"
+    lowered = {t.lower() for t in taken}
+    folder, n = f"KFR_{base}", 1
+    while folder.lower() in lowered:
+        n += 1
+        folder = f"KFR_{base}_{n}"
+    taken.add(folder)
+    return folder
+
+
+def list_cloud_folders(remote_name: str) -> Optional[set[str]]:
+    """Folder names at the top of a remote (e.g. "koofr"), or None if the cloud couldn't be listed."""
+    try:
+        result = subprocess.run(
+            ["rclone", "lsjson", f"{remote_name}:", "--dirs-only"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            logger.error(f"Failed to list cloud folders: {result.stderr.strip()}")
+            return None
+        return {e["Name"] for e in json.loads(result.stdout or "[]") if e.get("IsDir")}
+    except (subprocess.SubprocessError, OSError, ValueError) as e:
+        logger.error(f"Failed to list cloud folders: {e}")
+        return None
 
 
 def find_koofr_remote() -> Optional[str]:
@@ -184,8 +220,11 @@ class SourceManager:
         """
         Auto-configure an rclone remote for a new source.
 
-        Finds the first Koofr rclone remote and creates a cloud folder
-        named KFR_<source_id>.
+        Finds the first Koofr rclone remote and creates a new cloud folder
+        named KFR_<source_id>, or KFR_<source_id>_2… if that exists: an
+        existing folder may be another frame's album on a shared account, or
+        this frame's deleted one (kept for Recover Albums). If the cloud can't
+        be listed, no folder is set up rather than risk sharing one (PL-165).
 
         Args:
             source_id: The source identifier
@@ -199,8 +238,11 @@ class SourceManager:
                 logger.warning("No Koofr rclone remote found")
                 return None
 
-            # Create cloud folder
-            cloud_folder = f"KFR_{source_id}"
+            existing = list_cloud_folders(remote_name)
+            if existing is None:
+                logger.error(f"No cloud folder set up for '{source_id}': couldn't list the cloud")
+                return None
+            cloud_folder = free_cloud_folder(source_id, existing)
             rclone_remote = f"{remote_name}:{cloud_folder}"
 
             mkdir_result = subprocess.run(

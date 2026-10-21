@@ -358,17 +358,6 @@ def frame_manifest_or_error(archive: Path) -> Optional[dict[str, Any]]:
         raise RecoveryError(400, str(e))
 
 
-def _free_cloud_folder(base: str, taken: set[str]) -> str:
-    """KFR_<base>, or KFR_<base>_2, _3… so a restored album never shares another frame's folder."""
-    base = re.sub(r"[^A-Za-z0-9_]", "_", base)[:60] or "album"
-    folder, n = f"KFR_{base}", 1
-    while folder in taken:
-        n += 1
-        folder = f"KFR_{base}_{n}"
-    taken.add(folder)
-    return folder
-
-
 async def _frame_targets(albums: list[dict[str, Any]]) -> list[tuple[dict[str, Any], PhotoSource, str]]:
     """
     The album on this frame each manifest album restores into, created if needed.
@@ -418,7 +407,7 @@ async def _frame_targets(albums: list[dict[str, Any]]) -> list[tuple[dict[str, A
             targets.append((album, source, "recovered"))
             continue
         if remote:
-            folder = _free_cloud_folder(album["id"], taken)
+            folder = sources.free_cloud_folder(album["id"], taken)
             source = await asyncio.to_thread(sources.source_manager.create_source, album["name"], f"{remote}:{folder}")
         else:
             source = await asyncio.to_thread(sources.source_manager.create_source, album["name"])

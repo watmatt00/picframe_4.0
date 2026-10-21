@@ -397,7 +397,7 @@ _(Covered in section 3.2 above - iOS: Pair a Frame)_
 - [ ] "Add New Source" button visible
 - [ ] Enter folder name → tap "Create Source"
 - [ ] New source appears in list
-- [ ] Backend auto-configures rclone remote (KFR_{source_id} folder created)
+- [ ] Backend auto-configures rclone remote (KFR_{source_id} folder created, or KFR_{source_id}_2… if that folder already exists in the cloud, PL-165)
 - [ ] **Negative:** Empty name → button disabled or error
 
 #### Source Detail View
