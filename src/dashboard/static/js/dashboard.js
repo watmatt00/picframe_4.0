@@ -5,7 +5,6 @@
 
 let sourcesInitialized = false;
 let settingsInitialized = false;
-let toolsInitialized = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initTabSwitching();
@@ -54,8 +53,8 @@ function switchTab(tabId) {
     }
 
     // Initialize tools tab on first open
-    if (tabId === 'tools' && !toolsInitialized) {
-        toolsInitialized = true;
+    // Tools tab: reload the album picker on every open (albums may have changed since)
+    if (tabId === 'tools') {
         loadToolsSources();
     }
 
@@ -1902,14 +1901,17 @@ function initPhotoTools() {
 
 async function loadToolsSources() {
     const sel = document.getElementById('tools-source-select');
+    const keep = sel.value;  // stay on the picked album if it still exists, else the active one
     try {
         const data = await apiFetch('/api/sources');
+        const albums = data.sources || [];
+        const pick = albums.some(s => s.id === keep) ? keep : (albums.find(s => s.active) || {}).id;
         sel.innerHTML = '';
-        (data.sources || []).forEach(s => {
+        albums.forEach(s => {
             const opt = document.createElement('option');
             opt.value = s.id;
             opt.textContent = s.label + (s.active ? ' (active)' : '');
-            if (s.active) opt.selected = true;
+            if (s.id === pick) opt.selected = true;
             sel.appendChild(opt);
         });
     } catch (e) {
