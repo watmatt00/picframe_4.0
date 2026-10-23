@@ -43,6 +43,12 @@ WIFI_GRACE_SECONDS = 90
 WIFI_RECHECK_INTERVAL_SECONDS = 5
 # After this long in setup mode with no configuration, check whether home WiFi is back
 SETUP_MODE_RETRY_SECONDS = 900  # 15 minutes
+# While the frame stays up with WiFi down (PL-161): after the outage threshold,
+# bounce WiFi and reconnect every WIFI_RECOVERY_INTERVAL_SECONDS; after
+# WIFI_REBOOT_AFTER_SECONDS down, reboot once. needs_setup is already set by then,
+# so the reboot lands in setup mode, which keeps retrying home WiFi.
+WIFI_RECOVERY_INTERVAL_SECONDS = 900  # 15 minutes
+WIFI_REBOOT_AFTER_SECONDS = 3600      # 60 minutes
 # After the AP stops, how long to wait for NetworkManager to have wlan0 ready again
 NM_READY_TIMEOUT_SECONDS = 20
 # NetworkManager journal lines copied into the watchdog log when leaving setup mode fails
@@ -569,6 +575,38 @@ def _reconnect_home_wifi() -> None:
     _run_logged(["nmcli", "--wait", "20", "device", "connect", "wlan0"])
 
 
+def wifi_recovery_action(outage_s: float, since_last_attempt_s: float | None, rebooted: bool) -> str:
+    """
+    What to do during a WiFi outage while the frame is up (PL-161).
+
+    Args:
+        outage_s: Seconds WiFi has been down.
+        since_last_attempt_s: Seconds since the last recovery attempt, or None if none yet.
+        rebooted: True once a reboot has been asked for (never ask twice).
+
+    Returns:
+        "reboot", "reconnect" or "wait"
+    """
+    if outage_s < WIFI_OUTAGE_THRESHOLD_SECONDS:
+        return "wait"
+    if outage_s >= WIFI_REBOOT_AFTER_SECONDS:
+        return "wait" if rebooted else "reboot"
+    if since_last_attempt_s is None or since_last_attempt_s >= WIFI_RECOVERY_INTERVAL_SECONDS:
+        return "reconnect"
+    return "wait"
+
+
+def _bounce_and_reconnect_wifi() -> None:
+    """Turn the WiFi radio off and on, then rejoin home WiFi with a fresh scan. Never raises."""
+    logger.warning("WiFi still down — bouncing the radio and reconnecting (PL-161)")
+    _log_wifi_diagnostics()
+    _run_logged(["nmcli", "radio", "wifi", "off"])
+    time.sleep(3)
+    _run_logged(["nmcli", "radio", "wifi", "on"])
+    _reconnect_home_wifi()
+    logger.info(f"After reconnect attempt: WiFi {'associated' if is_wifi_associated() else 'still down'}")
+
+
 def _log_wifi_diagnostics() -> None:
     """
     Copy WiFi state and recent NetworkManager log lines into the watchdog log.
@@ -643,7 +681,8 @@ def run_monitoring_loop(in_setup_mode: bool = False, retry_home_wifi: bool = Fal
     """
     Main watchdog loop. Polls WiFi every 30 seconds.
 
-    On loss: starts 10-min countdown, sets needs_setup flag at expiry.
+    On loss: starts 10-min countdown, sets needs_setup flag at expiry; then bounces
+    WiFi and reconnects every 15 min, and reboots once after 60 min (PL-161).
     On recovery: clears needs_setup flag.
     Display is only touched when leaving setup mode (see try_leave_setup_mode).
 
@@ -659,6 +698,8 @@ def run_monitoring_loop(in_setup_mode: bool = False, retry_home_wifi: bool = Fal
     """
     wifi_down_since: float | None = None
     flag_already_set = False
+    last_recovery: float | None = None
+    reboot_requested = False
     setup_started = time.monotonic()
 
     logger.info("Watchdog monitoring loop started")
@@ -685,6 +726,7 @@ def run_monitoring_loop(in_setup_mode: bool = False, retry_home_wifi: bool = Fal
                 logger.info(f"WiFi recovered after {duration:.0f}s")
                 wifi_down_since = None
                 flag_already_set = False
+                last_recovery = None
 
             # Normal recovery: clear flag if it was set during this outage
             if state_manager.needs_setup():
@@ -708,6 +750,19 @@ def run_monitoring_loop(in_setup_mode: bool = False, retry_home_wifi: bool = Fal
             elif not flag_already_set:
                 remaining = WIFI_OUTAGE_THRESHOLD_SECONDS - outage_duration
                 logger.info(f"WiFi down {outage_duration:.0f}s — {remaining:.0f}s until flag set")
+
+            since_attempt = None if last_recovery is None else time.monotonic() - last_recovery
+            action = wifi_recovery_action(outage_duration, since_attempt, reboot_requested)
+            if action == "reconnect":
+                last_recovery = time.monotonic()
+                _bounce_and_reconnect_wifi()
+            elif action == "reboot":
+                reboot_requested = True
+                logger.warning(
+                    f"WiFi down {outage_duration:.0f}s after reconnect attempts — rebooting; "
+                    "the frame comes up in setup mode and keeps retrying home WiFi"
+                )
+                _run_logged(["systemctl", "reboot"])
 
         time.sleep(POLL_INTERVAL_SECONDS)
 

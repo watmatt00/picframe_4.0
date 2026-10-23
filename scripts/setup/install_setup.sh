@@ -252,6 +252,24 @@ LOG "state.yaml: sudo group can now write (for party mode --clear-setup)"
 
 echo ""
 echo "============================================="
+# ── WiFi power saving off (PL-171, PL-139) ────────────────────────────────────
+# brcmfmac power save is a common cause of a Pi going deaf while still associated
+# (kframe dropped off WiFi for hours with "ssid-not-found"). wifi.powersave = 2
+# means "disable"; it applies on the next connect, and iw turns it off right now.
+LOG "Turning WiFi power saving off..."
+mkdir -p /etc/NetworkManager/conf.d
+cat > /etc/NetworkManager/conf.d/wanderwall-wifi-powersave.conf <<'NMEOF'
+# Installed by wanderwall_frame scripts/setup/install_setup.sh (PL-171)
+[connection]
+wifi.powersave = 2
+NMEOF
+chmod 644 /etc/NetworkManager/conf.d/wanderwall-wifi-powersave.conf
+nmcli general reload conf 2>/dev/null || true
+if command -v iw >/dev/null 2>&1 && iw dev wlan0 info >/dev/null 2>&1; then
+    iw dev wlan0 set power_save off 2>/dev/null || WARN "iw could not turn power save off now; it applies on the next WiFi connect"
+fi
+LOG "WiFi power saving: $(iw dev wlan0 get power_save 2>/dev/null || echo 'no wlan0 (wired)')"
+
 LOG "Phase 6 installation complete!"
 echo "============================================="
 echo ""

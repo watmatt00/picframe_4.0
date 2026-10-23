@@ -61,10 +61,16 @@ ACTUAL_HOME=$(getent passwd "$ACTUAL_USER" | cut -d: -f6)
 
 # ── Load saved state (resumed installs) ───────────────────────────────────────
 # Written by save_state() during Phase 0; persists across reboots.
-STATE_ENV="$ACTUAL_HOME/install_state.env"
-if [[ -f "$STATE_ENV" ]]; then
-    # shellcheck disable=SC1090
-    source "$STATE_ENV"
+# Read as data, never sourced (PL-172): only these keys, one KEY=value per line.
+# Root-owned, mode 600, so the frame user can't change what the root installer runs with.
+STATE_ENV="/root/wanderwall_install_state.env"
+STATE_KEYS="FRAME_NAME BRANCH KOOFR_EMAIL KOOFR_PASS WITH_SAMBA WITH_MQTT FUNNEL_URL FROM_V4"
+if [[ -f "$STATE_ENV" && "$(stat -c %u "$STATE_ENV")" == "0" ]]; then
+    while IFS='=' read -r key value; do
+        case " $STATE_KEYS " in
+            *" $key "*) printf -v "$key" '%s' "$value" ;;
+        esac
+    done < "$STATE_ENV"
 fi
 # --ts-authkey is not saved in state (single-use); always take it from the flag.
 for arg in "$@"; do
@@ -154,18 +160,14 @@ last_step() { [[ -f "$PROGRESS_FILE" ]] && cat "$PROGRESS_FILE" || echo "0"; }
 as_user()   { sudo -u "$ACTUAL_USER" "$@"; }
 
 save_state() {
-    {
-        printf 'FRAME_NAME=%q\n'  "$FRAME_NAME"
-        printf 'BRANCH=%q\n'      "$BRANCH"
-        printf 'KOOFR_EMAIL=%q\n' "$KOOFR_EMAIL"
-        printf 'KOOFR_PASS=%q\n'  "$KOOFR_PASS"
-        printf 'WITH_SAMBA=%q\n'  "$WITH_SAMBA"
-        printf 'WITH_MQTT=%q\n'   "$WITH_MQTT"
-        printf 'FUNNEL_URL=%q\n'  "$FUNNEL_URL"
-        printf 'FROM_V4=%q\n'     "$FROM_V4"
-    } > "$STATE_ENV"
-    chown "$ACTUAL_USER:$ACTUAL_USER" "$STATE_ENV"
-    chmod 600 "$STATE_ENV"
+    # Plain KEY=value lines (values can't contain newlines); read back by the loop above.
+    local key tmp="$STATE_ENV.tmp"
+    ( umask 077
+      for key in $STATE_KEYS; do
+          printf '%s=%s\n' "$key" "${!key//$'\n'/}"
+      done > "$tmp" )
+    chown root:root "$tmp"
+    mv "$tmp" "$STATE_ENV"
 }
 
 check_internet() {

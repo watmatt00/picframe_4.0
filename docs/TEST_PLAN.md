@@ -600,6 +600,13 @@ _Removed: `AddDestinationView.swift` no longer exists. Albums are created on the
 
 ---
 
+### 3.24a WiFi Resilience (PL-171, PL-161)
+
+- [ ] After `install_setup.sh`: `/etc/NetworkManager/conf.d/wanderwall-wifi-powersave.conf` has `wifi.powersave = 2`; `iw dev wlan0 get power_save` → `off`; `verify_install.sh` check 14 passes
+- [ ] Block the frame on the router (or turn the AP off) for > 10 min: `needs_setup` is set, then `/var/log/...watchdog` shows "bouncing the radio and reconnecting" every 15 min
+- [ ] Unblock during that window → WiFi comes back on the next attempt without a reboot; `needs_setup` cleared
+- [ ] Keep it blocked > 60 min → one reboot, frame comes up in setup mode and returns to normal when WiFi is back
+
 ### 3.25 Status Connection Lights (5.0.0)
 
 **API:** `GET /api/v1/status` → `network`

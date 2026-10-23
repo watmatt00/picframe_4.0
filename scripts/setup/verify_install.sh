@@ -133,6 +133,16 @@ else
     fail "wanderwall-config --show" "sudo bash scripts/setup/install_setup.sh"
 fi
 
+# 14. WiFi power saving off (PL-171)
+if ! iw dev wlan0 info >/dev/null 2>&1; then
+    ok "WiFi power saving (no wlan0, wired)"
+elif grep -qs "wifi.powersave = 2" /etc/NetworkManager/conf.d/wanderwall-wifi-powersave.conf \
+        && iw dev wlan0 get power_save 2>/dev/null | grep -q "off"; then
+    ok "WiFi power saving off"
+else
+    fail "WiFi power saving off" "sudo bash scripts/setup/install_setup.sh"
+fi
+
 echo ""
 if [[ $FAIL -eq 0 ]]; then
     echo "All $PASS checks passed."

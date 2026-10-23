@@ -489,3 +489,21 @@ class TestEnsureBluetoothReady:
             ble_setup.ensure_bluetooth_ready()  # must not raise
 
         assert run.call_count == 5
+
+
+class TestWifiRecoveryAction:
+    """PL-161: what the watchdog does while WiFi stays down and the frame is up."""
+
+    def test_waits_before_threshold(self):
+        assert watchdog.wifi_recovery_action(300, None, False) == "wait"
+
+    def test_reconnects_at_threshold_then_every_interval(self):
+        t = watchdog.WIFI_OUTAGE_THRESHOLD_SECONDS
+        assert watchdog.wifi_recovery_action(t, None, False) == "reconnect"
+        assert watchdog.wifi_recovery_action(t + 60, 60, False) == "wait"
+        assert watchdog.wifi_recovery_action(t + 900, watchdog.WIFI_RECOVERY_INTERVAL_SECONDS, False) == "reconnect"
+
+    def test_reboots_once_after_an_hour(self):
+        t = watchdog.WIFI_REBOOT_AFTER_SECONDS
+        assert watchdog.wifi_recovery_action(t, 10, False) == "reboot"
+        assert watchdog.wifi_recovery_action(t + 600, 10, True) == "wait"
