@@ -138,11 +138,13 @@ fi
 
 LOG "Writing hostapd configuration..."
 
-# Read frame name from state.yaml if it exists, else use default
-FRAME_NAME="wanderwall"
+# Read frame name from state.yaml if it exists, else use the hostname. Uses the setup
+# venv: the system python3 may not have PyYAML (kframe got "WanderWall-wanderwall").
+FRAME_NAME=""
 if [[ -f "$STATE_FILE" ]]; then
-    FRAME_NAME=$(python3 -c "import yaml; d=yaml.safe_load(open('${STATE_FILE}')); print(d.get('frame_name','wanderwall'))" 2>/dev/null || echo "wanderwall")
+    FRAME_NAME=$("${SETUP_PYTHON}" -c "import sys, yaml; d = yaml.safe_load(open(sys.argv[1])) or {}; print(d.get('frame_name') or '')" "$STATE_FILE" 2>/dev/null || true)
 fi
+[[ -n "$FRAME_NAME" ]] || FRAME_NAME="$(hostname)"
 
 mkdir -p /etc/hostapd
 

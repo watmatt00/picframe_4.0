@@ -684,11 +684,15 @@ function initStatusDashboard() {
 
     // Preview of the photo on the frame (PL-174): ask which photo is showing every few
     // seconds and load its thumbnail only when it changes, so the preview follows the
-    // frame. A failed load shows the error and is retried on the next poll.
+    // frame. A failed load shows the error and is retried on the next poll. Older
+    // display engines (kframe's) don't report the name: then reload the frame's own
+    // image every 20 s, as the page did before.
     const thumbnailImg = document.getElementById("current-image-thumbnail");
     const thumbnailError = document.getElementById("image-error");
+    const PREVIEW_FALLBACK_MS = 20000;
     if (thumbnailImg) {
         let shownName = null;
+        let fallbackAt = -Infinity;
         thumbnailImg.addEventListener("load", () => {
             thumbnailImg.style.display = "";
             if (thumbnailError) thumbnailError.style.display = "none";
@@ -706,8 +710,10 @@ function initStatusDashboard() {
                 if (data.filename && data.filename !== shownName) {
                     shownName = data.filename;
                     thumbnailImg.src = `/current-image?filename=${encodeURIComponent(data.filename)}`;
-                } else if (!data.filename && shownName === null && thumbnailError) {
-                    thumbnailError.style.display = "block";  // display not answering yet
+                } else if (!data.filename && Date.now() - fallbackAt >= PREVIEW_FALLBACK_MS) {
+                    fallbackAt = Date.now();
+                    shownName = null;
+                    thumbnailImg.src = `/current-image?t=${fallbackAt}`;  // 503 shows the error
                 }
             } catch (err) {
                 // Frame busy or restarting: keep the last preview
