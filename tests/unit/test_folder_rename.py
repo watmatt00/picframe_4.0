@@ -76,3 +76,17 @@ def test_rename_needs_admin(setup):
                      headers=headers["contributor"])
     assert r.status_code == 403
     assert manager.get_source("kfr_frame").name == "Kfr Frame"
+
+
+def test_remotes_route_not_shadowed_by_album_route(setup, monkeypatch):
+    """GET /folders/remotes lists rclone remotes; it isn't read as an album called 'remotes' (PL-167)."""
+    client, _, headers = setup
+
+    async def fake_remotes():
+        return ["koofr", "gdrive"]
+
+    monkeypatch.setattr("src.api.routes.folders.rclone_list_remotes", fake_remotes)
+    r = client.get("/api/v1/folders/remotes", headers=headers["admin"])
+    assert r.status_code == 200
+    assert r.json() == [{"name": "koofr"}, {"name": "gdrive"}]
+    assert client.get("/api/v1/folders/remotes", headers=headers["contributor"]).status_code == 403

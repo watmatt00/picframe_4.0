@@ -546,6 +546,9 @@ _Removed: `AddDestinationView.swift` no longer exists. Albums are created on the
 - [ ] Album selector lists the albums; switching tabs and back keeps the choice
 - [ ] Delete an album on the Albums tab, open Tools without reloading → it's gone from the selector
 - [ ] Filename Cleaner, Duplicate Finder, Video File Manager, Rename File: scan, review, apply; changes reach the cloud folder first, then the frame
+- [ ] Corrupt Photo Finder (PL-127): put an empty `.jpg` and a half-copied JPEG in the album's cloud folder, sync → scan lists both with the problem → Delete → gone from the frame and the cloud
+- [ ] Rotate Photos (PL-126): ⟳ on a photo → thumbnail turns, the frame shows it turned on its next pass, the cloud copy is turned too; a photo with an EXIF rotation shows a ↻ badge and Fix makes it upright with no badge
+- [ ] Rotate a HEIC photo (needs pillow-heif on the frame)
 
 ---
 

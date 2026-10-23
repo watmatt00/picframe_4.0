@@ -6,6 +6,8 @@ Scan-then-apply operations for photo library maintenance:
   and rename UUID/hex-hash filenames to YYYYMMDD_HHMMSS using EXIF date
 - Duplicate detection: hash-based exact deduplication
 - Video management: list and remove video files Pi3D cannot display
+- Corrupt photo finder: empty files and photos Pillow can't decode (PL-127)
+- Rotate photos: left/right/180, or apply the EXIF orientation (PL-126)
 
 All mutating operations are cloud-first (rclone before local) to prevent
 the next sync cycle from restoring deleted/renamed files.
@@ -766,4 +768,225 @@ async def apply_videos(source_id: str, to_delete: list[str]) -> BatchResult:
         logger.info(f"Deleted video '{filename}' from source '{source_id}'")
         result.succeeded.append(filename)
 
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Shared: resolve a user-supplied filename inside a source
+# ---------------------------------------------------------------------------
+
+def _source_file(local_path: Path, filename: str) -> Path:
+    """The file `filename` inside local_path; ValueError if it's missing or outside it."""
+    local_file = local_path / filename
+    try:
+        local_file.resolve().relative_to(local_path.resolve())
+    except ValueError:
+        raise ValueError("Path traversal detected")
+    if not local_file.is_file():
+        raise ValueError("File not found locally")
+    return local_file
+
+
+def _open_image_support() -> None:
+    """Let Pillow open HEIC/HEIF when pillow-heif is installed (it is on the frames)."""
+    try:
+        import pillow_heif  # noqa: PLC0415
+        pillow_heif.register_heif_opener()
+    except ImportError:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Corrupt / unreadable photo finder (PL-127)
+# ---------------------------------------------------------------------------
+
+class CorruptFile(BaseModel):
+    filename: str
+    size_bytes: int
+    error: str
+
+
+class CorruptScanResult(BaseModel):
+    source_id: str
+    files: list[CorruptFile]
+    total_files_scanned: int
+    skipped: int = 0   # files that couldn't be checked (e.g. HEIC without pillow-heif)
+
+
+def _check_image(path: Path) -> Optional[str]:
+    """Why this photo can't be shown, or None if it decodes. Decodes at reduced scale."""
+    from PIL import Image  # noqa: PLC0415
+
+    if path.stat().st_size == 0:
+        return "Empty file (0 bytes)"
+    try:
+        with Image.open(path) as img:
+            img.verify()  # structure and checksums, without decoding pixels
+        with Image.open(path) as img:
+            img.draft("RGB", (320, 320))  # JPEG: decode at 1/8 scale, still reads the whole stream
+            img.load()                    # catches truncated or damaged image data
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"[:200]
+    return None
+
+
+def scan_corrupt(source_id: str) -> CorruptScanResult:
+    """List photos in the source that are empty or that Pillow can't open or decode."""
+    source = source_manager.get_source(source_id)
+    if not source:
+        raise ValueError(f"Source '{source_id}' not found")
+    _open_image_support()
+    heif_ok = ".heic" in _registered_extensions()
+
+    local_path = Path(source.local_path).expanduser()
+    found: list[CorruptFile] = []
+    scanned = skipped = 0
+    for f in sorted(local_path.rglob("*")):
+        if not f.is_file() or f.suffix.lower() not in IMAGE_EXTENSIONS:
+            continue
+        if f.suffix.lower() in {".heic", ".heif"} and not heif_ok:
+            skipped += 1
+            continue
+        scanned += 1
+        error = _check_image(f)
+        if error:
+            found.append(CorruptFile(
+                filename=f.relative_to(local_path).as_posix(),
+                size_bytes=f.stat().st_size,
+                error=error,
+            ))
+    return CorruptScanResult(source_id=source_id, files=found, total_files_scanned=scanned, skipped=skipped)
+
+
+def _registered_extensions() -> set[str]:
+    """File extensions Pillow can open right now."""
+    from PIL import Image  # noqa: PLC0415
+    return {ext.lower() for ext, fmt in Image.registered_extensions().items() if fmt in Image.OPEN}
+
+
+async def apply_corrupt(source_id: str, to_delete: list[str]) -> BatchResult:
+    """Delete the chosen unreadable photos: cloud first, then the frame."""
+    source = source_manager.get_source(source_id)
+    if not source:
+        raise ValueError(f"Source '{source_id}' not found")
+
+    local_path = Path(source.local_path).expanduser()
+    result = BatchResult(total=len(to_delete))
+    for filename in to_delete:
+        try:
+            local_file = _source_file(local_path, filename)
+        except ValueError as exc:
+            result.failed.append({"filename": filename, "error": str(exc)})
+            continue
+        if local_file.suffix.lower() not in IMAGE_EXTENSIONS:
+            result.failed.append({"filename": filename, "error": "Not a photo"})
+            continue
+        if source.rclone_remote:
+            cloud = await rclone_deletefile_raw(source.rclone_remote, filename)
+            if not cloud.success:
+                result.failed.append({"filename": filename, "error": f"Cloud delete failed: {cloud.error}"})
+                continue
+        try:
+            local_file.unlink()
+        except Exception as exc:
+            result.failed.append({"filename": filename, "error": f"Local delete failed: {exc}"})
+            continue
+        thumbnails.evict(source_id, filename)
+        logger.info(f"Deleted unreadable photo '{filename}' from source '{source_id}'")
+        result.succeeded.append(filename)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Rotate photos (PL-126)
+# ---------------------------------------------------------------------------
+
+# How to turn a photo, as seen on screen: degrees clockwise, or "auto" to apply
+# the EXIF orientation to the pixels (and reset the tag)
+ROTATIONS = {"right": 90, "180": 180, "left": 270, "auto": 0}
+_ROTATE_FORMATS = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG", ".heic": "HEIF", ".heif": "HEIF"}
+
+
+class RotateItem(BaseModel):
+    filename: str
+    rotate: str   # "left", "right", "180" or "auto"
+
+
+def _rotate_to(path: Path, rotate: str, dest: Path) -> None:
+    """Write `path` turned as asked to `dest`, with the EXIF orientation reset to normal."""
+    from PIL import Image, ImageOps  # noqa: PLC0415
+
+    fmt = _ROTATE_FORMATS[path.suffix.lower()]
+    with Image.open(path) as img:
+        exif = img.getexif()
+        icc = img.info.get("icc_profile")
+        upright = ImageOps.exif_transpose(img)   # what the frame and thumbnails show today
+        degrees = ROTATIONS[rotate]
+        out = upright.rotate(-degrees, expand=True) if degrees else upright
+        exif[_EXIF_TAG_ORIENTATION] = 1
+        kwargs: dict = {"exif": exif.tobytes()}
+        if icc:
+            kwargs["icc_profile"] = icc
+        if fmt == "JPEG":
+            kwargs["quality"] = 95
+            if out.mode not in ("RGB", "L", "CMYK"):
+                out = out.convert("RGB")
+        out.save(dest, format=fmt, **kwargs)
+
+
+async def rotate_photos(source_id: str, items: list[RotateItem]) -> BatchResult:
+    """
+    Turn photos left, right or 180°, or bake their EXIF orientation into the pixels.
+
+    Each rotated photo goes to the album's cloud folder first, then replaces the
+    copy on the frame, so the next sync keeps it. JPEGs are re-encoded at quality 95.
+    """
+    import asyncio  # noqa: PLC0415
+    import os  # noqa: PLC0415
+    import uuid  # noqa: PLC0415
+
+    from src.utils.rclone import rclone_copyto  # noqa: PLC0415
+
+    source = source_manager.get_source(source_id)
+    if not source:
+        raise ValueError(f"Source '{source_id}' not found")
+    _open_image_support()
+
+    local_path = Path(source.local_path).expanduser()
+    result = BatchResult(total=len(items))
+    for item in items:
+        filename = item.filename
+        if item.rotate not in ROTATIONS:
+            result.failed.append({"filename": filename, "error": f"Unknown rotation '{item.rotate}'"})
+            continue
+        try:
+            local_file = _source_file(local_path, filename)
+        except ValueError as exc:
+            result.failed.append({"filename": filename, "error": str(exc)})
+            continue
+        suffix = local_file.suffix.lower()
+        if suffix not in _ROTATE_FORMATS:
+            result.failed.append({"filename": filename, "error": "Only JPEG, PNG and HEIC photos can be rotated"})
+            continue
+        if suffix in {".heic", ".heif"} and ".heic" not in _registered_extensions():
+            result.failed.append({"filename": filename, "error": "HEIC support (pillow-heif) isn't installed"})
+            continue
+
+        tmp = local_file.with_name(f".rotate-{uuid.uuid4().hex}{suffix}")
+        try:
+            await asyncio.to_thread(_rotate_to, local_file, item.rotate, tmp)
+            if source.rclone_remote:
+                cloud = await rclone_copyto(tmp, f"{source.rclone_remote}/{filename}")
+                if not cloud.success:
+                    result.failed.append({"filename": filename, "error": f"Cloud upload failed: {cloud.error}"})
+                    continue
+            os.replace(tmp, local_file)
+        except Exception as exc:
+            result.failed.append({"filename": filename, "error": f"Rotate failed: {exc}"})
+            continue
+        finally:
+            tmp.unlink(missing_ok=True)
+        thumbnails.evict(source_id, filename)
+        logger.info(f"Rotated '{filename}' ({item.rotate}) in source '{source_id}'")
+        result.succeeded.append(filename)
     return result

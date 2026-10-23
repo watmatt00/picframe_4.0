@@ -10,11 +10,15 @@ All operations follow a scan → apply pattern:
   POST /sources/{source_id}/tools/apply/duplicates — delete chosen duplicates (cloud-first)
   GET  /sources/{source_id}/tools/scan/videos      — list video files Pi3D can't show
   POST /sources/{source_id}/tools/apply/videos     — delete chosen videos (cloud-first)
+  GET  /sources/{source_id}/tools/scan/corrupt     — find empty or undecodable photos
+  POST /sources/{source_id}/tools/apply/corrupt    — delete chosen unreadable photos (cloud-first)
+  POST /sources/{source_id}/tools/rotate           — rotate photos (cloud-first)
 
 These endpoints share the same service layer as the LAN dashboard endpoints so
 adding them to the iOS app requires only model bindings — no backend changes.
 """
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -141,6 +145,58 @@ async def apply_videos(
         raise HTTPException(404, str(exc))
     except Exception as exc:
         logger.error(f"Video apply failed for '{source_id}': {exc}")
+        raise HTTPException(500, str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Corrupt photos and rotation (PL-126, PL-127)
+# ---------------------------------------------------------------------------
+
+@router.get("/{source_id}/tools/scan/corrupt", response_model=svc.CorruptScanResult)
+async def scan_corrupt(source_id: str, admin=Depends(require_admin)):
+    """List empty or undecodable photos in the source."""
+    try:
+        return await asyncio.to_thread(svc.scan_corrupt, source_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+    except Exception as exc:
+        logger.error(f"Corrupt scan failed for '{source_id}': {exc}")
+        raise HTTPException(500, str(exc))
+
+
+class ApplyCorruptRequest(BaseModel):
+    to_delete: list[str]
+
+
+@router.post("/{source_id}/tools/apply/corrupt", response_model=svc.BatchResult)
+async def apply_corrupt(source_id: str, body: ApplyCorruptRequest, admin=Depends(require_admin)):
+    """Delete the specified unreadable photos (cloud-first)."""
+    if not body.to_delete:
+        raise HTTPException(400, "to_delete list is empty")
+    try:
+        return await svc.apply_corrupt(source_id, body.to_delete)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+    except Exception as exc:
+        logger.error(f"Corrupt apply failed for '{source_id}': {exc}")
+        raise HTTPException(500, str(exc))
+
+
+class RotateRequest(BaseModel):
+    items: list[svc.RotateItem]
+
+
+@router.post("/{source_id}/tools/rotate", response_model=svc.BatchResult)
+async def rotate(source_id: str, body: RotateRequest, admin=Depends(require_admin)):
+    """Rotate photos left/right/180, or apply their EXIF orientation ("auto"), cloud-first."""
+    if not body.items:
+        raise HTTPException(400, "items list is empty")
+    try:
+        return await svc.rotate_photos(source_id, body.items)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+    except Exception as exc:
+        logger.error(f"Rotate failed for '{source_id}': {exc}")
         raise HTTPException(500, str(exc))
 
 

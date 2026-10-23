@@ -108,6 +108,48 @@ log() {
     printf '%s\n' "$msg" || true
 }
 save_step() { echo "$1" > "$PROGRESS_FILE"; chown "$ACTUAL_USER:$ACTUAL_USER" "$PROGRESS_FILE"; }
+
+# ── Progress visibility (PL-067) ──────────────────────────────────────────────
+# The install keeps going after each reboot with no terminal attached. Each phase
+# is logged with the elapsed time, a login notice (/etc/profile.d) says which
+# phase is running and how to follow the log, and the summary lists phase times.
+# install_timings.txt is data (read with head/awk), never sourced.
+TIMING_FILE="$ACTUAL_HOME/install_timings.txt"
+LOGIN_NOTICE="/etc/profile.d/wanderwall-install.sh"
+if [[ ! -f "$TIMING_FILE" ]]; then
+    date +%s > "$TIMING_FILE"
+    chown "$ACTUAL_USER:$ACTUAL_USER" "$TIMING_FILE"
+fi
+INSTALL_START=$(head -1 "$TIMING_FILE")
+[[ "$INSTALL_START" =~ ^[0-9]+$ ]] || INSTALL_START=$(date +%s)
+
+fmt_secs() { printf '%dm%02ds' $(( $1 / 60 )) $(( $1 % 60 )); }
+elapsed()  { fmt_secs $(( $(date +%s) - INSTALL_START )); }
+
+phase() {  # phase <number> <title>
+    printf '%s\t%s\t%s\n' "$1" "$(date +%s)" "$2" >> "$TIMING_FILE"
+    log "━━━ Phase $1/11: $2  (elapsed $(elapsed)) ━━━"
+    # Titles are fixed strings in this script; drop shell-special characters anyway.
+    local title started
+    title=$(printf '%s' "$2" | tr -d '"`$\\')
+    started=$(date -d "@$INSTALL_START" '+%H:%M')
+    {
+        printf 'echo "WanderWall install in progress: phase %s/11 (%s), started %s."\n' "$1" "$title" "$started"
+        printf 'echo "  Follow it: tail -f %s"\n' "$LOG_FILE"
+    } > "$LOGIN_NOTICE"
+}
+
+phase_summary() {  # per-phase durations from the timing file (reboots included)
+    awk -F'\t' -v end="$(date +%s)" '
+        NR > 1 { n[NR] = $1; t[NR] = $2; name[NR] = $3; last = NR }
+        END {
+            for (i = 2; i <= last; i++) {
+                stop = (i < last) ? t[i + 1] : end
+                d = stop - t[i]
+                printf "    Phase %-3s %-45s %dm%02ds\n", n[i], name[i], d / 60, d % 60
+            }
+        }' "$TIMING_FILE"
+}
 last_step() { [[ -f "$PROGRESS_FILE" ]] && cat "$PROGRESS_FILE" || echo "0"; }
 as_user()   { sudo -u "$ACTUAL_USER" "$@"; }
 
@@ -202,7 +244,8 @@ remove_resume_service() {
 reboot_and_resume() {
     add_resume_service
     save_step "$1"
-    log "Rebooting (will resume at step $1)..."
+    log "Rebooting (will resume at step $1). The install continues by itself after the reboot."
+    log "  Follow it after logging back in: tail -f $LOG_FILE (the login message shows the phase)"
     reboot; exit 0
 }
 
@@ -297,7 +340,7 @@ V4_DATA="$ACTUAL_HOME/.picframe"
 V4_STATE="/var/lib/picframe/state.yaml"
 V4_BACKUP="$ACTUAL_HOME/picframe_v4_backup"
 if [[ "$FROM_V4" == "true" && "$LAST" -lt 1 ]]; then
-    log "--- v4 reinstall: import settings, stop v4 services ---"
+    phase 0 "v4 reinstall: import settings, stop v4 services"
     [[ -f "$V4_DATA/config.yaml" ]] || { log "ERROR: $V4_DATA/config.yaml not found — not a v4 frame"; exit 1; }
     [[ -x "$ACTUAL_HOME/venv_picframe/bin/picframe" ]] || { log "ERROR: display engine not found in $ACTUAL_HOME/venv_picframe"; exit 1; }
     check_internet
@@ -423,7 +466,7 @@ if [[ "$LAST" -lt 1 ]]; then
     # Save state before doing anything (chmod 600 — contains Koofr password)
     save_state
 
-    log "--- Phase 0: Pre-reboot setup ---"
+    phase 0 "Pre-reboot setup"
     check_internet
 
     # Python 3.11+ check
@@ -526,7 +569,7 @@ fi
 # ── Phase 1: OS update ────────────────────────────────────────────────────────
 if [[ "$LAST" -lt 2 ]]; then
     check_internet
-    log "--- Phase 1: OS update ---"
+    phase 1 "OS update"
     apt-get update && apt-get upgrade -y
     log "  ✓ OS updated"
     reboot_and_resume 2
@@ -534,7 +577,7 @@ fi
 
 # ── Phase 2: Console mode (no desktop environment needed) ────────────────────
 if [[ "$LAST" -lt 3 ]]; then
-    log "--- Phase 2: Console mode ---"
+    phase 2 "Console mode"
     raspi-config nonint do_boot_behaviour B2
     log "  ✓ Boot target set to console"
     reboot_and_resume 3
@@ -544,7 +587,7 @@ fi
 if [[ "$LAST" -lt 4 ]]; then
     if [[ "$WITH_SAMBA" == "true" ]]; then
         check_internet
-        log "--- Phase 3: Samba ---"
+        phase 3 "Samba"
         apt-get install -y samba
         if ! pdbedit -L | grep -q "^$ACTUAL_USER:"; then
             (printf '%s\n%s\n' "$ACTUAL_USER" "$ACTUAL_USER") | smbpasswd -a "$ACTUAL_USER" -s
@@ -573,7 +616,7 @@ EOF
         systemctl restart smbd
         log "  ✓ Samba configured (share: \\\\$(hostname)\\$ACTUAL_USER, password: $ACTUAL_USER)"
     else
-        log "--- Phase 3: Samba skipped ---"
+        phase 3 "Samba (skipped)"
     fi
     save_step 4
 fi
@@ -581,7 +624,7 @@ fi
 # ── Phase 4: Core packages ────────────────────────────────────────────────────
 if [[ "$LAST" -lt 5 ]]; then
     check_internet
-    log "--- Phase 4: Core packages ---"
+    phase 4 "Core packages"
     apt-get install -y git libsdl2-dev xwayland labwc wlr-randr vlc ffmpeg \
         python3-gi python3-gi-cairo gir1.2-gtk-3.0
     if [[ "$WITH_MQTT" == "true" ]]; then
@@ -598,7 +641,7 @@ fi
 # ── Phase 5: picframe from PyPI + init + display defaults ─────────────────────
 if [[ "$LAST" -lt 6 ]]; then
     check_internet
-    log "--- Phase 5: picframe pip install ---"
+    phase 5 "picframe pip install"
     as_user python3 -m venv "$ACTUAL_HOME/venv_picframe"
     as_user "$ACTUAL_HOME/venv_picframe/bin/pip" install --upgrade pip -q
     as_user "$ACTUAL_HOME/venv_picframe/bin/pip" install picframe
@@ -617,7 +660,7 @@ fi
 # ── Phase 6: Clone wanderwall_frame repo + venv ───────────────────────────────────
 if [[ "$LAST" -lt 7 ]]; then
     check_internet
-    log "--- Phase 6: Clone wanderwall_frame ($BRANCH) ---"
+    phase 6 "Clone wanderwall_frame ($BRANCH)"
     if [[ -d "$PROJECT_DIR/.git" ]]; then
         log "  Repo exists, updating to $BRANCH..."
         as_user git -C "$PROJECT_DIR" fetch origin
@@ -639,7 +682,7 @@ fi
 
 # ── Phase 7: Write ~/.wanderwall/config.yaml ────────────────────────────────────
 if [[ "$LAST" -lt 8 ]]; then
-    log "--- Phase 7: App config ---"
+    phase 7 "App config"
     as_user mkdir -p "$ACTUAL_HOME/.wanderwall"
     APP_CONF="$ACTUAL_HOME/.wanderwall/config.yaml"
     if [[ ! -f "$APP_CONF" ]]; then
@@ -678,7 +721,7 @@ fi
 # ── Phase 8: start_picframe.sh + labwc + picframe display service ─────────────
 # Skipped for --from-v4: the display engine is already set up.
 if [[ "$LAST" -lt 9 && "$FROM_V4" != "true" ]]; then
-    log "--- Phase 8: labwc display service ---"
+    phase 8 "labwc display service"
 
     # start_picframe.sh — called by labwc autostart
     cat > "$ACTUAL_HOME/start_picframe.sh" <<EOF
@@ -733,7 +776,7 @@ fi
 
 # ── Phase 9: Systemd user services (API, sync, lights) ────────────────────────
 if [[ "$LAST" -lt 10 ]]; then
-    log "--- Phase 9: API/sync/lights services ---"
+    phase 9 "API/sync/lights services"
     wait_for_user_systemd
 
     as_user mkdir -p "$ACTUAL_HOME/.config/systemd/user"
@@ -768,7 +811,7 @@ fi
 # ── Phase 10: Provisioned state + Koofr setup + install_setup.sh ─────────────
 if [[ "$LAST" -lt 11 ]]; then
     check_internet
-    log "--- Phase 10: Provisioning + Koofr + WiFi recovery ---"
+    phase 10 "Provisioning + Koofr + WiFi recovery"
 
     # Mark frame as provisioned before watchdog starts (prevents AP portal on boot)
     if ping -c 1 -W 2 8.8.8.8 &>/dev/null; then
@@ -826,7 +869,7 @@ PYEOF
 fi
 
 # ── Phase 11: Final cleanup ────────────────────────────────────────────────────
-log "--- Phase 11: Final cleanup ---"
+phase 11 "Final cleanup"
 
 # Apply display defaults first — while script is still intact, before any cleanup.
 # Not for --from-v4: the frame keeps its own display settings.
@@ -852,9 +895,12 @@ log "  Branch     : $BRANCH"
 log "  Funnel URL : $FUNNEL_URL"
 log "  Dashboard  : http://$FRAME_NAME.local:8000"
 log "  Log file   : $LOG_FILE"
+log "  Total time : $(elapsed) (including reboots)"
+log "  Phase times:"
+phase_summary | while IFS= read -r line; do log "$line"; done
 log "============================================="
 log "=== Install script exited cleanly ==="
 
 # Cleanup last — script exits immediately after. No code runs after this block.
 remove_resume_service
-rm -f "$STATE_ENV" "$PROGRESS_FILE" "$PERSISTENT_SCRIPT"
+rm -f "$STATE_ENV" "$PROGRESS_FILE" "$PERSISTENT_SCRIPT" "$TIMING_FILE" "$LOGIN_NOTICE"

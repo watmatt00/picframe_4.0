@@ -970,6 +970,43 @@
                 </div>
             </section>
 
+            <!-- Corrupt Photo Finder (PL-127) -->
+            <section class="card" style="margin-bottom:1.5rem;">
+                <div class="card-header card-header--expandable" id="corrupt-card-header">
+                    <div>
+                        <div class="card-title">🩹 Corrupt Photo Finder</div>
+                        <div class="card-subtitle">Find empty or damaged photos the frame can't show, and remove them</div>
+                    </div>
+                    <span id="corrupt-scan-status" style="color:#94a3b8;font-size:0.875rem;flex-shrink:0;"></span>
+                </div>
+                <div id="corrupt-result" style="padding:0 1.5rem 1.5rem; display:none;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                        <div id="corrupt-summary" style="color:#94a3b8; font-size:0.9rem;"></div>
+                        <div style="display:flex;gap:0.75rem;align-items:center;">
+                            <button class="advanced-toggle" id="btn-rescan-corrupt">↻ Rescan</button>
+                            <button class="advanced-toggle" id="btn-close-corrupt">✕ Close</button>
+                        </div>
+                    </div>
+                    <div id="corrupt-table-wrap" style="overflow-x:auto;">
+                        <table class="sources-table" id="corrupt-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="corrupt-check-all" title="Select all"> All</th>
+                                    <th>Filename</th>
+                                    <th>Size</th>
+                                    <th>Problem</th>
+                                </tr>
+                            </thead>
+                            <tbody id="corrupt-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="button-row" style="margin-top:1rem;">
+                        <button class="btn btn-danger" id="btn-apply-corrupt" disabled>Delete Selected Photos</button>
+                        <span id="corrupt-apply-status" style="font-size:0.85rem; color:#94a3b8; align-self:center;"></span>
+                    </div>
+                </div>
+            </section>
+
             <!-- Rename File -->
             <section class="card" style="margin-bottom:1.5rem;">
                 <div class="card-header card-header--expandable" id="rename-card-header">
@@ -1007,6 +1044,45 @@
                     <div class="button-row" style="margin-top:1rem;">
                         <button class="btn" id="btn-apply-rename" disabled>Apply Renames</button>
                         <span id="rename-apply-status" style="font-size:0.85rem;color:#94a3b8;align-self:center;"></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Rotate Photos (PL-126) -->
+            <section class="card" style="margin-bottom:1.5rem;">
+                <div class="card-header card-header--expandable" id="rotate-card-header">
+                    <div>
+                        <div class="card-title">🔄 Rotate Photos</div>
+                        <div class="card-subtitle">Turn photos that show sideways or upside down (JPEG, PNG, HEIC). The cloud copy is updated first.</div>
+                    </div>
+                    <span id="rotate-scan-status" style="color:#94a3b8;font-size:0.875rem;flex-shrink:0;"></span>
+                </div>
+                <div id="rotate-result" style="padding:0 1.5rem 1.5rem; display:none;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+                        <div id="rotate-summary" style="color:#94a3b8; font-size:0.9rem;"></div>
+                        <div style="display:flex;gap:0.75rem;align-items:center;">
+                            <button class="advanced-toggle" id="btn-rescan-rotate">↻ Rescan</button>
+                            <button class="advanced-toggle" id="btn-close-rotate">✕ Close</button>
+                        </div>
+                    </div>
+                    <div class="button-row" style="margin-bottom:0.75rem;">
+                        <label class="recover-check"><input type="checkbox" id="rotate-only-flagged"> Only photos with an EXIF rotation</label>
+                        <button class="btn" id="btn-rotate-fix-all" disabled>Fix EXIF Orientation</button>
+                        <span id="rotate-status" style="font-size:0.85rem; color:#94a3b8; align-self:center;"></span>
+                    </div>
+                    <div class="form-hint" style="margin-bottom:0.75rem;">Thumbnails show each photo as the frame shows it. Rotating re-saves the photo (JPEG at high quality).</div>
+                    <div id="rotate-table-wrap" style="overflow-x:auto;">
+                        <table class="sources-table" id="rotate-table">
+                            <thead>
+                                <tr>
+                                    <th>Preview</th>
+                                    <th>Filename</th>
+                                    <th>EXIF</th>
+                                    <th>Rotate</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rotate-tbody"></tbody>
+                        </table>
                     </div>
                 </div>
             </section>

@@ -108,6 +108,11 @@ Use these stable IDs in test plans, bug reports, and development references:
   - Click header to scan → table of video files with sizes
   - Delete Selected Videos button (top + bottom, destructive red), Cancel, ✕ Close
 
+  **Corrupt Photo Finder Card** (PL-127):
+  - Click header to scan (checks every photo, decoding at reduced scale) → table: ☐ | Filename | Size | Problem
+  - Empty files and photos Pillow can't open or decode; HEIC is skipped when pillow-heif is missing (count shown)
+  - Delete Selected Photos (confirm; cloud first, then the frame), ↻ Rescan, ✕ Close
+
   **Rename File Card:**
   - Click header to scan → table: Preview | Original Filename | EXIF Date | New Filename
   - New Filename inputs are blank by default (original shown as placeholder)
@@ -115,6 +120,11 @@ Use these stable IDs in test plans, bug reports, and development references:
   - Guardrails: red highlight if proposed name already exists or is used twice in the same batch
   - Apply sends only changed rows via cloud-first rename; table refreshes after success
   - ✕ Close hides results
+
+  **Rotate Photos Card** (PL-126):
+  - Click header to load the album's JPEG/PNG/HEIC photos → table: Preview | Filename | EXIF orientation badge | ⟲ ⟳ 180° (and Fix when EXIF says it's turned)
+  - "Only photos with an EXIF rotation" filter; **Fix EXIF Orientation (N)** fixes them all at once
+  - Rotation is relative to how the photo looks now; the photo is re-saved upright (EXIF orientation 1), uploaded to the cloud folder, then replaces the frame's copy; thumbnails refresh
 
 ### DASH-BACKUPS - Backups (Tab 4, PL-164)
 
@@ -187,7 +197,9 @@ Dashboard (single page, dashboard.html)
   │     ├── Filename Cleaner card
   │     ├── Duplicate Finder card
   │     ├── Video File Manager card
-  │     └── Rename File card
+  │     ├── Corrupt Photo Finder card
+  │     ├── Rename File card
+  │     └── Rotate Photos card
   ├── Tab 4: Backups (DASH-BACKUPS) [picker and Recover reload on open]
   │     ├── Photo Backups card [collapsible, own album picker incl. Whole frame]
   │     └── Recover Albums card [collapsible]
@@ -225,7 +237,7 @@ iOS IDs are from `wanderwall_app/docs/SCREEN_MAP.md` (Manager app unless marked 
 | Delete album | SD3 | DASH-ALBUMS (Delete) |
 | Upload photos | UP2 (from MM1, SD3, MP3); Share: CH1 | -- |
 | Manage photos (rename, delete, preview) | MP3 | DASH-TOOLS (Rename File) |
-| Filename cleaning, duplicates, videos | -- | DASH-TOOLS |
+| Filename cleaning, duplicates, videos, corrupt photos, rotation | -- | DASH-TOOLS |
 | Backups (album or whole frame) | -- | DASH-BACKUPS (Photo Backups) |
 | Recover deleted albums | -- | DASH-BACKUPS (Recover Albums) |
 | Frame name, rotation, sync interval | MF3 | DASH-SETTINGS (Frame Settings) |

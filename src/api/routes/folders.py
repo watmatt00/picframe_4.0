@@ -148,6 +148,23 @@ async def create_folder(request: CreateFolderRequest, admin=Depends(require_admi
     )
 
 
+class RemoteInfo(BaseModel):
+    """An rclone remote."""
+    name: str
+
+
+@router.get("/remotes", response_model=list[RemoteInfo])
+async def list_remotes(admin=Depends(require_admin)):
+    """
+    List available rclone remotes.
+
+    Returns remotes configured in the system's rclone config.
+    Declared before /{source_id} so "remotes" isn't taken as an album id (PL-167).
+    """
+    remotes = await rclone_list_remotes()
+    return [RemoteInfo(name=name) for name in remotes]
+
+
 @router.get("/{source_id}", response_model=PhotoSourceResponse)
 async def get_folder(source_id: str, admin=Depends(require_admin)):
     """
@@ -366,19 +383,3 @@ async def trigger_sync_all(
         message=f"Sync started for {len(syncable)} sources",
         sources_queued=[s.id for s in syncable],
     )
-
-
-class RemoteInfo(BaseModel):
-    """An rclone remote."""
-    name: str
-
-
-@router.get("/remotes", response_model=list[RemoteInfo])
-async def list_remotes(admin=Depends(require_admin)):
-    """
-    List available rclone remotes.
-
-    Returns remotes configured in the system's rclone config.
-    """
-    remotes = await rclone_list_remotes()
-    return [RemoteInfo(name=name) for name in remotes]

@@ -99,7 +99,7 @@ The dashboard is one page (`GET /`, `src/dashboard/templates/dashboard.html` + `
 | **Delete** | `POST /api/sources/delete` | Deletes the album **and its photos on the frame**; the cloud folder and backups are kept (PL-147). Hidden for the album that's showing |
 
 #### Tools tab
-An **Album** picker shared by the cards (reloaded each time the tab opens), then: Filename Cleaner, Duplicate Finder, Video File Manager, Rename File. Each scans first (read-only), shows the results, and applies changes to the cloud folder first, then the frame (`/api/tools/{id}/scan/*`, `/apply/*`, `/rename`).
+An **Album** picker shared by the cards (reloaded each time the tab opens), then: Filename Cleaner, Duplicate Finder, Video File Manager, Corrupt Photo Finder, Rename File, Rotate Photos. Each scans first (read-only), shows the results, and applies changes to the cloud folder first, then the frame (`/api/tools/{id}/scan/*`, `/apply/*`, `/rename`).
 
 #### Backups tab (PL-164)
 | Feature | Endpoint | Description |

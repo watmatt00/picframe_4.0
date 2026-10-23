@@ -1555,6 +1555,54 @@ async def tools_apply_videos(source_id: str, request: dict):
         return {"ok": False, "error": str(exc)}
 
 
+@router.get("/api/tools/{source_id}/scan/corrupt")
+async def tools_scan_corrupt(source_id: str):
+    """Find empty or undecodable photos (PL-127). LAN-only, no JWT."""
+    try:
+        result = await asyncio.to_thread(photo_tools.scan_corrupt, source_id)
+        return {"ok": True, **result.model_dump()}
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error(f"tools scan_corrupt error: {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/api/tools/{source_id}/apply/corrupt")
+async def tools_apply_corrupt(source_id: str, request: dict):
+    """Delete the chosen unreadable photos, cloud first (PL-127). LAN-only, no JWT."""
+    to_delete = request.get("to_delete", [])
+    if not to_delete:
+        return {"ok": False, "error": "to_delete list is empty"}
+    try:
+        result = await photo_tools.apply_corrupt(source_id, to_delete)
+        return {"ok": True, **result.model_dump()}
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error(f"tools apply_corrupt error: {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/api/tools/{source_id}/rotate")
+async def tools_rotate(source_id: str, request: dict):
+    """Rotate photos: {"items": [{"filename", "rotate": left|right|180|auto}]} (PL-126). LAN-only, no JWT."""
+    try:
+        items = [photo_tools.RotateItem(**i) for i in request.get("items", [])]
+    except Exception:
+        return {"ok": False, "error": "items must be a list of {filename, rotate}"}
+    if not items:
+        return {"ok": False, "error": "items list is empty"}
+    try:
+        result = await photo_tools.rotate_photos(source_id, items)
+        return {"ok": True, **result.model_dump()}
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:
+        logger.error(f"tools rotate error: {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
 @router.post("/api/tools/{source_id}/rename")
 async def tools_rename_file(source_id: str, request: dict):
     """Rename a single file by name (cloud-first). LAN-only, no JWT."""

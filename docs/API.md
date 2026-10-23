@@ -128,7 +128,7 @@ Admin = `require_admin`, Any = `get_current_device`, Contributor = `require_cont
 | `/api/v1/folders/{id}/sync` | POST | Admin | Sync one album in the background: `{message, source_id}`. 400 no cloud folder, 409 a sync is running |
 | `/api/v1/folders/{id}/sync/status` | GET | Admin | `{is_syncing, current_source, local_count, remote_count, sync_status, message}` |
 | `/api/v1/folders/sync/all` | POST | Admin | Sync every enabled album with a cloud folder, one after another: `{message, sources_queued}`. 409 a sync is running, 400 none to sync |
-| `/api/v1/folders/remotes` | GET | Admin | Meant to list rclone remotes. **Known issue:** unreachable, because `/folders/{id}` is matched first (404 `"Source 'remotes' not found"`). Nothing calls it |
+| `/api/v1/folders/remotes` | GET | Admin | rclone remotes: list of `{name}` |
 | **Photos** | | | |
 | `/api/v1/sources/{id}/photos` | GET | Admin | Photos on the frame for an album: `{source_id, photos: [{filename, size_bytes, modified_epoch}], total}` |
 | `/api/v1/sources/{id}/photos/thumbnail?filename=` | GET | Admin | JPEG thumbnail, cached in `~/.wanderwall/thumbs/` |
@@ -142,6 +142,9 @@ Admin = `require_admin`, Any = `get_current_device`, Contributor = `require_cont
 | `/api/v1/sources/{id}/tools/scan/videos` | GET | Admin | Video files with sizes |
 | `/api/v1/sources/{id}/tools/apply/videos` | POST | Admin | `{to_delete: [filenames]}` |
 | `/api/v1/sources/{id}/tools/rename` | POST | Admin | `{original, proposed}`: rename one file |
+| `/api/v1/sources/{id}/tools/scan/corrupt` | GET | Admin | Empty or undecodable photos: `{source_id, files: [{filename, size_bytes, error}], total_files_scanned, skipped}` (PL-127) |
+| `/api/v1/sources/{id}/tools/apply/corrupt` | POST | Admin | `{to_delete: [filenames]}` (photos only) |
+| `/api/v1/sources/{id}/tools/rotate` | POST | Admin | `{items: [{filename, rotate: left\|right\|180\|auto}]}`: rotate as seen on screen, or `auto` = apply the EXIF orientation; re-saved upright with orientation 1, uploaded to the cloud first (PL-126) |
 | **Contributors (invites)** | | | |
 | `/api/v1/contributors` | GET | Admin | Invites: list of `{id, code, expires_at, claimed, claimed_at, claimed_by}` |
 | `/api/v1/contributors/invite` | POST | Admin | New single-use invite, 48 h: `{id, code, qr_code_base64, expires_at, funnel_url, claimed}`. 429 after 3 pending invites an hour |
@@ -293,6 +296,9 @@ The web dashboard at `http://<pi-ip>:8000` is one page (`GET /`, `dashboard.html
 | `/api/tools/{id}/scan/videos` | GET | Video files |
 | `/api/tools/{id}/apply/videos` | POST | Delete the chosen videos |
 | `/api/tools/{id}/rename` | POST | Rename one file |
+| `/api/tools/{id}/scan/corrupt` | GET | Empty or damaged photos (Corrupt Photo Finder) |
+| `/api/tools/{id}/apply/corrupt` | POST | Delete the chosen damaged photos |
+| `/api/tools/{id}/rotate` | POST | `{items: [{filename, rotate}]}`: rotate photos (Rotate Photos card) |
 
 ### Backups tab: Photo Backups (PL-164)
 

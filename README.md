@@ -44,7 +44,7 @@ WiFi lost ──────────────────────> Ho
 ### Web Dashboard Features
 - **Frame Status Tab**: Photo sync status, cloud/local photo counts, traffic light indicator, current image thumbnail, quick actions (Sync Now, Restart Frame, Restart API, Reboot Frame)
 - **Albums Tab**: album list with cloud and frame counts, Add Album (just a name; the cloud folder is created for it), show an album on the frame, Delete Album (removes its photos from the frame, keeps the cloud copy)
-- **Tools Tab**: Filename Cleaner (spaces→underscores, long-name detection, Google ID tokens, ext case), Duplicate Finder, Video File Manager, Rename File (file browser with scan + batch rename)
+- **Tools Tab**: Filename Cleaner (spaces→underscores, long-name detection, Google ID tokens, ext case), Duplicate Finder, Video File Manager, Rename File (file browser with scan + batch rename), Corrupt Photo Finder, Rotate Photos
 - **Backups Tab**: Photo Backups (one album, or the whole frame in one downloadable file with one-click restore; tar.gz in `~/Pictures/backups/`, list/restore/download/delete), Recover Albums (deleted albums from cloud storage, take over a replaced frame's albums, or upload a .zip/.tar.gz up to 16 GB)
 - **Settings Tab**: Frame settings (name, rotation interval, sync interval), Koofr setup sub-card, sleep schedule (display on/off at set times via systemd timers), device pairing (QR code + instructions), manage paired devices (inline table with revoke), log viewer (ops/security with auto-refresh, log level control), software updates, party mode
 - **Indicator Lights**: GTK3 RGBA overlay on the frame display — small colored dots (hidden when sync + WiFi are healthy); manual test override via `POST /dashboard/test-lights`

@@ -1863,6 +1863,31 @@ function initPhotoTools() {
         updateVideoApplyBtn();
     });
 
+    // Corrupt Photo Finder (PL-127)
+    initScanCard(
+        document.getElementById('corrupt-card-header'), document.getElementById('corrupt-result'),
+        document.getElementById('corrupt-scan-status'), runCorruptScan,
+        document.getElementById('btn-close-corrupt'), document.getElementById('btn-rescan-corrupt')
+    );
+    const btnApplyCorrupt = document.getElementById('btn-apply-corrupt');
+    if (btnApplyCorrupt) btnApplyCorrupt.addEventListener('click', runCorruptApply);
+    const chkAllCorrupt = document.getElementById('corrupt-check-all');
+    if (chkAllCorrupt) chkAllCorrupt.addEventListener('change', function () {
+        document.querySelectorAll('.corrupt-check').forEach(cb => cb.checked = this.checked);
+        updateCorruptApplyBtn();
+    });
+
+    // Rotate Photos (PL-126)
+    initScanCard(
+        document.getElementById('rotate-card-header'), document.getElementById('rotate-result'),
+        document.getElementById('rotate-scan-status'), runRotateScan,
+        document.getElementById('btn-close-rotate'), document.getElementById('btn-rescan-rotate')
+    );
+    const btnRotateFixAll = document.getElementById('btn-rotate-fix-all');
+    if (btnRotateFixAll) btnRotateFixAll.addEventListener('click', rotateFixAll);
+    const chkRotateFlagged = document.getElementById('rotate-only-flagged');
+    if (chkRotateFlagged) chkRotateFlagged.addEventListener('change', renderRotateResults);
+
     // Cancel buttons
     ['btn-cancel-filenames', 'btn-cancel-filenames-top'].forEach(id => {
         const btn = document.getElementById(id);
@@ -2702,6 +2727,174 @@ async function runVideoApply() {
         _vidAbort = null;
         updateVideoApplyBtn();
     }
+}
+
+// ----- Corrupt Photo Finder (PL-127) -----
+
+async function runCorruptScan() {
+    const src = toolsSourceId();
+    if (!src) { alert('Select an album first'); return; }
+    const header = document.getElementById('corrupt-card-header');
+    const statusEl = document.getElementById('corrupt-scan-status');
+    header.dataset.scanning = 'true';
+    header.classList.remove('card-header--expandable');
+    if (statusEl) statusEl.textContent = 'Checking every photo… (can take a few minutes)';
+    document.getElementById('corrupt-result').style.display = 'none';
+    try {
+        const data = await apiFetch(`/api/tools/${encodeURIComponent(src)}/scan/corrupt`);
+        if (!data.ok) throw new Error(data.error || 'Scan failed');
+        renderCorruptResults(data);
+    } catch (e) {
+        alert('Corrupt photo scan failed: ' + e.message);
+        header.classList.add('card-header--expandable');
+    } finally {
+        delete header.dataset.scanning;
+        if (statusEl) statusEl.textContent = '';
+    }
+}
+
+function renderCorruptResults(data) {
+    const files = data.files || [];
+    const skipped = data.skipped ? ` ${data.skipped} HEIC photo(s) not checked (no HEIC support).` : '';
+    document.getElementById('corrupt-summary').textContent = (files.length === 0
+        ? `✅ All ${data.total_files_scanned} photos open fine.`
+        : `Found ${files.length} damaged or empty photo(s) out of ${data.total_files_scanned}.`) + skipped;
+    const tbody = document.getElementById('corrupt-tbody');
+    tbody.innerHTML = files.map(f => `<tr>
+        <td><input type="checkbox" class="corrupt-check" value="${escHtml(f.filename)}" checked></td>
+        <td style="font-family:monospace;font-size:0.8rem;">${escHtml(f.filename)}</td>
+        <td style="color:#94a3b8;">${fmtBytes(f.size_bytes)}</td>
+        <td style="color:#fca5a5;font-size:0.8rem;">${escHtml(f.error)}</td>
+    </tr>`).join('');
+    document.querySelectorAll('.corrupt-check').forEach(cb => cb.addEventListener('change', updateCorruptApplyBtn));
+    document.getElementById('corrupt-check-all').checked = files.length > 0;
+    document.getElementById('corrupt-table-wrap').style.display = files.length ? '' : 'none';
+    updateCorruptApplyBtn();
+    document.getElementById('corrupt-result').style.display = 'block';
+}
+
+function updateCorruptApplyBtn() {
+    const checked = document.querySelectorAll('.corrupt-check:checked').length;
+    const btn = document.getElementById('btn-apply-corrupt');
+    if (btn) { btn.disabled = checked === 0; btn.textContent = checked ? `Delete ${checked} Photo(s)` : 'Delete Selected Photos'; }
+}
+
+async function runCorruptApply() {
+    const src = toolsSourceId();
+    const toDelete = [...document.querySelectorAll('.corrupt-check:checked')].map(cb => cb.value);
+    if (!toDelete.length) return;
+    if (!confirm(`Delete ${toDelete.length} damaged photo(s) from the frame and its cloud folder? This cannot be undone.`)) return;
+    const status = document.getElementById('corrupt-apply-status');
+    const btn = document.getElementById('btn-apply-corrupt');
+    btn.disabled = true;
+    status.textContent = 'Deleting…';
+    status.style.color = '#94a3b8';
+    try {
+        const data = await apiFetch(`/api/tools/${encodeURIComponent(src)}/apply/corrupt`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to_delete: toDelete }),
+        });
+        if (!data.ok) throw new Error(data.error || 'Delete failed');
+        const failed = data.failed || [];
+        status.textContent = `✅ ${data.succeeded.length} deleted` + (failed.length ? ` · ⚠️ ${failed.length} failed: ${failed.map(f => `${f.filename} (${f.error})`).join(', ')}` : '');
+        status.style.color = failed.length ? '#fbbf24' : '#86efac';
+        setTimeout(runCorruptScan, 800);
+    } catch (e) {
+        status.textContent = 'Error: ' + e.message;
+        status.style.color = '#f87171';
+        updateCorruptApplyBtn();
+    }
+}
+
+// ----- Rotate Photos (PL-126) -----
+
+const ROTATABLE = /\.(jpe?g|png|hei[cf])$/i;
+let _rotateFiles = [];
+
+async function runRotateScan() {
+    const src = toolsSourceId();
+    if (!src) { alert('Select an album first'); return; }
+    const header = document.getElementById('rotate-card-header');
+    const statusEl = document.getElementById('rotate-scan-status');
+    header.dataset.scanning = 'true';
+    header.classList.remove('card-header--expandable');
+    if (statusEl) statusEl.textContent = 'Loading photos…';
+    document.getElementById('rotate-result').style.display = 'none';
+    try {
+        const data = await apiFetch(`/api/tools/${encodeURIComponent(src)}/scan/files`);
+        if (!data.ok) throw new Error(data.error || 'Scan failed');
+        _rotateFiles = (data.files || []).filter(f => ROTATABLE.test(f.filename));
+        renderRotateResults();
+        document.getElementById('rotate-result').style.display = 'block';
+    } catch (e) {
+        alert('Loading photos failed: ' + e.message);
+        header.classList.add('card-header--expandable');
+    } finally {
+        delete header.dataset.scanning;
+        if (statusEl) statusEl.textContent = '';
+    }
+}
+
+function rotateNeedsFix(f) { return f.exif_orientation && f.exif_orientation !== 1; }
+
+function renderRotateResults() {
+    const src = toolsSourceId();
+    const onlyFlagged = document.getElementById('rotate-only-flagged').checked;
+    const flagged = _rotateFiles.filter(rotateNeedsFix);
+    const shown = onlyFlagged ? flagged : _rotateFiles;
+    document.getElementById('rotate-summary').textContent =
+        `${_rotateFiles.length} photo(s)` + (flagged.length ? ` · ${flagged.length} with an EXIF rotation` : '');
+    const fixBtn = document.getElementById('btn-rotate-fix-all');
+    fixBtn.disabled = flagged.length === 0;
+    fixBtn.textContent = flagged.length ? `Fix EXIF Orientation (${flagged.length})` : 'Fix EXIF Orientation';
+    const bust = Date.now();
+    document.getElementById('rotate-tbody').innerHTML = shown.map(f => {
+        const name = escHtml(f.filename);
+        const thumb = `/api/thumbnail/${encodeURIComponent(src)}?filename=${encodeURIComponent(f.filename)}&v=${bust}`;
+        const badge = rotateNeedsFix(f)
+            ? `<span class="status-chip" style="background:#4c1d95;color:#ede9fe;" title="EXIF orientation ${f.exif_orientation}">↻ ${f.exif_orientation}</span>` : '';
+        const btn = (label, rotate, title) =>
+            `<button class="btn-small" title="${title}" onclick="rotatePhotos([{filename: this.closest('tr').dataset.file, rotate: '${rotate}'}])">${label}</button>`;
+        return `<tr data-file="${name}">
+            <td><img src="${thumb}" loading="lazy" style="width:64px;height:64px;object-fit:cover;border-radius:4px;" alt=""></td>
+            <td style="font-family:monospace;font-size:0.8rem;">${name}</td>
+            <td>${badge}</td>
+            <td style="white-space:nowrap;">${btn('⟲', 'left', 'Rotate left')} ${btn('⟳', 'right', 'Rotate right')} ${btn('180°', '180', 'Upside down')}${rotateNeedsFix(f) ? ' ' + btn('Fix', 'auto', 'Apply the EXIF orientation') : ''}</td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="4" style="color:#94a3b8;">No photos to show.</td></tr>';
+}
+
+async function rotatePhotos(items) {
+    const src = toolsSourceId();
+    const status = document.getElementById('rotate-status');
+    status.textContent = items.length === 1 ? `Rotating ${items[0].filename}…` : `Rotating ${items.length} photos…`;
+    status.style.color = '#fbbf24';
+    try {
+        const data = await apiFetch(`/api/tools/${encodeURIComponent(src)}/rotate`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items }),
+        });
+        if (!data.ok) throw new Error(data.error || 'Rotate failed');
+        const failed = data.failed || [];
+        status.textContent = `✅ ${data.succeeded.length} rotated` + (failed.length ? ` · ⚠️ ${failed.map(f => `${f.filename} (${f.error})`).join(', ')}` : '');
+        status.style.color = failed.length ? '#fbbf24' : '#86efac';
+        // Rotated photos now have orientation 1; refresh the list and thumbnails
+        data.succeeded.forEach(name => {
+            const f = _rotateFiles.find(x => x.filename === name);
+            if (f) f.exif_orientation = 1;
+        });
+        renderRotateResults();
+    } catch (e) {
+        status.textContent = 'Error: ' + e.message;
+        status.style.color = '#f87171';
+    }
+}
+
+function rotateFixAll() {
+    const flagged = _rotateFiles.filter(rotateNeedsFix);
+    if (!flagged.length) return;
+    if (!confirm(`Apply the EXIF orientation to ${flagged.length} photo(s)? Each is re-saved upright and uploaded to the cloud folder.`)) return;
+    rotatePhotos(flagged.map(f => ({ filename: f.filename, rotate: 'auto' })));
 }
 
 // ----- Rename File (browser + batch) -----
