@@ -348,13 +348,17 @@ if [[ "$FROM_V4" == "true" && "$LAST" -lt 1 ]]; then
     check_internet
 
     FRAME_NAME="${FRAME_NAME:-$(hostname)}"
-    FUNNEL_URL=$(python3 - "$V4_DATA/config.yaml" <<'PYEOF'
+    # The system python3 may not have PyYAML (kframe didn't); v4's own venv does.
+    # If neither can read it, fall back to tailscale below instead of aborting.
+    V4_PYTHON="$ACTUAL_HOME/picframe_4.0/venv/bin/python3"
+    [[ -x "$V4_PYTHON" ]] || V4_PYTHON="python3"
+    FUNNEL_URL=$("$V4_PYTHON" - "$V4_DATA/config.yaml" <<'PYEOF'
 import sys, yaml
 with open(sys.argv[1]) as f:
     cfg = yaml.safe_load(f) or {}
 print((cfg.get("frame") or {}).get("funnel_url") or "")
 PYEOF
-)
+) || { log "  Couldn't read funnel_url from $V4_DATA/config.yaml with $V4_PYTHON; asking tailscale"; FUNNEL_URL=""; }
     [[ -n "$FUNNEL_URL" ]] || FUNNEL_URL=$(tailscale funnel status 2>/dev/null | grep "^https://" | awk '{print $1}' | head -1 || true)
     log "  Frame name : $FRAME_NAME"
     log "  Funnel URL : ${FUNNEL_URL:-not found}"
