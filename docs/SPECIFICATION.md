@@ -88,7 +88,7 @@ The dashboard is one page (`GET /`, `src/dashboard/templates/dashboard.html` + `
 | **Current Image** | `GET /current-image` | The photo on screen now |
 | **Service Status** | `GET /dashboard/status` | Display, API, sync timer, lights, Tailscale health |
 | **Storage Info** | `GET /dashboard/status` | SD card use |
-| **Quick Actions** | `POST /sync`, `/services/{name}/restart`, `/system/reboot` | Refresh, Sync Now, Restart Frame, Restart API, Reboot Frame |
+| **Quick Actions** | `POST /sync`, `/services/{name}/restart`, `/system/reboot` | Refresh, Sync Now, Restart Display, Restart API, Reboot Frame |
 
 #### Albums tab
 | Feature | Endpoint | Description |

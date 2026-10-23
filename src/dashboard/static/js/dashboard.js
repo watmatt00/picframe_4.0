@@ -561,7 +561,7 @@ function initStatusDashboard() {
 
     async function restartPfService() {
         if (!btnRestartPf) return;
-        if (!confirm("Restart the picture frame display?")) return;
+        if (!confirm("Restart the display? The slideshow restarts in a few seconds. The frame stays on.")) return;
 
         btnRestartPf.disabled = true;
         if (btnRestartPfSpinner) btnRestartPfSpinner.style.display = "inline-block";
@@ -582,7 +582,7 @@ function initStatusDashboard() {
         } finally {
             btnRestartPf.disabled = false;
             if (btnRestartPfSpinner) btnRestartPfSpinner.style.display = "none";
-            if (btnRestartPfLabel) btnRestartPfLabel.textContent = "♻️ Restart Frame";
+            if (btnRestartPfLabel) btnRestartPfLabel.textContent = "♻️ Restart Display";
         }
     }
 
@@ -619,7 +619,7 @@ function initStatusDashboard() {
         const spinner = document.getElementById("btn-reboot-spinner");
         const label = document.getElementById("btn-reboot-label");
         if (!btn) return;
-        if (!confirm("Reboot the frame? The display and this dashboard will be unavailable for about 1-2 minutes.")) return;
+        if (!confirm("Reboot the frame? The whole Raspberry Pi restarts. The display and this dashboard will be unavailable for about 1-2 minutes.")) return;
 
         const setLabel = (text) => { if (label) label.textContent = text; };
         btn.disabled = true;

@@ -202,7 +202,7 @@ Section numbers are stable (test runs refer to them). Screens are named as in th
 
 - [ ] "Sync Now" button triggers sync → traffic light goes BLUE
 - [ ] After sync completes, traffic light returns to appropriate color
-- [ ] "Restart Frame" button restarts picframe service
+- [ ] "Restart Display" button restarts picframe service (slideshow only; the Pi stays on)
 - [ ] "Restart API" button restarts wanderwall-api service (page may briefly disconnect)
 - [ ] "Reboot Frame" → confirm → frame reboots and the dashboard is back in about 1-2 minutes (on an install without the reboot rule: a message to re-run `install_setup.sh`)
 - [ ] "Refresh" button updates all displayed data

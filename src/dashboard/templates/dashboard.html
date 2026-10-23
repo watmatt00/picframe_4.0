@@ -160,7 +160,7 @@
                 <div class="tools-card-header">
                     <div>
                         <div class="tools-title">Quick Actions</div>
-                        <div class="tools-subtitle">Check status and restart services</div>
+                        <div class="tools-subtitle">Restart Display restarts the slideshow (a few seconds). Reboot Frame restarts the whole Raspberry Pi (1-2 minutes).</div>
                     </div>
                 </div>
 
@@ -173,15 +173,15 @@
                         <div class="btn-spinner" id="btn-sync-now-spinner" style="display:none;"></div>
                         <span id="btn-sync-now-label">🔄 Sync Now</span>
                     </button>
-                    <button class="btn" id="btn-restart-pf">
+                    <button class="btn" id="btn-restart-pf" title="Restarts the slideshow only. The frame stays on.">
                         <div class="btn-spinner" id="btn-restart-pf-spinner" style="display:none;"></div>
-                        <span id="btn-restart-pf-label">♻️ Restart Frame</span>
+                        <span id="btn-restart-pf-label">♻️ Restart Display</span>
                     </button>
                     <button class="btn" id="btn-restart-api">
                         <div class="btn-spinner" id="btn-restart-api-spinner" style="display:none;"></div>
                         <span id="btn-restart-api-label">♻️ Restart API</span>
                     </button>
-                    <button class="btn" id="btn-reboot">
+                    <button class="btn" id="btn-reboot" title="Restarts the whole Raspberry Pi. Back in 1-2 minutes.">
                         <div class="btn-spinner" id="btn-reboot-spinner" style="display:none;"></div>
                         <span id="btn-reboot-label">⏻ Reboot Frame</span>
                     </button>

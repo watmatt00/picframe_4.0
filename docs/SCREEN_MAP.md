@@ -48,7 +48,7 @@ Use these stable IDs in test plans, bug reports, and development references:
   **Quick Actions Card:**
   - Refresh Dashboard button
   - Sync Now button (shows spinner, confirmation on success)
-  - Restart Frame button (confirmation dialog)
+  - Restart Display button (confirmation dialog; restarts the slideshow only)
   - Restart API button (confirmation dialog, page reloads after 3s)
   - Reboot Frame button (confirmation dialog; back in about 1-2 minutes; needs `install_setup.sh` re-run on older installs, PL-142)
   - Last sync / last restart timestamps
