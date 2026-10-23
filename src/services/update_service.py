@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 REPO_PATH = Path.home() / "wanderwall_frame"
 
 # Base version prefix
-BASE_VERSION = "4.0"
+BASE_VERSION = "5.0"
 
 
 async def _get_commit_count(repo_path: Path, ref: str = "HEAD") -> Optional[int]:
@@ -422,10 +422,10 @@ async def get_local_commit(repo_path: Optional[Path] = None) -> Optional[str]:
 
 async def get_local_version(repo_path: Optional[Path] = None) -> str:
     """
-    Get the current installed version as a friendly string (e.g. '4.0.47').
+    Get the current installed version as a friendly string (e.g. '5.0.47').
 
     Returns:
-        Version string like '4.0.47', or '4.0.?' on error
+        Version string like '5.0.47', or '5.0.?' on error
     """
     if repo_path is None:
         repo_path = get_repo_path()

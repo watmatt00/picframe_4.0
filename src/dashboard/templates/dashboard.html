@@ -590,7 +590,7 @@
                     <div class="service-grid" style="margin-bottom: 1.25rem;">
                         <div class="service-label">Installed</div>
                         <div class="service-value">
-                            <code id="update-local-version">{{ update_local_version or '4.0.?' }}</code>
+                            <code id="update-local-version">{{ update_local_version or '5.0.?' }}</code>
                             <span style="color:#6b7280; font-size:0.8rem; margin-left:0.4rem;" id="update-local-commit">({{ update_local_commit or '?' }})</span>
                         </div>
 
@@ -613,7 +613,7 @@
                                 {%- if update_last_result == 'update_available' -%}
                                     &mdash;
                                 {%- elif update_last_result == 'up_to_date' -%}
-                                    {{ update_local_version or '4.0.?' }}
+                                    {{ update_local_version or '5.0.?' }}
                                 {%- else -%}
                                     &mdash;
                                 {%- endif -%}
