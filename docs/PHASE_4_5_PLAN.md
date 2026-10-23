@@ -1,5 +1,7 @@
 # Plan: Complete Phase 4 & Phase 5
 
+*Historical plan (Phases 4-6 are built). Open work is in `wanderwall_app/docs/PARKING_LOT.md`. Corrected 2026-10-22 (PL-089): TestFlight had **not** happened when this said "Done"; only unsigned CodeMagic IPAs were sideloaded. App Store Connect setup is tracked in the parking lot runbook.*
+
 ## Current Status
 
 **Phase 4: Mostly complete.** Backend deployed and running on tkframe Pi.
@@ -8,7 +10,7 @@
 **Key constraints:**
 - iOS only. Android is permanently on hold.
 - Mac + Apple Developer account are available now.
-- Mobile connects via Tailscale Funnel: `https://tkframe.tail7de60a.ts.net` (HTTPS + JWT)
+- Mobile connects via Tailscale Funnel: `https://tkframe.whale-ayu.ts.net` (HTTPS + JWT)
 - Dashboard connects via LAN: `http://192.168.102.210:8000` (HTTP, no auth)
 
 ---
@@ -54,8 +56,8 @@ Multiple rounds of testing and fixes completed. See task list for details.
 ### 5.5b ~~Manual Test Plan~~ - DONE
 Comprehensive test plan created at `docs/TEST_PLAN.md`. 308 test cases covering backend API (40 endpoints), web dashboard (5 pages), iOS app (16 views), and 7 end-to-end scenarios. Copy-per-run workflow with `docs/test_runs/` directory.
 
-### 5.6 ~~TestFlight Beta~~ - DONE
-Distributed to family via TestFlight. App Store Connect configured, signing/provisioning set up, archived and uploaded.
+### 5.6 TestFlight Beta - NOT DONE (corrected 2026-10-22)
+This was marked done by mistake: builds were unsigned CodeMagic IPAs sideloaded to phones. TestFlight and App Store Connect are in the parking lot runbook (RB-xx).
 
 ### 5.7 ~~QR Scanner~~ - DONE
 Camera-based QR code scanning implemented and tested in picframe_mgr repo.
@@ -79,7 +81,7 @@ Camera-based QR code scanning implemented and tested in picframe_mgr repo.
 | Sync interval settings | Done |
 | Log viewer | Done |
 | Manual test plan (308 test cases) | Done |
-| TestFlight beta distribution | Done |
+| TestFlight beta distribution | Not done (see parking lot runbook) |
 | Dashboard pairing improvements | Done |
 | FoldersResponse fix | Done |
 | FrameClient Funnel URL support | Done |
@@ -89,7 +91,7 @@ Camera-based QR code scanning implemented and tested in picframe_mgr repo.
 | Task | Priority |
 |------|----------|
 | ~~Run backend test suite (`pytest`)~~ | Done |
-| ~~TestFlight beta distribution~~ | Done |
+| TestFlight beta distribution | Not done (parking lot runbook) |
 | ~~QR scanner for pairing~~ | Done |
 | ~~Revert pairing code rate limit (50 → 3 per hour)~~ | Done |
 | ~~Phase 6: WiFi recovery + setup mode~~ | Done |
@@ -228,4 +230,4 @@ GTK3 RGBA overlay on the frame display. Small colored dots, horizontal layout, 5
 ## Verification
 
 - Phase 4 done when: `pytest` passes on PC and Pi
-- Phase 5 done when: TestFlight build uploaded, QR scanner implemented
+- Phase 5 done when: TestFlight build uploaded (not yet), QR scanner implemented (done)

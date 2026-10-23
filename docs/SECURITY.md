@@ -2,10 +2,10 @@
 
 ## Overview
 
-WanderWall prioritizes security with:
-- **JWT authentication** for all API access
-- **Tailscale Funnel** for secure HTTPS-only remote access
-- **Time-limited pairing codes** with rate limiting
+WanderWall's security, and its limits:
+- **JWT authentication** for the app API (`/api/v1/*`, except `/api/v1/pair`). The web dashboard has **no login**; it is protected only by being reachable from the LAN and tailnet (`LANOnlyMiddleware`, deny by default)
+- **Tailscale Funnel** for remote access: HTTPS, and only `/api/v1/*`, `/health` and `/version` are reachable from the internet. On the LAN and tailnet the frame serves plain HTTP on port 8000 (dashboard and API)
+- **Time-limited pairing codes** with rate limiting (codes and invites only; no other endpoint is rate-limited)
 - **Dual logging** with security event tracking
 
 ## Access Model
@@ -16,10 +16,10 @@ WanderWall prioritizes security with:
 ├─────────────────────────────────────────────────────────────┤
 │  LOCAL (LAN)           │  REMOTE (Internet)                 │
 ├────────────────────────┼────────────────────────────────────┤
-│  Web Dashboard         │  Mobile App                        │
+│  Web Dashboard         │  Mobile apps                       │
 │  http://pi:8000        │  https://frame.ts.net              │
 │  No auth required      │  JWT auth required                 │
-│                        │  Via Tailscale Funnel              │
+│  (LAN + tailnet only)  │  Via Tailscale Funnel, /api/v1 only│
 └────────────────────────┴────────────────────────────────────┘
 ```
 
@@ -65,7 +65,7 @@ WanderWall prioritizes security with:
 | Role | Permissions |
 |------|-------------|
 | **admin** | Full access - service restarts, folder switching, device management |
-| **contributor** | Upload photos only via Koofr (no direct Pi access) |
+| **contributor** | WanderWall Share app: list albums and upload photos (`/api/v1/contributor/*`, 50 MB per photo). Every other `/api/v1` route returns 403 |
 
 ## Pairing Code Security
 
@@ -148,8 +148,8 @@ Admin phones upload, list and delete photos directly with Koofr, so `GET /api/v1
 
 ### Tailscale Funnel
 
-- All remote access goes through Tailscale Funnel
-- HTTPS only (TLS termination at Tailscale edge)
+- All remote (internet) access goes through Tailscale Funnel
+- HTTPS for that path (TLS terminated by Tailscale); the API behind it listens on plain HTTP, locally
 - No direct port exposure to the internet
 - Funnel URL format: `https://<hostname>.<tailnet>.ts.net`
 
