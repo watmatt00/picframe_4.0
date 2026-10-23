@@ -116,7 +116,7 @@ done
 PCONF="$HOME/picframe_data/config/configuration.yaml"
 VENV_PYTHON="$PROJECT_DIR/venv/bin/python3"
 if [[ -f "$PCONF" ]]; then
-    "${VENV_PYTHON}" - "$PCONF" <<'PYEOF'
+    MIGRATION_OUT=$("${VENV_PYTHON}" - "$PCONF" <<'PYEOF'
 import sys, yaml
 p = sys.argv[1]
 with open(p) as f:
@@ -133,8 +133,11 @@ if changed:
 else:
     print(f"Config migrations: no changes needed.")
 PYEOF
-    # Restart picframe if config changed (python3 above exits 0 regardless)
-    if grep -q "use_http: true" "$PCONF" 2>/dev/null; then
+)
+    LOG "$MIGRATION_OUT"
+    # Restart picframe only when a migration changed the config (PL-174); restarting
+    # on every update interrupted the slideshow for nothing
+    if [[ "$MIGRATION_OUT" == "Config migrations applied"* ]]; then
         if systemctl --user is-active --quiet picframe.service 2>/dev/null; then
             systemctl --user restart picframe.service
             LOG "  Restarted picframe.service after config migration."

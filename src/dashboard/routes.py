@@ -12,6 +12,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import urllib.parse
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -786,23 +787,94 @@ def _restore_setup_image() -> None:
             logger.warning(f"Could not restore no_pictures.jpg: {e}")
 
 
-@router.get("/current-image")
-async def get_current_image():
-    """
-    Proxy the current image from Pi3D PictureFrame.
+# Preview of the photo on the frame (PL-174). Pi3D's /current_image converts a HEIC
+# to JPEG on every request and sends the HEIC's size as Content-Length, so HEIC
+# previews took 2-4 s and arrived cut short or failed. /current_image_original sends
+# the file as is, with its name; we take the name and serve our own cached thumbnail.
+PI3D_URL = "http://localhost:9000"
+PREVIEW_SIZE = (560, 560)  # the dashboard shows it at 280 CSS px
+# The body is read so Pi3D's server doesn't hit a broken pipe; stop after this (videos)
+PREVIEW_MAX_DRAIN = 64 * 1024 * 1024
 
-    Pi3D serves current image on port 9000.
-    """
+
+def _filename_from_disposition(header: str) -> Optional[str]:
+    """File name from Pi3D's Content-Disposition (prefers the UTF-8 filename*)."""
+    m = re.search(r"filename\*=utf-8''([^;]+)", header, re.IGNORECASE)
+    if m:
+        return urllib.parse.unquote(m.group(1).strip())
+    m = re.search(r'filename="([^"]*)"', header)
+    return m.group(1) if m else None
+
+
+async def _pi3d_current_filename() -> Optional[str]:
+    """Name of the photo Pi3D is showing, or None when Pi3D doesn't answer."""
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get("http://localhost:9000/current_image", timeout=5.0)
-            return Response(
-                content=resp.content,
-                media_type=resp.headers.get("content-type", "image/jpeg"),
+            async with client.stream("GET", f"{PI3D_URL}/current_image_original", timeout=5.0) as resp:
+                if resp.status_code != 200:
+                    return None
+                name = _filename_from_disposition(resp.headers.get("content-disposition", ""))
+                drained = 0
+                async for chunk in resp.aiter_raw():
+                    drained += len(chunk)
+                    if drained > PREVIEW_MAX_DRAIN:
+                        break
+                return name
+    except httpx.HTTPError:
+        return None
+
+
+def _find_current_photo(filename: Optional[str]) -> Optional[tuple[str, Path]]:
+    """Album id and path of a photo by name: the showing album first, then the others."""
+    if not filename or not _validate_filename_raw(filename):
+        return None
+    current = get_settings().display.current_source
+    sources = sorted(source_manager.list_sources(), key=lambda s: s.id != current)
+    for source in sources:
+        root = Path(source.local_path).expanduser()
+        local_file = root / filename
+        if not local_file.is_file():
+            continue
+        try:
+            local_file.resolve().relative_to(root.resolve())
+        except ValueError:
+            continue
+        return source.id, local_file
+    return None
+
+
+@router.get("/current-image/info")
+async def get_current_image_info():
+    """Which photo the frame is showing; the dashboard polls this. LAN-only."""
+    return {"filename": await _pi3d_current_filename()}
+
+
+@router.get("/current-image")
+async def get_current_image(filename: Optional[str] = None):
+    """
+    Thumbnail of the photo on the frame (or of `filename`, as named by /current-image/info).
+
+    Falls back to Pi3D's own image for videos and files outside the albums.
+    """
+    name = filename or await _pi3d_current_filename()
+    found = _find_current_photo(name)
+    if found:
+        source_id, local_file = found
+        try:
+            jpeg_bytes = await thumbnails.get_thumbnail(
+                local_file, source_id, name, PREVIEW_SIZE, quality=80, prefix="preview_"
             )
-    except Exception:
-        # Return a placeholder or error
-        return Response(content=b"", status_code=404)
+            return Response(content=jpeg_bytes, media_type="image/jpeg")
+        except Exception as exc:
+            logger.warning(f"Preview failed for {name}: {exc}")
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{PI3D_URL}/current_image", timeout=5.0)
+    except httpx.HTTPError:
+        return Response(status_code=503)
+    if resp.status_code != 200:
+        return Response(status_code=503)
+    return Response(content=resp.content, media_type=resp.headers.get("content-type", "image/jpeg"))
 
 
 # LAN-only service restart (no auth required - protected by LAN middleware)

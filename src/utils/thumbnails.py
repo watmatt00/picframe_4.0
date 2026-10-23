@@ -2,7 +2,8 @@
 WanderWall - Shared thumbnail generation and cache.
 
 Used by the app's thumbnail endpoint (GET /sources/{id}/photos/thumbnail), the
-dashboard's Tools tab thumbnails and the photo tools (cache eviction).
+dashboard's Tools tab thumbnails and preview of the photo on the frame, and the
+photo tools (cache eviction).
 """
 
 import asyncio
@@ -27,10 +28,10 @@ def cache_path(source_id: str, filename: str, mtime: int, prefix: str = "") -> P
 
 
 def evict(source_id: str, filename: str) -> None:
-    """Delete every cached thumbnail (app and dashboard sizes) of a photo."""
+    """Delete every cached thumbnail (app, dashboard and preview sizes) of a photo."""
     key = glob.escape(filename.replace("/", "_"))
     sid = glob.escape(source_id)
-    for pattern in (f"{sid}_{key}_*.jpg", f"dash_{sid}_{key}_*.jpg"):
+    for pattern in (f"{sid}_{key}_*.jpg", f"dash_{sid}_{key}_*.jpg", f"preview_{sid}_{key}_*.jpg"):
         for stale in THUMB_CACHE_DIR.glob(pattern):
             stale.unlink(missing_ok=True)
 
@@ -43,7 +44,7 @@ def evict_source(source_id: str) -> None:
     that only costs a re-render of those thumbnails.
     """
     sid = glob.escape(source_id)
-    for pattern in (f"{sid}_*.jpg", f"dash_{sid}_*.jpg"):
+    for pattern in (f"{sid}_*.jpg", f"dash_{sid}_*.jpg", f"preview_{sid}_*.jpg"):
         for stale in THUMB_CACHE_DIR.glob(pattern):
             stale.unlink(missing_ok=True)
 

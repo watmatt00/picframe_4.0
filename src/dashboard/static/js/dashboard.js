@@ -682,13 +682,39 @@ function initStatusDashboard() {
     if (btnRestartPf) btnRestartPf.addEventListener("click", restartPfService);
     if (btnRestartApi) btnRestartApi.addEventListener("click", restartApiService);
 
-    // Auto-refresh thumbnail in sync with frame rotation interval
+    // Preview of the photo on the frame (PL-174): ask which photo is showing every few
+    // seconds and load its thumbnail only when it changes, so the preview follows the
+    // frame. A failed load shows the error and is retried on the next poll.
     const thumbnailImg = document.getElementById("current-image-thumbnail");
+    const thumbnailError = document.getElementById("image-error");
     if (thumbnailImg) {
-        const rotationSecs = parseInt(thumbnailImg.dataset.rotationInterval, 10) || 30;
-        setInterval(() => {
-            thumbnailImg.src = `/current-image?t=${new Date().getTime()}`;
-        }, rotationSecs * 1000);
+        let shownName = null;
+        thumbnailImg.addEventListener("load", () => {
+            thumbnailImg.style.display = "";
+            if (thumbnailError) thumbnailError.style.display = "none";
+        });
+        thumbnailImg.addEventListener("error", () => {
+            shownName = null;  // retry on the next poll
+            thumbnailImg.style.display = "none";
+            if (thumbnailError) thumbnailError.style.display = "block";
+        });
+        const pollPreview = async () => {
+            if (document.hidden) return;
+            try {
+                const resp = await fetch("/current-image/info", { cache: "no-store" });
+                const data = await resp.json();
+                if (data.filename && data.filename !== shownName) {
+                    shownName = data.filename;
+                    thumbnailImg.src = `/current-image?filename=${encodeURIComponent(data.filename)}`;
+                } else if (!data.filename && shownName === null && thumbnailError) {
+                    thumbnailError.style.display = "block";  // display not answering yet
+                }
+            } catch (err) {
+                // Frame busy or restarting: keep the last preview
+            }
+        };
+        pollPreview();
+        setInterval(pollPreview, 5000);
     }
 
     refreshStatus();

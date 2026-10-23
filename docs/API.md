@@ -256,7 +256,8 @@ The web dashboard at `http://<pi-ip>:8000` is one page (`GET /`, `dashboard.html
 |---|---|---|
 | `/` | GET | The dashboard page (the only HTML page; there are no `/settings`, `/devices`, `/pairing` or `/logs` pages) |
 | `/dashboard/status` | GET | Live status for the page ([fields](#get-dashboardstatus)) |
-| `/current-image` | GET | The photo showing now, proxied from Pi3D (port 9000) |
+| `/current-image` | GET | Thumbnail (560 px, cached) of the photo showing now, or of `?filename=` as named by `/current-image/info`; Pi3D's own image for videos; 503 if the display doesn't answer (PL-174) |
+| `/current-image/info` | GET | `{"filename": ...}` of the photo showing now (from Pi3D's `/current_image_original` header), `null` if the display doesn't answer |
 | `/dashboard/koofr-setup` | POST | First-run setup step 2: save Koofr credentials after checking them live with rclone |
 | `/api/cloud/test` | POST | Test the Koofr connection; recreates the rclone remote from stored credentials if it's missing |
 | `/dashboard/test-lights` | POST | Override the indicator lights for manual testing: `{"sync_status": "error"\|"match"\|null, "wifi_connected": true\|false\|null}` |
